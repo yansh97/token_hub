@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::fmt::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const DEFAULT_PRICING_VERSION: &str = "2026-07-01.sonnet-5";
+pub const DEFAULT_PRICING_VERSION: &str = "2026-07-05.fable-5";
 // Multiplier is stored as a fixed-point decimal: 1_000_000_000_000 = 1x.
 pub const PRICE_MULTIPLIER_SCALE: u64 = 1_000_000_000_000;
 
@@ -160,6 +160,19 @@ pub fn default_model_pricing_settings() -> ModelPricingSettings {
                     input_nano_usd_per_token: 2_000,
                     cached_input_nano_usd_per_token: 200,
                     output_nano_usd_per_token: 10_000,
+                },
+                long: None,
+                long_context_input_token_threshold: None,
+            },
+            // Claude Fable 5 list price is $10 input, $1 cache hit, and $50 output per 1M tokens.
+            ModelPricingModel {
+                model_id: "claude-fable-5".to_string(),
+                aliases: alias_list(&["anthropic/claude-fable-5"]),
+                price_multiplier_scaled: PRICE_MULTIPLIER_SCALE,
+                short: ModelPricingTier {
+                    input_nano_usd_per_token: 10_000,
+                    cached_input_nano_usd_per_token: 1_000,
+                    output_nano_usd_per_token: 50_000,
                 },
                 long: None,
                 long_context_input_token_threshold: None,
@@ -869,6 +882,7 @@ mod tests {
             ("claude-opus-4.7", "claude-opus-4-7"),
             ("opus-4-7", "claude-opus-4-7"),
             ("anthropic/claude-sonnet-5", "claude-sonnet-5"),
+            ("anthropic/claude-fable-5", "claude-fable-5"),
             ("anthropic/claude-sonnet-4.6", "claude-sonnet-4.6"),
             ("models/gemini-3-flash-preview", "gemini-3-flash-preview"),
             ("google/gemini-3.5-flash", "gemini-3.5-flash"),
@@ -1195,6 +1209,16 @@ mod tests {
         assert_eq!(glm_5_2.short.cached_input_nano_usd_per_token, 260);
         assert_eq!(glm_5_2.short.output_nano_usd_per_token, 4_400);
         assert_eq!(glm_5_2.aliases, vec!["z-ai/glm-5.2"]);
+
+        let claude_fable_5 = settings
+            .models
+            .iter()
+            .find(|model| model.model_id == "claude-fable-5")
+            .expect("claude-fable-5 should exist");
+        assert_eq!(claude_fable_5.short.input_nano_usd_per_token, 10_000);
+        assert_eq!(claude_fable_5.short.cached_input_nano_usd_per_token, 1_000);
+        assert_eq!(claude_fable_5.short.output_nano_usd_per_token, 50_000);
+        assert_eq!(claude_fable_5.aliases, vec!["anthropic/claude-fable-5"]);
 
         let claude_sonnet = settings
             .models

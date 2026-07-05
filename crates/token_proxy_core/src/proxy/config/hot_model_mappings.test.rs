@@ -25,6 +25,10 @@ fn default_hot_model_mappings_include_popular_namespaced_aliases() {
         Some(&"claude-sonnet-5".to_string())
     );
     assert_eq!(
+        mappings.get("anthropic/claude-fable-5"),
+        Some(&"claude-fable-5".to_string())
+    );
+    assert_eq!(
         mappings.get("google/gemini-3.1-pro-preview-customtools"),
         Some(&"gemini-3.1-pro-preview-customtools".to_string())
     );
