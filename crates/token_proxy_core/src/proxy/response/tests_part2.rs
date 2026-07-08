@@ -863,6 +863,30 @@ fn stream_responses_to_chat_emits_audio_delta_from_output_audio_snapshot() {
 }
 
 #[test]
+fn stream_responses_to_chat_emits_chat_error_for_response_failed() {
+    super::run_async(async {
+        let (log, context, _sqlite_pool) = super::setup_responses_stream().await;
+
+        let upstream = futures_util::stream::iter(vec![Ok::<Bytes, reqwest::Error>(
+            Bytes::from(
+                "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"message\":\"model overloaded\",\"type\":\"server_error\",\"code\":\"server_overloaded\"}}}\n\n",
+            ),
+        )]);
+
+        let chunks = super::collect_responses_to_chat_chunks(upstream, context, log).await;
+        let payloads = chunks
+            .iter()
+            .filter_map(super::parse_sse_json)
+            .collect::<Vec<_>>();
+
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(payloads[0]["error"]["message"], json!("model overloaded"));
+        assert_eq!(payloads[0]["error"]["type"], json!("server_error"));
+        assert_eq!(payloads[0]["error"]["code"], json!("server_overloaded"));
+    });
+}
+
+#[test]
 fn stream_anthropic_to_responses_emits_reasoning_summary_events_and_snapshot() {
     super::run_async(async {
         let sqlite_pool = super::create_test_sqlite_pool().await;

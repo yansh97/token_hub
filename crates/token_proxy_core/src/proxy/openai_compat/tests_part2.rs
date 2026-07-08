@@ -393,6 +393,69 @@ fn responses_request_to_chat_normalizes_tool_choice_object() {
 }
 
 #[test]
+fn responses_request_to_chat_merges_reasoning_and_parallel_function_calls() {
+    let http_clients = ProxyHttpClients::new().expect("http clients");
+    let value = transform_request_value(
+        FormatTransform::ResponsesToChat,
+        json!({
+            "model": "gpt-5",
+            "input": [
+                {
+                    "type": "reasoning",
+                    "summary": [{ "type": "summary_text", "text": "inspect first" }]
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "call_read",
+                    "name": "read",
+                    "arguments": "{\"filePath\":\"README.md\"}"
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "call_glob",
+                    "name": "glob",
+                    "arguments": "{\"pattern\":\"*.rs\"}"
+                },
+                {
+                    "type": "web_search_call",
+                    "id": "ws_1",
+                    "status": "completed"
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_read",
+                    "output": "read ok"
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_glob",
+                    "output": "glob ok"
+                }
+            ]
+        }),
+        &http_clients,
+        None,
+    );
+
+    let messages = value["messages"].as_array().expect("messages array");
+    assert_eq!(messages.len(), 3);
+    assert_eq!(messages[0]["role"], json!("assistant"));
+    assert_eq!(messages[0]["reasoning_content"], json!("inspect first"));
+    assert_eq!(
+        messages[0]["tool_calls"]
+            .as_array()
+            .expect("tool calls")
+            .len(),
+        2
+    );
+    assert_eq!(messages[0]["tool_calls"][0]["id"], json!("call_read"));
+    assert_eq!(messages[0]["tool_calls"][1]["id"], json!("call_glob"));
+    assert_eq!(messages[1]["role"], json!("tool"));
+    assert_eq!(messages[1]["tool_call_id"], json!("call_read"));
+    assert_eq!(messages[2]["tool_call_id"], json!("call_glob"));
+}
+
+#[test]
 fn chat_request_to_responses_preserves_structured_tool_output() {
     let http_clients = ProxyHttpClients::new().expect("http clients");
     let value = transform_request_value(

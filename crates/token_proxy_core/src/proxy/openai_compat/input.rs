@@ -6,13 +6,24 @@ use super::message::extract_text_from_part;
 
 pub(super) fn responses_input_to_chat_messages(items: &[Value]) -> Result<Vec<Value>, String> {
     let mut messages = Vec::with_capacity(items.len());
+    let mut pending_reasoning = String::new();
     for item in items {
-        messages.extend(responses_input_item_to_chat_messages(item)?);
+        append_responses_input_item_to_chat_messages(item, &mut messages, &mut pending_reasoning)?;
     }
     Ok(messages)
 }
 
-fn responses_input_item_to_chat_messages(item: &Value) -> Result<Vec<Value>, String> {
+fn append_responses_input_item_to_chat_messages(
+    item: &Value,
+    messages: &mut Vec<Value>,
+    pending_reasoning: &mut String,
+) -> Result<(), String> {
+    if let Some(text) = item.as_str() {
+        messages.push(json!({ "role": "user", "content": text }));
+        pending_reasoning.clear();
+        return Ok(());
+    }
+
     let Some(item) = item.as_object() else {
         return Err("Responses input item must be an object.".to_string());
     };
@@ -27,7 +38,13 @@ fn responses_input_item_to_chat_messages(item: &Value) -> Result<Vec<Value>, Str
         {
             output.insert("content".to_string(), content);
         }
-        return Ok(vec![Value::Object(output)]);
+        if output.get("role").and_then(Value::as_str) == Some("assistant") {
+            attach_pending_reasoning(&mut output, pending_reasoning);
+        } else {
+            pending_reasoning.clear();
+        }
+        messages.push(Value::Object(output));
+        return Ok(());
     }
 
     let Some(item_type) = item.get("type").and_then(Value::as_str) else {
@@ -35,24 +52,43 @@ fn responses_input_item_to_chat_messages(item: &Value) -> Result<Vec<Value>, Str
     };
 
     match item_type {
-        "message" => responses_message_item_to_chat_message(item).map(|message| vec![message]),
+        "message" => {
+            let mut message = responses_message_item_to_chat_message(item)?;
+            if message.get("role").and_then(Value::as_str) == Some("assistant") {
+                if let Some(message) = message.as_object_mut() {
+                    attach_pending_reasoning(message, pending_reasoning);
+                }
+            } else {
+                pending_reasoning.clear();
+            }
+            messages.push(message);
+        }
+        "reasoning" => {
+            let reasoning = extract_reasoning_text(item);
+            if !reasoning.trim().is_empty() {
+                pending_reasoning.push_str(&reasoning);
+            }
+        }
         item_type if is_codex_tool_call_output_item_type(item_type) => {
-            Ok(responses_tool_output_item_to_chat_message(item)
-                .into_iter()
-                .collect())
+            if let Some(message) = responses_tool_output_item_to_chat_message(item) {
+                messages.push(message);
+            }
+            pending_reasoning.clear();
         }
         "web_search_call" | "computer_call_output" | "tool_result" => {
-            Ok(responses_tool_output_item_to_chat_message(item)
-                .into_iter()
-                .collect())
+            if let Some(message) = responses_tool_output_item_to_chat_message(item) {
+                messages.push(message);
+            }
+            pending_reasoning.clear();
         }
         "function_call" => {
-            responses_function_call_item_to_chat_message(item).map(|message| vec![message])
+            append_responses_function_call(messages, item, pending_reasoning)?;
         }
-        _ => Err(format!(
-            "Unsupported Responses input item type: {item_type}"
-        )),
+        // Built-in tool call records have no Chat Completions message equivalent.
+        // Skipping them preserves assistant tool_calls -> tool output adjacency.
+        _ => pending_reasoning.clear(),
     }
+    Ok(())
 }
 
 fn responses_message_item_to_chat_message(item: &Map<String, Value>) -> Result<Value, String> {
@@ -67,6 +103,74 @@ fn responses_message_item_to_chat_message(item: &Map<String, Value>) -> Result<V
     Ok(json!({ "role": role, "content": content }))
 }
 
+fn append_responses_function_call(
+    messages: &mut Vec<Value>,
+    item: &Map<String, Value>,
+    pending_reasoning: &mut String,
+) -> Result<(), String> {
+    let tool_call = responses_function_call_item_to_chat_tool_call(item)?;
+    if let Some(last) = messages
+        .last_mut()
+        .and_then(Value::as_object_mut)
+        .filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
+    {
+        ensure_assistant_tool_calls(last).push(tool_call);
+        attach_pending_reasoning(last, pending_reasoning);
+        return Ok(());
+    }
+
+    let mut message = Map::new();
+    message.insert("role".to_string(), json!("assistant"));
+    message.insert("content".to_string(), Value::String(String::new()));
+    message.insert("tool_calls".to_string(), Value::Array(vec![tool_call]));
+    attach_pending_reasoning(&mut message, pending_reasoning);
+    messages.push(Value::Object(message));
+    Ok(())
+}
+
+fn responses_function_call_item_to_chat_tool_call(
+    item: &Map<String, Value>,
+) -> Result<Value, String> {
+    let call_id = item
+        .get("call_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "function_call must include call_id.".to_string())?;
+    let name = item.get("name").and_then(Value::as_str).unwrap_or("");
+    let arguments = item.get("arguments").and_then(Value::as_str).unwrap_or("");
+    Ok(json!({
+        "id": call_id,
+        "type": "function",
+        "function": { "name": name, "arguments": arguments }
+    }))
+}
+
+fn ensure_assistant_tool_calls(message: &mut Map<String, Value>) -> &mut Vec<Value> {
+    let tool_calls = message
+        .entry("tool_calls".to_string())
+        .or_insert_with(|| Value::Array(Vec::new()));
+    if !matches!(tool_calls, Value::Array(_)) {
+        *tool_calls = Value::Array(Vec::new());
+    }
+    match tool_calls {
+        Value::Array(items) => items,
+        _ => unreachable!("tool_calls normalized to array"),
+    }
+}
+
+fn attach_pending_reasoning(message: &mut Map<String, Value>, pending_reasoning: &mut String) {
+    if pending_reasoning.trim().is_empty() {
+        return;
+    }
+    if !message.contains_key("reasoning_content") {
+        message.insert(
+            "reasoning_content".to_string(),
+            Value::String(std::mem::take(pending_reasoning)),
+        );
+    } else {
+        pending_reasoning.clear();
+    }
+}
+
 fn responses_tool_output_item_to_chat_message(item: &Map<String, Value>) -> Option<Value> {
     let call_id = item.get("call_id").and_then(Value::as_str).unwrap_or("");
     if call_id.is_empty() {
@@ -77,28 +181,6 @@ fn responses_tool_output_item_to_chat_message(item: &Map<String, Value>) -> Opti
         "role": "tool",
         "tool_call_id": call_id,
         "content": normalize_tool_output_to_chat_content(item.get("output"))
-    }))
-}
-
-fn responses_function_call_item_to_chat_message(
-    item: &Map<String, Value>,
-) -> Result<Value, String> {
-    let call_id = item
-        .get("call_id")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "function_call must include call_id.".to_string())?;
-    let name = item.get("name").and_then(Value::as_str).unwrap_or("");
-    let arguments = item.get("arguments").and_then(Value::as_str).unwrap_or("");
-    Ok(json!({
-        "role": "assistant",
-        "content": "",
-        "tool_calls": [
-            {
-                "id": call_id,
-                "type": "function",
-                "function": { "name": name, "arguments": arguments }
-            }
-        ]
     }))
 }
 
@@ -118,6 +200,37 @@ fn normalize_tool_output_to_chat_content(output: Option<&Value>) -> Value {
         }
         Some(value) => Value::String(value.to_string()),
     }
+}
+
+fn extract_reasoning_text(item: &Map<String, Value>) -> String {
+    let mut output = String::new();
+    if let Some(summary) = item.get("summary").and_then(Value::as_array) {
+        for part in summary {
+            let Some(part) = part.as_object() else {
+                continue;
+            };
+            if part.get("type").and_then(Value::as_str) != Some("summary_text") {
+                continue;
+            }
+            if let Some(text) = part.get("text").and_then(Value::as_str) {
+                output.push_str(text);
+            }
+        }
+    }
+    if let Some(content) = item.get("content").and_then(Value::as_array) {
+        for part in content {
+            let Some(part) = part.as_object() else {
+                continue;
+            };
+            if part.get("type").and_then(Value::as_str) != Some("reasoning_text") {
+                continue;
+            }
+            if let Some(text) = part.get("text").and_then(Value::as_str) {
+                output.push_str(text);
+            }
+        }
+    }
+    output
 }
 
 fn responses_message_content_to_chat_content(value: &Value) -> Option<Value> {

@@ -198,6 +198,10 @@ where
         let Some(event_type) = value.get("type").and_then(Value::as_str) else {
             return;
         };
+        if matches!(event_type, "response.failed" | "response.error" | "error") {
+            self.fail_stream(&value);
+            return;
+        }
         if is_responses_terminal_event(event_type) {
             self.capture_terminal_usage(&value);
         }
@@ -692,6 +696,18 @@ where
         self.write_log_once(None);
     }
 
+    fn fail_stream(&mut self, value: &Value) {
+        let error = chat_error_from_responses_event(value);
+        let message = error
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("OpenAI Responses stream failed")
+            .to_string();
+        self.sent_done = true;
+        self.out.push_back(chat_error_sse(Value::Object(error)));
+        self.write_log_once(Some(message));
+    }
+
     fn finish_reason(&self) -> &'static str {
         if let Some(reason) = self.finish_reason_override {
             return reason;
@@ -737,6 +753,48 @@ fn chat_usage_chunk_sse(id: &str, created: i64, model: &str, usage: Value) -> By
         "usage": usage
     });
     Bytes::from(format!("data: {}\n\n", chunk.to_string()))
+}
+
+fn chat_error_sse(error: Value) -> Bytes {
+    Bytes::from(format!(
+        "data: {}\n\n",
+        json!({
+            "error": error
+        })
+    ))
+}
+
+fn chat_error_from_responses_event(value: &Value) -> Map<String, Value> {
+    let source = value
+        .pointer("/response/error")
+        .or_else(|| value.get("error"))
+        .unwrap_or(value);
+    let mut error = Map::new();
+    error.insert(
+        "message".to_string(),
+        Value::String(extract_error_string(
+            source,
+            "message",
+            "OpenAI Responses stream failed",
+        )),
+    );
+    error.insert(
+        "type".to_string(),
+        Value::String(extract_error_string(source, "type", "proxy_error")),
+    );
+    if let Some(code) = source.get("code").cloned() {
+        error.insert("code".to_string(), code);
+    }
+    error
+}
+
+fn extract_error_string(source: &Value, key: &str, fallback: &str) -> String {
+    source
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(fallback)
+        .to_string()
 }
 
 fn is_responses_terminal_event(event_type: &str) -> bool {
