@@ -3,6 +3,41 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 #[test]
+fn build_runtime_config_adds_new_default_hot_mapping_to_saved_overrides() {
+    let mut config = ProxyConfigFile::default();
+    // 模拟旧版本已保存的配置：字段存在，但尚未包含后来新增的默认 alias。
+    config.hot_model_mappings =
+        HashMap::from([("custom/alias".to_string(), "custom-target".to_string())]);
+
+    let runtime = build_runtime_config(config).expect("runtime config");
+
+    assert_eq!(
+        runtime.hot_model_mappings.get("composer-2.5"),
+        Some(&"grok-composer-2.5-fast".to_string())
+    );
+    assert_eq!(
+        runtime.hot_model_mappings.get("custom/alias"),
+        Some(&"custom-target".to_string())
+    );
+}
+
+#[test]
+fn build_runtime_config_keeps_user_override_for_default_hot_mapping() {
+    let mut config = ProxyConfigFile::default();
+    config.hot_model_mappings = HashMap::from([(
+        "composer-2.5".to_string(),
+        "vendor-composer-2.5".to_string(),
+    )]);
+
+    let runtime = build_runtime_config(config).expect("runtime config");
+
+    assert_eq!(
+        runtime.hot_model_mappings.get("composer-2.5"),
+        Some(&"vendor-composer-2.5".to_string())
+    );
+}
+
+#[test]
 fn build_runtime_config_rejects_retryable_failure_cooldown_that_overflows_instant() {
     let mut config = ProxyConfigFile::default();
     config.retryable_failure_cooldown_secs = u64::MAX;

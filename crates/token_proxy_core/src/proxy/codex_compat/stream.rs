@@ -6,68 +6,16 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::super::log::{attach_response_body, build_log_entry, LogContext, LogWriter};
-use super::super::response::STREAM_DROPPED_ERROR;
+use super::super::response::{
+    responses_error::{responses_stream_error, ResponsesStreamError},
+    STREAM_DROPPED_ERROR,
+};
 use super::super::sse::SseEventParser;
 use super::super::token_rate::RequestTokenTracker;
 use super::super::usage::SseUsageCollector;
 use super::extract_tool_name_map_from_request_body;
 
 const CODEX_STREAM_INVALID_EVENT_LIMIT: usize = 1024;
-
-pub(crate) enum CodexPreludeDecision {
-    Pending,
-    RetryableError(String),
-    ReadyForPassThrough,
-}
-
-pub(crate) struct CodexPreludeInspector {
-    parser: SseEventParser,
-}
-
-impl CodexPreludeInspector {
-    pub(crate) fn new() -> Self {
-        Self {
-            parser: SseEventParser::new(),
-        }
-    }
-
-    pub(crate) fn inspect_chunk(&mut self, chunk: &[u8]) -> CodexPreludeDecision {
-        let mut events = Vec::new();
-        self.parser.push_chunk(chunk, |data| events.push(data));
-        for data in events {
-            let decision = inspect_codex_prelude_event(&data);
-            match decision {
-                // `response.created` / `response.in_progress` are not client-visible work.
-                // Keep buffering so a later pre-output capacity error can still retry.
-                CodexPreludeDecision::Pending => {}
-                CodexPreludeDecision::RetryableError(message) => {
-                    return CodexPreludeDecision::RetryableError(message);
-                }
-                CodexPreludeDecision::ReadyForPassThrough => {
-                    return CodexPreludeDecision::ReadyForPassThrough;
-                }
-            }
-        }
-        CodexPreludeDecision::Pending
-    }
-}
-
-fn inspect_codex_prelude_event(data: &str) -> CodexPreludeDecision {
-    if data == "[DONE]" {
-        return CodexPreludeDecision::ReadyForPassThrough;
-    }
-    let Ok(value) = serde_json::from_str::<Value>(data) else {
-        return CodexPreludeDecision::RetryableError(invalid_event_message(data));
-    };
-    match value.get("type").and_then(Value::as_str) {
-        Some("response.created" | "response.in_progress") => CodexPreludeDecision::Pending,
-        Some("response.failed" | "error") => {
-            CodexPreludeDecision::RetryableError(stream_error_message(&value))
-        }
-        Some(_) => CodexPreludeDecision::ReadyForPassThrough,
-        None => CodexPreludeDecision::RetryableError(malformed_event_message(&value)),
-    }
-}
 
 pub(crate) fn stream_codex_to_chat<E>(
     upstream: impl futures_util::stream::Stream<Item = Result<Bytes, E>> + Unpin + Send + 'static,
@@ -223,11 +171,11 @@ where
             return;
         }
         let Ok(value) = serde_json::from_str::<Value>(data) else {
-            self.fail_stream(invalid_event_message(data));
+            self.fail_stream(invalid_event_message(data), 502);
             return;
         };
         let Some(event_type) = value.get("type").and_then(Value::as_str) else {
-            self.fail_stream(malformed_event_message(&value));
+            self.fail_stream(malformed_event_message(&value), 502);
             return;
         };
 
@@ -266,8 +214,8 @@ where
             "response.completed" => {
                 self.finish_reason = Some(self.resolve_finish_reason());
             }
-            "response.failed" | "error" => {
-                self.fail_stream(stream_error_message(&value));
+            "response.failed" | "response.error" | "error" => {
+                self.fail_responses_stream(&value);
             }
             _ => {}
         }
@@ -370,8 +318,13 @@ where
         self.sent_done = true;
     }
 
-    fn fail_stream(&mut self, message: String) {
-        self.context.status = 502;
+    fn fail_responses_stream(&mut self, value: &Value) {
+        let error = codex_responses_error(value);
+        self.fail_stream(stream_error_message(&error), error.status.as_u16());
+    }
+
+    fn fail_stream(&mut self, message: String, status: u16) {
+        self.context.status = status;
         self.out.push_back(stream_chat_error_sse(&message));
         self.push_done();
         self.write_log_once(Some(message));
@@ -573,11 +526,15 @@ where
             return;
         }
         let Ok(mut value) = serde_json::from_str::<Value>(data) else {
-            self.fail_stream(invalid_event_message(data));
+            self.fail_stream(invalid_event_message(data), 502);
             return;
         };
-        if matches!(value.get("type").and_then(Value::as_str), Some("error")) {
-            self.fail_stream(stream_error_message(&value));
+        if matches!(
+            value.get("type").and_then(Value::as_str),
+            Some("response.error" | "error")
+        ) {
+            let error = codex_responses_error(&value);
+            self.fail_stream(stream_error_message(&error), error.status.as_u16());
             return;
         }
         let Some(event_type) = value
@@ -585,7 +542,7 @@ where
             .and_then(Value::as_str)
             .map(str::to_string)
         else {
-            self.fail_stream(malformed_event_message(&value));
+            self.fail_stream(malformed_event_message(&value), 502);
             return;
         };
         self.last_semantic_event_at = Instant::now();
@@ -595,7 +552,9 @@ where
         if is_responses_terminal_event(&event_type) {
             self.saw_terminal_event = true;
             if event_type == "response.failed" {
-                self.response_error_override = Some(stream_error_message(&value));
+                let error = codex_responses_error(&value);
+                self.context.status = error.status.as_u16();
+                self.response_error_override = Some(stream_error_message(&error));
             }
         }
         restore_tool_names_in_event(&mut value, &self.tool_name_map);
@@ -704,8 +663,8 @@ where
             ));
     }
 
-    fn fail_stream(&mut self, message: String) {
-        self.context.status = 502;
+    fn fail_stream(&mut self, message: String, status: u16) {
+        self.context.status = status;
         self.out.push_back(stream_responses_error_sse(&message));
         self.out.push_back(Bytes::from("data: [DONE]\n\n"));
         self.sent_done = true;
@@ -739,48 +698,18 @@ fn malformed_event_message(value: &Value) -> String {
     )
 }
 
-fn stream_error_message(value: &Value) -> String {
-    if let Some(error) = value.pointer("/response/error") {
-        return format!(
-            "Codex upstream stream failed: {}",
-            error_value_message(error)
-        );
-    }
-    if let Some(error) = value.get("error") {
-        return format!(
-            "Codex upstream stream failed: {}",
-            error_value_message(error)
-        );
-    }
-    if let Some(message) = value.get("message") {
-        return format!(
-            "Codex upstream stream failed: {}",
-            error_value_message(message)
-        );
-    }
-    format!(
-        "Codex upstream stream failed: {}",
-        truncate_event_text(&value.to_string())
-    )
+fn codex_responses_error(value: &Value) -> ResponsesStreamError {
+    responses_stream_error(value).unwrap_or_else(|| ResponsesStreamError {
+        message: truncate_event_text(&value.to_string()),
+        error_type: "upstream_protocol_error".to_string(),
+        code: None,
+        status: axum::http::StatusCode::BAD_GATEWAY,
+        retryable_before_output: true,
+    })
 }
 
-fn error_value_message(value: &Value) -> String {
-    if let Some(error) = value.as_object() {
-        let code = error.get("code").and_then(Value::as_str);
-        let message = error.get("message").and_then(Value::as_str);
-        match (code, message) {
-            (Some(code), Some(message)) if !message.trim().is_empty() => {
-                return format!("{code}: {message}");
-            }
-            (Some(code), _) => return code.to_string(),
-            (_, Some(message)) if !message.trim().is_empty() => return message.to_string(),
-            _ => {}
-        }
-    }
-    value
-        .as_str()
-        .map(ToString::to_string)
-        .unwrap_or_else(|| value.to_string())
+fn stream_error_message(error: &ResponsesStreamError) -> String {
+    format!("Codex upstream stream failed: {}", error.display_message())
 }
 
 fn truncate_event_text(text: &str) -> String {

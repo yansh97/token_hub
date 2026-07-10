@@ -2,6 +2,7 @@ use axum::http::{header::AUTHORIZATION, HeaderMap, StatusCode};
 
 use super::super::http::RequestAuth;
 use super::super::{
+    codex_models_manifest,
     config::{ProviderUpstreams, UpstreamRuntime},
     cooldown_scope::CooldownScope,
     gemini, http, ProxyState, RequestMeta,
@@ -41,13 +42,19 @@ pub(super) async fn prepare_upstream_request(
         selected_account_id,
         codex_openai_device_id,
     } = resolved;
-    let request_headers = request::build_request_headers(
+    let mut request_headers = request::build_request_headers(
         provider,
         inbound_path,
         headers,
         auth,
         extra_headers.as_ref(),
         upstream.header_overrides.as_deref(),
+    );
+    codex_models_manifest::apply_upstream_headers(
+        provider,
+        inbound_path,
+        &upstream_path_with_query,
+        &mut request_headers,
     );
     Ok(PreparedUpstreamRequest {
         upstream_path_with_query,

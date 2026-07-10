@@ -21,7 +21,6 @@ pub(crate) use response::{codex_response_to_chat, codex_response_to_responses};
 pub(crate) use stream::{
     stream_chat_error_sse, stream_codex_to_chat, stream_codex_to_responses,
     stream_codex_to_responses_with_semantic_timeout, stream_responses_error_sse,
-    CodexPreludeDecision, CodexPreludeInspector,
 };
 
 pub(crate) fn extract_tool_name_map_from_request_body(

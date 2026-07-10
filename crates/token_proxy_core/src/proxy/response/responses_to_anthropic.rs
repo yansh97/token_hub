@@ -11,6 +11,7 @@ use super::super::log::{attach_response_body, build_log_entry, LogContext, LogWr
 use super::super::sse::SseEventParser;
 use super::super::token_rate::RequestTokenTracker;
 use super::super::usage::SseUsageCollector;
+use super::responses_error::{responses_stream_error, ResponsesStreamError};
 use super::streaming::STREAM_DROPPED_ERROR;
 
 pub(super) fn stream_responses_to_anthropic<E>(
@@ -60,6 +61,7 @@ struct ResponsesToAnthropicState<S> {
     model: String,
     sent_message_start: bool,
     sent_message_stop: bool,
+    stream_failed: bool,
     logged: bool,
     upstream_ended: bool,
     active_block: Option<ActiveBlock>,
@@ -120,6 +122,7 @@ where
             model,
             sent_message_start: false,
             sent_message_stop: false,
+            stream_failed: false,
             logged: false,
             upstream_ended: false,
             active_block: None,
@@ -186,7 +189,7 @@ where
     }
 
     fn handle_event(&mut self, data: &str, token_texts: &mut Vec<String>) {
-        if self.sent_message_stop {
+        if self.sent_message_stop || self.stream_failed {
             return;
         }
         if data == "[DONE]" {
@@ -199,6 +202,10 @@ where
         let Some(event_type) = value.get("type").and_then(Value::as_str) else {
             return;
         };
+        if let Some(error) = responses_stream_error(&value) {
+            self.fail_stream(error);
+            return;
+        }
 
         if event_type.ends_with("output_text.delta") {
             self.handle_output_text_delta(&value, token_texts);
@@ -874,7 +881,7 @@ where
     }
 
     fn finish_message_if_needed(&mut self) {
-        if self.sent_message_stop {
+        if self.sent_message_stop || self.stream_failed {
             return;
         }
         self.ensure_message_start();
@@ -916,9 +923,28 @@ where
         self.sent_message_stop = true;
     }
 
+    fn fail_stream(&mut self, error: ResponsesStreamError) {
+        let message = error.message.clone();
+        self.context.status = error.status.as_u16();
+        self.stream_failed = true;
+        self.upstream_ended = true;
+        self.out.push_back(anthropic_error_sse(&error));
+        self.write_log_once(Some(message));
+    }
+
     fn log_usage_once(&mut self) {
         self.write_log_once(None);
     }
+}
+
+pub(super) fn anthropic_error_sse(error: &ResponsesStreamError) -> Bytes {
+    super::anthropic_event_sse(
+        "error",
+        json!({
+            "type": "error",
+            "error": Value::Object(error.openai_error_object())
+        }),
+    )
 }
 
 fn extract_reasoning_text(parts: &[Value]) -> String {

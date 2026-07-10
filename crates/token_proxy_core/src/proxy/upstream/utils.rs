@@ -1,4 +1,5 @@
 use axum::http::StatusCode;
+use std::error::Error as _;
 use std::sync::atomic::Ordering;
 
 use super::super::{config::UpstreamOrderStrategy, ProxyState};
@@ -12,6 +13,7 @@ const RETRYABLE_TRANSPORT_ERROR_MARKERS: &[&str] = &[
     "network is unreachable",
     "no such host",
 ];
+const PRE_HEADER_CONNECTION_CLOSED: &str = "connection closed before message completed";
 
 pub(super) fn extract_query_param(path_with_query: &str, name: &str) -> Option<String> {
     let url = url::Url::parse(&format!("http://localhost{path_with_query}")).ok()?;
@@ -68,7 +70,26 @@ pub(super) fn resolve_group_start(
 }
 
 pub(super) fn is_retryable_error(err: &reqwest::Error) -> bool {
-    err.is_timeout() || err.is_connect() || is_retryable_transport_error_message(&err.to_string())
+    err.is_timeout()
+        || err.is_connect()
+        || is_pre_header_connection_closed(err)
+        || is_retryable_transport_error_message(&err.to_string())
+}
+
+fn is_pre_header_connection_closed(err: &reqwest::Error) -> bool {
+    if !err.is_request() || err.is_builder() {
+        return false;
+    }
+
+    // request-kind 还包含其他发送失败；只放行 hyper 明确报告的响应头前连接关闭。
+    let mut source = err.source();
+    while let Some(cause) = source {
+        if cause.to_string() == PRE_HEADER_CONNECTION_CLOSED {
+            return true;
+        }
+        source = cause.source();
+    }
+    false
 }
 
 pub(super) fn is_retryable_transport_error_message(message: &str) -> bool {

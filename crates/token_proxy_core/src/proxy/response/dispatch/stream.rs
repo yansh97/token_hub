@@ -25,9 +25,9 @@ use super::super::super::{
     token_rate::RequestTokenTracker,
 };
 use super::super::{
-    anthropic_to_responses, chat_to_responses, kiro_to_anthropic, responses_to_anthropic,
-    responses_to_chat, streaming, upstream_stream, RetryableStreamResponse, PROVIDER_CODEX,
-    PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_OPENAI_RESPONSES,
+    anthropic_to_responses, chat_to_responses, kiro_to_anthropic, responses_error,
+    responses_to_anthropic, responses_to_chat, streaming, upstream_stream, RetryableStreamResponse,
+    PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_OPENAI_RESPONSES,
 };
 use super::buffered;
 
@@ -607,26 +607,34 @@ impl ImageGenerationStreamState {
     }
 
     fn emit_error(&mut self, message: &str) {
-        let payload = json!({
-            "type": "error",
-            "error": {
-                "type": "upstream_error",
-                "message": message
-            }
-        });
-        if let Value::Object(object) = payload {
-            self.push_event("error", object);
-        }
+        self.out.push_back(image_generation_error_sse(message));
     }
 
     fn push_event(&mut self, event_name: &str, payload: Map<String, Value>) {
-        let body = serde_json::to_string(&Value::Object(payload)).unwrap_or_else(|_| {
-            "{\"type\":\"error\",\"error\":{\"type\":\"proxy_error\",\"message\":\"failed to serialize image stream event\"}}".to_string()
-        });
-        self.out.push_back(Bytes::from(format!(
-            "event: {event_name}\ndata: {body}\n\n"
-        )));
+        self.out
+            .push_back(image_generation_event_sse(event_name, payload));
     }
+}
+
+fn image_generation_error_sse(message: &str) -> Bytes {
+    let payload = json!({
+        "type": "error",
+        "error": {
+            "type": "upstream_error",
+            "message": message
+        }
+    });
+    let Value::Object(payload) = payload else {
+        unreachable!("image generation error payload is always an object");
+    };
+    image_generation_event_sse("error", payload)
+}
+
+fn image_generation_event_sse(event_name: &str, payload: Map<String, Value>) -> Bytes {
+    let body = serde_json::to_string(&Value::Object(payload)).unwrap_or_else(|_| {
+        "{\"type\":\"error\",\"error\":{\"type\":\"proxy_error\",\"message\":\"failed to serialize image stream event\"}}".to_string()
+    });
+    Bytes::from(format!("event: {event_name}\ndata: {body}\n\n"))
 }
 
 fn optional_string(value: &Value, key: &str) -> Option<String> {
@@ -903,27 +911,27 @@ async fn prepare_upstream_stream_inner(
     let mut upstream =
         upstream_stream::with_idle_timeout(upstream_res.bytes_stream(), sync_response_timeout);
     let mut buffered_chunks: Vec<Bytes> = Vec::new();
-    let mut codex_prelude = codex_prelude_inspector(response_transform);
+    let mut responses_prelude = responses_prelude_inspector(response_transform, context);
     loop {
         match upstream.next().await {
             Some(Ok(chunk)) => {
                 context.mark_upstream_first_byte();
                 buffered_chunks.push(chunk);
                 let latest = buffered_chunks.last().expect("buffered chunk just pushed");
-                if let Some(inspector) = codex_prelude.as_mut() {
+                if let Some(inspector) = responses_prelude.as_mut() {
                     match inspector.inspect_chunk(latest) {
-                        codex_compat::CodexPreludeDecision::Pending => continue,
-                        codex_compat::CodexPreludeDecision::RetryableError(message) => {
-                            return Err(codex_prelude_retry_response(
+                        responses_error::ResponsesPreludeDecision::Pending => continue,
+                        responses_error::ResponsesPreludeDecision::RetryableError(error) => {
+                            return Err(responses_prelude_retry_response(
                                 status,
                                 headers,
                                 response_transform,
-                                message,
+                                error,
                                 context,
                                 log,
                             ));
                         }
-                        codex_compat::CodexPreludeDecision::ReadyForPassThrough => {}
+                        responses_error::ResponsesPreludeDecision::ReadyForPassThrough => {}
                     }
                 }
                 return Ok(chain_buffered_chunks(buffered_chunks, upstream, context));
@@ -978,28 +986,51 @@ fn stream_first_output_timeout_response(
     response
 }
 
-fn codex_prelude_inspector(
+fn responses_prelude_inspector(
     response_transform: FormatTransform,
-) -> Option<codex_compat::CodexPreludeInspector> {
-    match response_transform {
-        // 只在首个业务输出前持续观察 Codex prelude，避免已经向客户端吐出业务内容后再拼接其他 upstream。
-        FormatTransform::CodexToChat | FormatTransform::CodexToResponses => {
-            Some(codex_compat::CodexPreludeInspector::new())
-        }
-        _ => None,
-    }
+    context: &LogContext,
+) -> Option<responses_error::ResponsesPreludeInspector> {
+    let responses_upstream = matches!(
+        response_transform,
+        FormatTransform::ResponsesToChat
+            | FormatTransform::ResponsesToAnthropic
+            | FormatTransform::ResponsesToGemini
+            | FormatTransform::CodexToChat
+            | FormatTransform::CodexToResponses
+            | FormatTransform::CodexToImagesGenerations
+            | FormatTransform::CodexToAnthropic
+    ) || response_transform == FormatTransform::None
+        && is_openai_responses_stream_path(&context.path)
+        && matches!(
+            context.provider.as_str(),
+            PROVIDER_OPENAI | PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX
+        );
+
+    // 只缓冲 Responses 生命周期 prelude；首个业务事件放行后，后续错误绝不再拼接第二条流。
+    responses_upstream.then(responses_error::ResponsesPreludeInspector::new)
 }
 
-fn codex_prelude_retry_response(
+fn responses_prelude_retry_response(
     status: StatusCode,
     headers: &HeaderMap,
     response_transform: FormatTransform,
-    message: String,
+    error: responses_error::ResponsesStreamError,
     context: &mut LogContext,
     log: &Arc<LogWriter>,
 ) -> Response {
     context.mark_upstream_first_byte();
-    context.status = StatusCode::BAD_GATEWAY.as_u16();
+    context.status = error.status.as_u16();
+    let message = error.display_message();
+    tracing::warn!(
+        provider = %context.provider,
+        upstream = %context.upstream_id,
+        account = ?context.account_id,
+        path = %context.path,
+        status = error.status.as_u16(),
+        error_type = %error.error_type,
+        error_code = ?error.code,
+        "retryable Responses stream error before first business output"
+    );
     let empty_usage = UsageSnapshot {
         usage: None,
         cached_tokens: None,
@@ -1008,14 +1039,7 @@ fn codex_prelude_retry_response(
     let entry = build_log_entry(context, empty_usage, Some(message.clone()));
     log.clone().write_detached(entry);
 
-    let error_chunk = match response_transform {
-        FormatTransform::CodexToChat => codex_compat::stream_chat_error_sse(&message),
-        FormatTransform::CodexToResponses => codex_compat::stream_responses_error_sse(&message),
-        _ => unreachable!("codex prelude retry response only applies to codex transforms"),
-    };
-    let body = Body::from(Bytes::from(
-        [error_chunk.as_ref(), b"data: [DONE]\n\n"].concat(),
-    ));
+    let body = Body::from(responses_prelude_error_body(response_transform, &error));
     let mut response = http::build_response(status, headers.clone(), body);
     let retry_same_upstream_once = buffered::is_capacity_retry_error(&message, &message);
     response.extensions_mut().insert(RetryableStreamResponse {
@@ -1024,6 +1048,34 @@ fn codex_prelude_retry_response(
         retry_same_upstream_once,
     });
     response
+}
+
+fn responses_prelude_error_body(
+    response_transform: FormatTransform,
+    error: &responses_error::ResponsesStreamError,
+) -> Bytes {
+    // 重试耗尽后该响应会直接返回客户端，必须按入站协议编码而不是沿用 Responses SSE。
+    let message = error.display_message();
+    match response_transform {
+        FormatTransform::ResponsesToChat | FormatTransform::CodexToChat => {
+            sse_with_done(codex_compat::stream_chat_error_sse(&message))
+        }
+        FormatTransform::ResponsesToAnthropic | FormatTransform::CodexToAnthropic => {
+            responses_to_anthropic::anthropic_error_sse(error)
+        }
+        FormatTransform::ResponsesToGemini => {
+            gemini_compat::gemini_error_sse(error.status, &error.message)
+        }
+        FormatTransform::CodexToImagesGenerations => image_generation_error_sse(&error.message),
+        FormatTransform::None | FormatTransform::CodexToResponses => {
+            sse_with_done(codex_compat::stream_responses_error_sse(&message))
+        }
+        _ => unreachable!("Responses prelude inspector only accepts Responses upstreams"),
+    }
+}
+
+fn sse_with_done(event: Bytes) -> Bytes {
+    Bytes::from([event.as_ref(), b"data: [DONE]\n\n"].concat())
 }
 
 fn chain_buffered_chunks(
@@ -1069,6 +1121,15 @@ fn stream_error_response(
         }
     };
 
+    tracing::warn!(
+        provider = %context.provider,
+        upstream = %context.upstream_id,
+        account = ?context.account_id,
+        path = %context.path,
+        status = status.as_u16(),
+        error = %message,
+        "upstream stream read failed before first business output"
+    );
     context.status = status.as_u16();
     let empty_usage = UsageSnapshot {
         usage: None,
@@ -1078,13 +1139,11 @@ fn stream_error_response(
     let entry = build_log_entry(context, empty_usage, Some(message.clone()));
     log.clone().write_detached(entry);
     let mut response = http::error_response(status, &message);
-    if status == StatusCode::GATEWAY_TIMEOUT {
-        response.extensions_mut().insert(RetryableStreamResponse {
-            message,
-            should_cooldown: true,
-            retry_same_upstream_once: true,
-        });
-    }
+    response.extensions_mut().insert(RetryableStreamResponse {
+        message,
+        should_cooldown: true,
+        retry_same_upstream_once: true,
+    });
     response
 }
 
@@ -1180,6 +1239,15 @@ mod tests {
             .into()
     }
 
+    fn reqwest_response_from_items(items: Vec<Result<Bytes, io::Error>>) -> reqwest::Response {
+        let body = reqwest::Body::wrap_stream(stream::iter(items));
+        axum::http::Response::builder()
+            .status(StatusCode::OK)
+            .body(body)
+            .expect("http response")
+            .into()
+    }
+
     #[tokio::test]
     async fn stream_first_output_timeout_returns_retryable_response() {
         let upstream_res = reqwest_response_from_delayed_chunks(vec![(
@@ -1215,6 +1283,147 @@ mod tests {
             .extensions()
             .get::<RetryableStreamResponse>()
             .is_some());
+    }
+
+    #[tokio::test]
+    async fn first_transport_error_returns_retryable_response() {
+        let upstream_res = reqwest_response_from_items(vec![Err(io::Error::new(
+            io::ErrorKind::ConnectionReset,
+            "connection reset by peer",
+        ))]);
+        let mut context = test_context();
+        context.provider = PROVIDER_OPENAI_RESPONSES.to_string();
+        let log = Arc::new(LogWriter::new(None));
+
+        let response = match prepare_upstream_stream(
+            StatusCode::OK,
+            &HeaderMap::new(),
+            upstream_res,
+            FormatTransform::None,
+            &mut context,
+            &log,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(30),
+        )
+        .await
+        {
+            Ok(_) => panic!("first body read error should trigger failover"),
+            Err(response) => response,
+        };
+
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        assert!(response
+            .extensions()
+            .get::<RetryableStreamResponse>()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn native_responses_prelude_retries_unknown_error_before_output() {
+        let upstream_res = reqwest_response_from_delayed_chunks(vec![(
+            Duration::ZERO,
+            "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"type\":\"server_error\",\"code\":\"unexpected\",\"message\":\"try later\"}}}\n\n",
+        )]);
+        let mut context = test_context();
+        context.provider = PROVIDER_OPENAI_RESPONSES.to_string();
+        let log = Arc::new(LogWriter::new(None));
+
+        let response = match prepare_upstream_stream(
+            StatusCode::OK,
+            &HeaderMap::new(),
+            upstream_res,
+            FormatTransform::None,
+            &mut context,
+            &log,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(30),
+        )
+        .await
+        {
+            Ok(_) => panic!("unknown pre-output error should trigger failover"),
+            Err(response) => response,
+        };
+
+        let retry = response
+            .extensions()
+            .get::<RetryableStreamResponse>()
+            .expect("retry marker");
+        assert!(retry.message.contains("unexpected"));
+    }
+
+    #[tokio::test]
+    async fn native_responses_prelude_passes_invalid_request_without_retry() {
+        let failed = "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"context_length_exceeded\",\"message\":\"context window exceeded\"}}}\n\n";
+        let upstream_res = reqwest_response_from_delayed_chunks(vec![(Duration::ZERO, failed)]);
+        let mut context = test_context();
+        context.provider = PROVIDER_OPENAI_RESPONSES.to_string();
+        let log = Arc::new(LogWriter::new(None));
+
+        let mut stream = prepare_upstream_stream(
+            StatusCode::OK,
+            &HeaderMap::new(),
+            upstream_res,
+            FormatTransform::None,
+            &mut context,
+            &log,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(30),
+        )
+        .await
+        .expect("invalid request must stay on the current response");
+
+        let chunk = stream
+            .next()
+            .await
+            .expect("buffered failed event")
+            .expect("valid chunk");
+        assert_eq!(chunk.as_ref(), failed.as_bytes());
+    }
+
+    #[tokio::test]
+    async fn responses_error_after_business_output_is_never_retried() {
+        let upstream_res = reqwest_response_from_delayed_chunks(vec![
+            (
+                Duration::ZERO,
+                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
+            ),
+            (
+                Duration::ZERO,
+                "data: {\"type\":\"error\",\"error\":{\"code\":\"server_overloaded\",\"message\":\"busy\"}}\n\n",
+            ),
+        ]);
+        let mut context = test_context();
+        context.provider = PROVIDER_OPENAI_RESPONSES.to_string();
+        let log = Arc::new(LogWriter::new(None));
+
+        let stream = prepare_upstream_stream(
+            StatusCode::OK,
+            &HeaderMap::new(),
+            upstream_res,
+            FormatTransform::None,
+            &mut context,
+            &log,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(30),
+        )
+        .await
+        .expect("first business output commits the stream");
+        let chunks = stream.collect::<Vec<_>>().await;
+        let body = chunks
+            .into_iter()
+            .map(|chunk| chunk.expect("valid current stream chunk"))
+            .fold(Vec::new(), |mut body, chunk| {
+                body.extend_from_slice(&chunk);
+                body
+            });
+        let body = String::from_utf8(body).expect("SSE text");
+
+        assert!(body.contains("partial"));
+        assert!(body.contains("server_overloaded"));
     }
 
     #[tokio::test]

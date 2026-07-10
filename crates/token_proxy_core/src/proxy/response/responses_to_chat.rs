@@ -13,6 +13,7 @@ use super::super::openai_compat::map_usage_responses_to_chat;
 use super::super::sse::SseEventParser;
 use super::super::token_rate::RequestTokenTracker;
 use super::super::usage::SseUsageCollector;
+use super::responses_error::responses_stream_error;
 use super::streaming::STREAM_DROPPED_ERROR;
 
 pub(super) fn stream_responses_to_chat<E>(
@@ -697,14 +698,14 @@ where
     }
 
     fn fail_stream(&mut self, value: &Value) {
-        let error = chat_error_from_responses_event(value);
-        let message = error
-            .get("message")
-            .and_then(Value::as_str)
-            .unwrap_or("OpenAI Responses stream failed")
-            .to_string();
+        let Some(error) = responses_stream_error(value) else {
+            return;
+        };
+        self.context.status = error.status.as_u16();
+        let message = error.message.clone();
         self.sent_done = true;
-        self.out.push_back(chat_error_sse(Value::Object(error)));
+        self.out
+            .push_back(chat_error_sse(Value::Object(error.openai_error_object())));
         self.write_log_once(Some(message));
     }
 
@@ -762,39 +763,6 @@ fn chat_error_sse(error: Value) -> Bytes {
             "error": error
         })
     ))
-}
-
-fn chat_error_from_responses_event(value: &Value) -> Map<String, Value> {
-    let source = value
-        .pointer("/response/error")
-        .or_else(|| value.get("error"))
-        .unwrap_or(value);
-    let mut error = Map::new();
-    error.insert(
-        "message".to_string(),
-        Value::String(extract_error_string(
-            source,
-            "message",
-            "OpenAI Responses stream failed",
-        )),
-    );
-    error.insert(
-        "type".to_string(),
-        Value::String(extract_error_string(source, "type", "proxy_error")),
-    );
-    if let Some(code) = source.get("code").cloned() {
-        error.insert("code".to_string(), code);
-    }
-    error
-}
-
-fn extract_error_string(source: &Value, key: &str, fallback: &str) -> String {
-    source
-        .get(key)
-        .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or(fallback)
-        .to_string()
 }
 
 fn is_responses_terminal_event(event_type: &str) -> bool {

@@ -316,6 +316,7 @@ mod dispatch;
 mod kiro_to_anthropic;
 mod kiro_to_responses;
 mod kiro_to_responses_helpers;
+pub(crate) mod responses_error;
 mod responses_to_anthropic;
 mod responses_to_chat;
 mod streaming;

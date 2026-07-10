@@ -649,7 +649,9 @@ fn reject_codex_spark_non_text_features(
             "gpt-5.3-codex-spark is text-only and does not support image inputs.".to_string(),
         );
     }
-    if value_contains_image_generation_tool(object.get("tools")) {
+    if value_contains_image_generation_tool(object.get("tools"))
+        || input_contains_additional_image_generation_tool(object.get("input"))
+    {
         return Err(
             "gpt-5.3-codex-spark is text-only and does not support image generation tools."
                 .to_string(),
@@ -686,15 +688,27 @@ fn value_contains_image_generation_tool(value: Option<&Value>) -> bool {
             .iter()
             .any(|item| value_contains_image_generation_tool(Some(item))),
         Value::Object(object) => {
-            matches!(
-                object.get("type").and_then(Value::as_str),
-                Some("image_generation" | "image_generation_call")
-            ) || object
+            let item_type = object.get("type").and_then(Value::as_str);
+            matches!(item_type, Some("image_generation" | "image_generation_call"))
+                // Codex /image 以 namespace 声明图片工具，不使用标准 image_generation 类型。
+                || (item_type == Some("namespace")
+                    && object.get("name").and_then(Value::as_str) == Some("image_gen"))
+                || object
                 .values()
                 .any(|item| value_contains_image_generation_tool(Some(item)))
         }
         _ => false,
     }
+}
+
+fn input_contains_additional_image_generation_tool(input: Option<&Value>) -> bool {
+    let Some(items) = input.and_then(Value::as_array) else {
+        return false;
+    };
+    items.iter().any(|item| {
+        item.get("type").and_then(Value::as_str) == Some("additional_tools")
+            && value_contains_image_generation_tool(item.get("tools"))
+    })
 }
 
 const CODEX_MODEL_ALIASES: &[(&str, &str)] = &[
@@ -896,6 +910,32 @@ fn sanitize_responses_input_item_for_codex(item: &Value) -> Value {
         return map_regular_message(item, role).unwrap_or_else(|| item.clone());
     }
     let item_type = object.get("type").and_then(Value::as_str).unwrap_or("");
+    if item_type == "reasoning" {
+        let mut sanitized = object.clone();
+        // store=false 时 rs_* 只能作为回放内容，携带旧 id 会触发上游对象查询并返回 404。
+        if sanitized
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("rs_"))
+        {
+            sanitized.remove("id");
+        }
+        if matches!(sanitized.get("summary"), None | Some(Value::Null)) {
+            sanitized.insert("summary".to_string(), Value::Array(Vec::new()));
+        }
+        return Value::Object(sanitized);
+    }
+    if is_codex_call_input_item_type(item_type) {
+        let mut sanitized = object.clone();
+        // Codex 只接受 fc* call-input id；call_id 负责和 output 配对，必须保留。
+        if sanitized
+            .get("id")
+            .is_some_and(|id| !id.as_str().is_some_and(|id| id.starts_with("fc")))
+        {
+            sanitized.remove("id");
+        }
+        return Value::Object(sanitized);
+    }
     if !is_codex_tool_call_output_item_type(item_type) {
         return item.clone();
     }
@@ -1002,6 +1042,18 @@ fn codex_input_item_requires_name(item_type: &str) -> bool {
     matches!(
         item_type.trim(),
         "function_call" | "custom_tool_call" | "mcp_tool_call"
+    )
+}
+
+fn is_codex_call_input_item_type(item_type: &str) -> bool {
+    matches!(
+        item_type.trim(),
+        "function_call"
+            | "tool_call"
+            | "local_shell_call"
+            | "tool_search_call"
+            | "custom_tool_call"
+            | "mcp_tool_call"
     )
 }
 

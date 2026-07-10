@@ -1,6 +1,6 @@
 //! Gemini 流式响应 → OpenAI Chat 流式响应转换
 
-use axum::body::Bytes;
+use axum::{body::Bytes, http::StatusCode};
 use futures_util::{stream::try_unfold, StreamExt};
 use serde_json::{json, Value};
 use std::{collections::VecDeque, sync::Arc};
@@ -430,6 +430,10 @@ where
         let Ok(value) = serde_json::from_str::<Value>(data) else {
             return;
         };
+        if let Some(error) = value.get("error").filter(|error| !error.is_null()) {
+            self.fail_stream(error);
+            return;
+        }
 
         let usage = value.get("usage").and_then(chat_usage_to_gemini_usage);
         let Some(choice) = value
@@ -489,6 +493,27 @@ where
             "finishReason": reason
         });
         self.out.push_back(gemini_chunk_sse(candidate, usage));
+    }
+
+    fn fail_stream(&mut self, error: &Value) {
+        let message = error
+            .get("message")
+            .and_then(Value::as_str)
+            .or_else(|| error.as_str())
+            .unwrap_or("Upstream Chat stream failed")
+            .to_string();
+        let status = crate::proxy::response::responses_error::openai_error_status(error);
+        tracing::warn!(
+            provider = %self.context.provider,
+            upstream = %self.context.upstream_id,
+            status = status.as_u16(),
+            error = %message,
+            "converted Chat stream error to Gemini error"
+        );
+        self.context.status = status.as_u16();
+        self.sent_done = true;
+        self.out.push_back(gemini_error_sse(status, &message));
+        self.write_log_once(Some(message));
     }
 
     fn update_tool_call(&mut self, tool_call: &Value) -> Option<Value> {
@@ -585,6 +610,34 @@ fn gemini_chunk_sse(candidate: Value, usage: Option<Value>) -> Bytes {
         }
     }
     Bytes::from(format!("data: {}\n\n", payload))
+}
+
+pub(crate) fn gemini_error_sse(status: StatusCode, message: &str) -> Bytes {
+    Bytes::from(format!(
+        "data: {}\n\n",
+        json!({
+            "error": {
+                "code": status.as_u16(),
+                "message": message,
+                "status": google_rpc_status(status)
+            }
+        })
+    ))
+}
+
+fn google_rpc_status(status: StatusCode) -> &'static str {
+    match status {
+        StatusCode::BAD_REQUEST => "INVALID_ARGUMENT",
+        StatusCode::UNAUTHORIZED => "UNAUTHENTICATED",
+        StatusCode::FORBIDDEN => "PERMISSION_DENIED",
+        StatusCode::NOT_FOUND => "NOT_FOUND",
+        StatusCode::CONFLICT => "ABORTED",
+        StatusCode::TOO_MANY_REQUESTS => "RESOURCE_EXHAUSTED",
+        StatusCode::INTERNAL_SERVER_ERROR => "INTERNAL",
+        StatusCode::SERVICE_UNAVAILABLE => "UNAVAILABLE",
+        StatusCode::GATEWAY_TIMEOUT => "DEADLINE_EXCEEDED",
+        _ => "UNKNOWN",
+    }
 }
 
 fn chat_usage_to_gemini_usage(usage: &Value) -> Option<Value> {

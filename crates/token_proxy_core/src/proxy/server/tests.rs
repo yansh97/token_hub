@@ -14,11 +14,14 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 use time::{Duration as TimeDuration, OffsetDateTime};
-use tokio::{runtime::Runtime, sync::RwLock, task::JoinHandle};
+use tokio::{io::AsyncReadExt, runtime::Runtime, sync::RwLock, task::JoinHandle};
 
 use crate::logging::LogLevel;
 use crate::paths::TokenProxyPaths;
@@ -209,6 +212,39 @@ struct MockModelCatalogState {
     requests: Arc<Mutex<Vec<RecordedRequest>>>,
 }
 
+#[derive(Clone, Debug)]
+struct RecordedCodexModelsManifestRequest {
+    method: Method,
+    path_and_query: String,
+    authorization: Option<String>,
+    chatgpt_account_id: Option<String>,
+    accept: Option<String>,
+    version: Option<String>,
+    if_none_match: Option<String>,
+}
+
+#[derive(Clone)]
+struct MockCodexModelsManifestState {
+    body: Bytes,
+    requests: Arc<Mutex<Vec<RecordedCodexModelsManifestRequest>>>,
+}
+
+struct MockCodexModelsManifestUpstream {
+    base_url: String,
+    requests: Arc<Mutex<Vec<RecordedCodexModelsManifestRequest>>>,
+    task: JoinHandle<()>,
+}
+
+impl MockCodexModelsManifestUpstream {
+    fn requests(&self) -> Vec<RecordedCodexModelsManifestRequest> {
+        self.requests.lock().expect("requests lock").clone()
+    }
+
+    fn abort(self) {
+        self.task.abort();
+    }
+}
+
 struct MockUpstream {
     base_url: String,
     requests: Arc<Mutex<Vec<RecordedRequest>>>,
@@ -218,6 +254,22 @@ struct MockUpstream {
 impl MockUpstream {
     fn requests(&self) -> Vec<RecordedRequest> {
         self.requests.lock().expect("requests lock").clone()
+    }
+
+    fn abort(self) {
+        self.task.abort();
+    }
+}
+
+struct DisconnectBeforeHeadersUpstream {
+    base_url: String,
+    connections: Arc<AtomicUsize>,
+    task: JoinHandle<()>,
+}
+
+impl DisconnectBeforeHeadersUpstream {
+    fn connections(&self) -> usize {
+        self.connections.load(Ordering::Relaxed)
     }
 
     fn abort(self) {
@@ -313,6 +365,35 @@ async fn mock_upstream_handler(
 
 async fn spawn_mock_upstream(status: StatusCode, body: Value) -> MockUpstream {
     spawn_mock_upstream_with_delay(status, body, 0).await
+}
+
+async fn spawn_disconnect_before_headers_upstream() -> DisconnectBeforeHeadersUpstream {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind disconnecting mock upstream");
+    let addr: SocketAddr = listener
+        .local_addr()
+        .expect("disconnecting mock local addr");
+    let connections = Arc::new(AtomicUsize::new(0));
+    let task_connections = connections.clone();
+    let task = tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            task_connections.fetch_add(1, Ordering::Relaxed);
+            tokio::spawn(async move {
+                // 先接收请求字节，再关闭连接，确保失败发生在响应头到达之前。
+                let mut buffer = [0_u8; 1024];
+                let _ = stream.read(&mut buffer).await;
+            });
+        }
+    });
+    DisconnectBeforeHeadersUpstream {
+        base_url: format!("http://{addr}"),
+        connections,
+        task,
+    }
 }
 
 async fn spawn_mock_upstream_with_delay(
@@ -756,6 +837,81 @@ async fn spawn_model_catalog_upstream(body: Value) -> MockUpstream {
             .expect("model catalog mock upstream server should run");
     });
     MockUpstream {
+        base_url: format!("http://{addr}"),
+        requests,
+        task,
+    }
+}
+
+async fn mock_codex_models_manifest_handler(
+    State(state): State<Arc<MockCodexModelsManifestState>>,
+    method: Method,
+    uri: Uri,
+    headers: HeaderMap,
+) -> axum::response::Response {
+    let header = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string)
+    };
+    let if_none_match = header("if-none-match");
+    state
+        .requests
+        .lock()
+        .expect("requests lock")
+        .push(RecordedCodexModelsManifestRequest {
+            method,
+            path_and_query: uri
+                .path_and_query()
+                .map(|value| value.as_str().to_string())
+                .unwrap_or_else(|| uri.path().to_string()),
+            authorization: header("authorization"),
+            chatgpt_account_id: header("chatgpt-account-id"),
+            accept: header("accept"),
+            version: header("version"),
+            if_none_match: if_none_match.clone(),
+        });
+
+    let not_modified = if_none_match.as_deref() == Some("W/\"manifest-v1\"");
+    let status = if not_modified {
+        StatusCode::NOT_MODIFIED
+    } else {
+        StatusCode::OK
+    };
+    let body = if not_modified {
+        Body::empty()
+    } else {
+        Body::from(state.body.clone())
+    };
+
+    axum::response::Response::builder()
+        .status(status)
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .header(axum::http::header::ETAG, "W/\"manifest-v1\"")
+        .body(body)
+        .expect("build Codex models manifest response")
+}
+
+async fn spawn_codex_models_manifest_upstream(body: Bytes) -> MockCodexModelsManifestUpstream {
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let state = Arc::new(MockCodexModelsManifestState {
+        body,
+        requests: requests.clone(),
+    });
+    let app = Router::new()
+        .route("/{*path}", any(mock_codex_models_manifest_handler))
+        .with_state(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind Codex models manifest mock upstream");
+    let addr: SocketAddr = listener.local_addr().expect("mock local addr");
+    let task = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("Codex models manifest mock upstream should run");
+    });
+    MockCodexModelsManifestUpstream {
         base_url: format!("http://{addr}"),
         requests,
         task,
@@ -1877,6 +2033,77 @@ data: [DONE]\n\n",
     assert_eq!(fallback_requests[0].path, RESPONSES_PATH);
 }
 
+async fn assert_responses_stream_fallbacks_after_pre_header_disconnect() {
+    let primary = spawn_disconnect_before_headers_upstream().await;
+    let fallback = spawn_mock_raw_upstream(
+        StatusCode::OK,
+        Bytes::from(
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"from disconnect fallback\"}\n\n\
+data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_disconnect_fallback\",\"object\":\"response\",\"created_at\":123,\"model\":\"gpt-5\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"id\":\"msg_1\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"from disconnect fallback\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\n\
+data: [DONE]\n\n",
+        ),
+        "text/event-stream",
+    )
+    .await;
+
+    let mut config = config_with_runtime_upstreams(&[
+        (
+            PROVIDER_RESPONSES,
+            10,
+            "responses-disconnect-before-headers",
+            primary.base_url.as_str(),
+            FORMATS_RESPONSES,
+        ),
+        (
+            PROVIDER_RESPONSES,
+            5,
+            "responses-fallback-after-disconnect",
+            fallback.base_url.as_str(),
+            FORMATS_RESPONSES,
+        ),
+    ]);
+    config.upstream_strategy = UpstreamStrategyRuntime {
+        order: UpstreamOrderStrategy::FillFirst,
+        dispatch: UpstreamDispatchRuntime::Serial,
+    };
+    let data_dir = next_test_data_dir("responses_pre_header_disconnect_fallback");
+    let state = build_test_state_handle(config, data_dir.clone()).await;
+
+    let response = proxy_request(
+        State(state),
+        Method::POST,
+        Uri::from_static(RESPONSES_PATH),
+        axum::http::HeaderMap::new(),
+        Body::from(
+            json!({
+                "model": "gpt-5",
+                "stream": true,
+                "input": "hi"
+            })
+            .to_string(),
+        ),
+    )
+    .await;
+
+    let response_status = response.status();
+    let response_bytes = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("proxy stream body");
+    let response_text = String::from_utf8_lossy(&response_bytes);
+    let primary_connections = primary.connections();
+    let fallback_requests = fallback.requests();
+
+    primary.abort();
+    fallback.abort();
+    let _ = std::fs::remove_dir_all(&data_dir);
+
+    assert_eq!(response_status, StatusCode::OK);
+    assert!(response_text.contains("from disconnect fallback"));
+    assert!(primary_connections >= 1);
+    assert_eq!(fallback_requests.len(), 1);
+    assert_eq!(fallback_requests[0].path, RESPONSES_PATH);
+}
+
 async fn assert_responses_stream_fallbacks_after_pre_header_timeout() {
     let primary = spawn_mock_upstream_with_delay(
         StatusCode::OK,
@@ -2666,6 +2893,187 @@ async fn send_models_request(state: ProxyStateHandle) -> (StatusCode, Value) {
         .expect("proxy response bytes");
     let json = serde_json::from_slice(&body).expect("proxy response json");
     (status, json)
+}
+
+#[test]
+fn codex_models_manifest_is_forwarded_with_oauth_headers_and_etag() {
+    run_async(async {
+        let manifest = Bytes::from_static(
+            br#"{"models":[{"slug":"gpt-5.5","display_name":"GPT-5.5","opaque":{"kept":true}}]}"#,
+        );
+        let upstream = spawn_codex_models_manifest_upstream(manifest.clone()).await;
+        let data_dir = next_test_data_dir("codex_models_manifest");
+        let config = config_with_runtime_upstreams(&[(
+            PROVIDER_CODEX,
+            10,
+            "codex-manifest",
+            upstream.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::IF_NONE_MATCH,
+            HeaderValue::from_static("W/\"old\""),
+        );
+
+        let response = proxy_request(
+            State(state),
+            Method::GET,
+            Uri::from_static("/v1/models?client_version=0.137.0"),
+            headers,
+            Body::empty(),
+        )
+        .await;
+        let status = response.status();
+        let etag = response
+            .headers()
+            .get(axum::http::header::ETAG)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("Codex models manifest response bytes");
+        let requests = upstream.requests();
+
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, manifest);
+        assert_eq!(etag.as_deref(), Some("W/\"manifest-v1\""));
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(request.method, Method::GET);
+        assert_eq!(request.path_and_query, "/models?client_version=0.137.0");
+        assert_eq!(
+            request.authorization.as_deref(),
+            Some("Bearer codex-access-token")
+        );
+        assert_eq!(
+            request.chatgpt_account_id.as_deref(),
+            Some("chatgpt-account")
+        );
+        assert_eq!(request.accept.as_deref(), Some("application/json"));
+        assert_eq!(request.version.as_deref(), Some("0.137.0"));
+        assert_eq!(request.if_none_match.as_deref(), Some("W/\"old\""));
+    });
+}
+
+#[test]
+fn codex_models_manifest_requires_get() {
+    run_async(async {
+        let upstream =
+            spawn_codex_models_manifest_upstream(Bytes::from_static(br#"{"models":[]}"#)).await;
+        let data_dir = next_test_data_dir("codex_models_manifest_requires_get");
+        let config = config_with_runtime_upstreams(&[(
+            PROVIDER_CODEX,
+            10,
+            "codex-manifest",
+            upstream.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let response = proxy_request(
+            State(state),
+            Method::POST,
+            Uri::from_static("/v1/models?client_version=0.137.0"),
+            HeaderMap::new(),
+            Body::empty(),
+        )
+        .await;
+        let status = response.status();
+        let _ = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("non-GET models response bytes");
+        let requests = upstream.requests();
+
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+        assert!(requests.is_empty(), "non-GET request must not reach Codex");
+    });
+}
+
+#[test]
+fn codex_models_manifest_not_modified_does_not_switch_oauth_account() {
+    run_async(async {
+        let upstream =
+            spawn_codex_models_manifest_upstream(Bytes::from_static(br#"{"models":[]}"#)).await;
+        let data_dir = next_test_data_dir("codex_models_manifest_not_modified");
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_CODEX,
+            10,
+            "codex-manifest",
+            upstream.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        config
+            .upstreams
+            .get_mut(PROVIDER_CODEX)
+            .expect("Codex upstreams")
+            .groups[0]
+            .items[0]
+            .codex_account_id = None;
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+        let expires_at = (OffsetDateTime::now_utc() + TimeDuration::days(1))
+            .format(&time::format_description::well_known::Rfc3339)
+            .expect("format expires_at");
+        seed_codex_account(
+            &state,
+            "codex-a.json",
+            "codex-access-a",
+            "chatgpt-a",
+            &expires_at,
+        )
+        .await;
+        seed_codex_account(
+            &state,
+            "codex-b.json",
+            "codex-access-b",
+            "chatgpt-b",
+            &expires_at,
+        )
+        .await;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::IF_NONE_MATCH,
+            HeaderValue::from_static("W/\"manifest-v1\""),
+        );
+
+        let response = proxy_request(
+            State(state),
+            Method::GET,
+            Uri::from_static("/v1/models?client_version=0.137.0"),
+            headers,
+            Body::empty(),
+        )
+        .await;
+        let status = response.status();
+        let etag = response
+            .headers()
+            .get(axum::http::header::ETAG)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("not-modified response bytes");
+        let requests = upstream.requests();
+
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::NOT_MODIFIED);
+        assert_eq!(etag.as_deref(), Some("W/\"manifest-v1\""));
+        assert!(body.is_empty());
+        assert_eq!(requests.len(), 1, "304 must not rotate OAuth accounts");
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer codex-access-a")
+        );
+    });
 }
 
 #[test]
@@ -4575,6 +4983,159 @@ fn responses_stream_request_retries_same_upstream_once_after_split_prelude_capac
 }
 
 #[test]
+fn anthropic_stream_retry_exhaustion_emits_anthropic_error() {
+    run_async(async {
+        let responses = spawn_mock_raw_upstream(
+            StatusCode::OK,
+            Bytes::from(
+                "event: response.failed\n\
+data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"message\":\"capacity exhausted\",\"type\":\"server_error\",\"code\":\"server_is_overloaded\"}}}\n\n",
+            ),
+            "text/event-stream",
+        )
+        .await;
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_RESPONSES,
+            10,
+            "responses-anthropic-exhaustion",
+            responses.base_url.as_str(),
+            FORMATS_ALL,
+        )]);
+        config.upstream_strategy = UpstreamStrategyRuntime {
+            order: UpstreamOrderStrategy::FillFirst,
+            dispatch: UpstreamDispatchRuntime::Serial,
+        };
+        let data_dir = next_test_data_dir("anthropic_stream_retry_exhaustion");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let response = proxy_request(
+            State(state),
+            Method::POST,
+            Uri::from_static("/v1/messages"),
+            axum::http::HeaderMap::new(),
+            Body::from(
+                json!({
+                    "model": "claude-sonnet-4-5",
+                    "max_tokens": 64,
+                    "stream": true,
+                    "messages": [{ "role": "user", "content": "hi" }]
+                })
+                .to_string(),
+            ),
+        )
+        .await;
+
+        let status = response.status();
+        let response_bytes = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("proxy stream response bytes");
+        let response_text = String::from_utf8(response_bytes.to_vec()).expect("response text");
+        let requests = responses.requests();
+
+        responses.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(response_text.contains("event: error"), "{response_text}");
+        assert!(
+            response_text.contains("\"type\":\"error\""),
+            "{response_text}"
+        );
+        assert!(
+            response_text.contains("\"message\":\"capacity exhausted\""),
+            "{response_text}"
+        );
+        assert!(
+            response_text.contains("\"code\":\"server_is_overloaded\""),
+            "{response_text}"
+        );
+        assert!(
+            !response_text.contains("response.failed"),
+            "{response_text}"
+        );
+        assert!(!response_text.contains("message_stop"), "{response_text}");
+        assert_eq!(requests.len(), 2, "capacity error should retry once");
+        assert!(requests
+            .iter()
+            .all(|request| request.path == RESPONSES_PATH));
+    });
+}
+
+#[test]
+fn gemini_stream_retry_exhaustion_emits_gemini_error() {
+    run_async(async {
+        let responses = spawn_mock_raw_upstream(
+            StatusCode::OK,
+            Bytes::from(
+                "event: response.failed\n\
+data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"message\":\"capacity exhausted\",\"type\":\"server_error\",\"code\":\"server_is_overloaded\"}}}\n\n",
+            ),
+            "text/event-stream",
+        )
+        .await;
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_RESPONSES,
+            10,
+            "responses-gemini-exhaustion",
+            responses.base_url.as_str(),
+            FORMATS_ALL,
+        )]);
+        config.upstream_strategy = UpstreamStrategyRuntime {
+            order: UpstreamOrderStrategy::FillFirst,
+            dispatch: UpstreamDispatchRuntime::Serial,
+        };
+        let data_dir = next_test_data_dir("gemini_stream_retry_exhaustion");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let response = proxy_request(
+            State(state),
+            Method::POST,
+            Uri::from_static("/v1beta/models/gemini-1.5-flash:streamGenerateContent"),
+            axum::http::HeaderMap::new(),
+            Body::from(
+                json!({
+                    "contents": [{
+                        "role": "user",
+                        "parts": [{ "text": "hi" }]
+                    }]
+                })
+                .to_string(),
+            ),
+        )
+        .await;
+
+        let status = response.status();
+        let response_bytes = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("proxy stream response bytes");
+        let response_text = String::from_utf8(response_bytes.to_vec()).expect("response text");
+        let payload = response_text
+            .lines()
+            .find_map(|line| line.strip_prefix("data: "))
+            .and_then(|line| serde_json::from_str::<Value>(line).ok())
+            .expect("Gemini error SSE payload");
+        let requests = responses.requests();
+
+        responses.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(payload["error"]["code"], json!(503));
+        assert_eq!(payload["error"]["message"], json!("capacity exhausted"));
+        assert_eq!(payload["error"]["status"], json!("UNAVAILABLE"));
+        assert!(
+            !response_text.contains("response.failed"),
+            "{response_text}"
+        );
+        assert!(!response_text.contains("data: [DONE]"), "{response_text}");
+        assert_eq!(requests.len(), 2, "capacity error should retry once");
+        assert!(requests
+            .iter()
+            .all(|request| request.path == RESPONSES_PATH));
+    });
+}
+
+#[test]
 fn responses_request_retries_same_upstream_once_after_capacity_error() {
     run_async(async {
         assert_responses_request_retries_same_upstream_once_after_capacity_error().await;
@@ -4585,6 +5146,74 @@ fn responses_request_retries_same_upstream_once_after_capacity_error() {
 fn responses_stream_request_falls_back_from_codex_when_headers_timeout_before_output() {
     run_async(async {
         assert_responses_stream_fallbacks_after_pre_header_timeout().await;
+    });
+}
+
+#[test]
+fn responses_stream_request_falls_back_when_upstream_disconnects_before_headers() {
+    run_async(async {
+        assert_responses_stream_fallbacks_after_pre_header_disconnect().await;
+    });
+}
+
+#[test]
+fn responses_request_does_not_fallback_after_upstream_url_builder_error() {
+    run_async(async {
+        let fallback = spawn_mock_upstream(
+            StatusCode::OK,
+            json!({
+                "id": "resp_builder_fallback",
+                "object": "response",
+                "status": "completed",
+                "output": []
+            }),
+        )
+        .await;
+        let mut config = config_with_runtime_upstreams(&[
+            (
+                PROVIDER_RESPONSES,
+                10,
+                "responses-invalid-url",
+                "unsupported://example.com",
+                FORMATS_RESPONSES,
+            ),
+            (
+                PROVIDER_RESPONSES,
+                5,
+                "responses-unexpected-builder-fallback",
+                fallback.base_url.as_str(),
+                FORMATS_RESPONSES,
+            ),
+        ]);
+        config.upstream_strategy = UpstreamStrategyRuntime {
+            order: UpstreamOrderStrategy::FillFirst,
+            dispatch: UpstreamDispatchRuntime::Serial,
+        };
+        let data_dir = next_test_data_dir("responses_builder_error_no_fallback");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let response = proxy_request(
+            State(state),
+            Method::POST,
+            Uri::from_static(RESPONSES_PATH),
+            axum::http::HeaderMap::new(),
+            Body::from(
+                json!({
+                    "model": "gpt-5",
+                    "input": "hi"
+                })
+                .to_string(),
+            ),
+        )
+        .await;
+        let status = response.status();
+        let fallback_requests = fallback.requests();
+
+        fallback.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+        assert!(fallback_requests.is_empty());
     });
 }
 
@@ -6926,8 +7555,9 @@ fn native_codex_responses_request_passthroughs_without_conversion() {
         HeaderValue::from_static("codex_cli_rs/0.135.0 (Mac OS 15.5.0; arm64) codex-cli"),
     );
 
-    let plan = resolve_dispatch_plan_with_request(&config, RESPONSES_PATH, &headers, None)
-        .expect("should dispatch native codex request");
+    let plan =
+        resolve_dispatch_plan_with_request(&config, &Method::POST, RESPONSES_PATH, &headers, None)
+            .expect("should dispatch native codex request");
 
     assert_eq!(plan.provider, PROVIDER_CODEX);
     assert_eq!(plan.outbound_path, Some(CODEX_RESPONSES_PATH));
@@ -7583,8 +8213,9 @@ fn openai_models_route_with_anthropic_headers_dispatches_to_anthropic() {
     let mut headers = HeaderMap::new();
     headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
     headers.insert("x-api-key", HeaderValue::from_static("anthropic-key"));
-    let plan = resolve_dispatch_plan_with_request(&config, "/v1/models", &headers, None)
-        .expect("should dispatch");
+    let plan =
+        resolve_dispatch_plan_with_request(&config, &Method::GET, "/v1/models", &headers, None)
+            .expect("should dispatch");
     assert_eq!(plan.provider, PROVIDER_ANTHROPIC);
 }
 
@@ -7600,8 +8231,9 @@ fn openai_models_route_with_anthropic_authorization_dispatches_to_anthropic() {
         axum::http::header::AUTHORIZATION,
         HeaderValue::from_static("Bearer anthropic-key"),
     );
-    let plan = resolve_dispatch_plan_with_request(&config, "/v1/models", &headers, None)
-        .expect("should dispatch");
+    let plan =
+        resolve_dispatch_plan_with_request(&config, &Method::GET, "/v1/models", &headers, None)
+            .expect("should dispatch");
     assert_eq!(plan.provider, PROVIDER_ANTHROPIC);
 }
 
@@ -7617,8 +8249,9 @@ fn openai_models_route_with_explicit_anthropic_api_key_dispatches_to_anthropic()
         "x-anthropic-api-key",
         HeaderValue::from_static("anthropic-key"),
     );
-    let plan = resolve_dispatch_plan_with_request(&config, "/v1/models", &headers, None)
-        .expect("should dispatch");
+    let plan =
+        resolve_dispatch_plan_with_request(&config, &Method::GET, "/v1/models", &headers, None)
+            .expect("should dispatch");
     assert_eq!(plan.provider, PROVIDER_ANTHROPIC);
 }
 
@@ -7629,9 +8262,14 @@ fn openai_models_route_with_gemini_query_dispatches_to_gemini_and_rewrites_path(
         (PROVIDER_GEMINI, 0, "gemini", FORMATS_GEMINI),
     ]);
     let headers = HeaderMap::new();
-    let plan =
-        resolve_dispatch_plan_with_request(&config, "/v1/models", &headers, Some("key=test"))
-            .expect("should dispatch");
+    let plan = resolve_dispatch_plan_with_request(
+        &config,
+        &Method::GET,
+        "/v1/models",
+        &headers,
+        Some("key=test"),
+    )
+    .expect("should dispatch");
     assert_eq!(plan.provider, PROVIDER_GEMINI);
     let outbound = resolve_outbound_path(
         "/v1/models",
@@ -7657,9 +8295,14 @@ fn openai_model_detail_route_with_gemini_header_rewrites_to_gemini_model_detail(
     ]);
     let mut headers = HeaderMap::new();
     headers.insert("x-goog-api-key", HeaderValue::from_static("gemini-key"));
-    let plan =
-        resolve_dispatch_plan_with_request(&config, "/v1/models/gemini-1.5-flash", &headers, None)
-            .expect("should dispatch");
+    let plan = resolve_dispatch_plan_with_request(
+        &config,
+        &Method::GET,
+        "/v1/models/gemini-1.5-flash",
+        &headers,
+        None,
+    )
+    .expect("should dispatch");
     assert_eq!(plan.provider, PROVIDER_GEMINI);
     let outbound = resolve_outbound_path(
         "/v1/models/gemini-1.5-flash",
@@ -7684,8 +8327,14 @@ fn openai_compatible_models_index_route_prefers_openai_provider_and_rewrites_pat
         (PROVIDER_RESPONSES, 0, "responses", FORMATS_RESPONSES),
     ]);
     let headers = HeaderMap::new();
-    let plan = resolve_dispatch_plan_with_request(&config, "/v1beta/openai/models", &headers, None)
-        .expect("should dispatch");
+    let plan = resolve_dispatch_plan_with_request(
+        &config,
+        &Method::GET,
+        "/v1beta/openai/models",
+        &headers,
+        None,
+    )
+    .expect("should dispatch");
     assert_eq!(plan.provider, PROVIDER_RESPONSES);
     let outbound = resolve_outbound_path(
         "/v1beta/openai/models",
@@ -7710,9 +8359,14 @@ fn openai_compatible_model_detail_route_rewrites_to_openai_models_detail() {
         (PROVIDER_CHAT, 0, "chat", FORMATS_CHAT),
     ]);
     let headers = HeaderMap::new();
-    let plan =
-        resolve_dispatch_plan_with_request(&config, "/v1beta/openai/models/gpt-5", &headers, None)
-            .expect("should dispatch");
+    let plan = resolve_dispatch_plan_with_request(
+        &config,
+        &Method::GET,
+        "/v1beta/openai/models/gpt-5",
+        &headers,
+        None,
+    )
+    .expect("should dispatch");
     assert_eq!(plan.provider, PROVIDER_CHAT);
     let outbound = resolve_outbound_path(
         "/v1beta/openai/models/gpt-5",

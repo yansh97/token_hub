@@ -65,10 +65,21 @@ fn build_runtime_config(config: ProxyConfigFile) -> Result<ProxyConfig, String> 
     let log_level = config.log_level;
     let max_request_body_bytes = resolve_max_request_body_bytes(config.max_request_body_bytes);
     let app_proxy_url = normalize_app_proxy_url(config.app_proxy_url.as_deref())?;
+    let configured_hot_model_mapping_count = config.hot_model_mappings.len();
+    let mut hot_model_mappings = default_hot_model_mappings();
+    let default_hot_model_mapping_count = hot_model_mappings.len();
+    // 默认映射仅在运行时补齐；用户配置后写入，因此同名 alias 仍以用户值为准。
+    hot_model_mappings.extend(config.hot_model_mappings);
+    tracing::debug!(
+        default_count = default_hot_model_mapping_count,
+        configured_count = configured_hot_model_mapping_count,
+        effective_count = hot_model_mappings.len(),
+        "resolved runtime hot model mappings"
+    );
     let normalized_upstreams = normalize::normalize_upstreams(
         &config.upstreams,
         app_proxy_url.as_deref(),
-        &config.hot_model_mappings,
+        &hot_model_mappings,
     )?;
     let upstreams = normalize::build_provider_upstreams(normalized_upstreams)?;
     Ok(ProxyConfig {
@@ -92,7 +103,7 @@ fn build_runtime_config(config: ProxyConfigFile) -> Result<ProxyConfig, String> 
             config.sync_response_timeout_secs,
         )?,
         upstream_strategy: resolve_upstream_strategy(config.upstream_strategy)?,
-        hot_model_mappings: config.hot_model_mappings,
+        hot_model_mappings,
         upstreams,
         kiro_preferred_endpoint: config.kiro_preferred_endpoint,
     })

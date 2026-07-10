@@ -887,6 +887,200 @@ fn stream_responses_to_chat_emits_chat_error_for_response_failed() {
 }
 
 #[test]
+fn stream_responses_to_anthropic_emits_error_without_message_stop() {
+    super::run_async(async {
+        let cases = [
+            (
+                "response.failed",
+                "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"message\":\"model overloaded\",\"type\":\"server_error\",\"code\":\"server_overloaded\"}}}\n\n",
+                "model overloaded",
+                "server_error",
+                json!("server_overloaded"),
+                503_i64,
+            ),
+            (
+                "response.error",
+                "data: {\"type\":\"response.error\",\"error\":{\"message\":\"request rejected\",\"type\":\"invalid_request_error\",\"code\":\"bad_request\"}}\n\n",
+                "request rejected",
+                "invalid_request_error",
+                json!("bad_request"),
+                400_i64,
+            ),
+            (
+                "error",
+                "data: {\"type\":\"error\",\"error\":{\"message\":\"upstream unavailable\",\"type\":\"api_error\",\"code\":503}}\n\n",
+                "upstream unavailable",
+                "api_error",
+                json!(503),
+                503_i64,
+            ),
+        ];
+
+        for (name, event, expected_message, expected_type, expected_code, expected_status) in cases
+        {
+            let (log, context, sqlite_pool) = super::setup_responses_stream().await;
+            let upstream =
+                futures_util::stream::iter(vec![Ok::<Bytes, reqwest::Error>(Bytes::from(event))]);
+            let token_tracker = crate::proxy::token_rate::TokenRateTracker::new()
+                .register(None, None)
+                .await;
+            let anthropic_stream =
+                super::super::responses_to_anthropic::stream_responses_to_anthropic(
+                    upstream,
+                    context,
+                    log,
+                    token_tracker,
+                );
+            let chunks = anthropic_stream
+                .map(|item| item.expect("stream item"))
+                .collect::<Vec<_>>()
+                .await;
+            let events = chunks
+                .iter()
+                .filter_map(super::parse_anthropic_sse)
+                .collect::<Vec<_>>();
+
+            assert_eq!(events.len(), 1, "case={name}: {events:?}");
+            assert_eq!(events[0].0, "error", "case={name}");
+            assert_eq!(events[0].1["type"], json!("error"), "case={name}");
+            assert_eq!(
+                events[0].1["error"]["message"],
+                json!(expected_message),
+                "case={name}"
+            );
+            assert_eq!(
+                events[0].1["error"]["type"],
+                json!(expected_type),
+                "case={name}"
+            );
+            assert_eq!(events[0].1["error"]["code"], expected_code, "case={name}");
+            assert!(
+                events
+                    .iter()
+                    .all(|(event_type, _)| event_type != "message_stop"),
+                "case={name}: {events:?}"
+            );
+
+            assert_eq!(super::wait_for_log_rows(&sqlite_pool, 1).await, 1);
+            let row =
+                sqlx::query("SELECT status, response_error FROM request_logs ORDER BY id LIMIT 1")
+                    .fetch_one(&sqlite_pool)
+                    .await
+                    .expect("request log");
+            assert_eq!(
+                row.try_get::<i64, _>("status").expect("status"),
+                expected_status,
+                "case={name}"
+            );
+            assert_eq!(
+                row.try_get::<Option<String>, _>("response_error")
+                    .expect("response_error")
+                    .as_deref(),
+                Some(expected_message),
+                "case={name}"
+            );
+        }
+    });
+}
+
+#[test]
+fn stream_responses_to_gemini_emits_error_without_stop_candidate() {
+    super::run_async(async {
+        let cases = [
+            (
+                "response.failed",
+                "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"message\":\"model overloaded\",\"type\":\"server_error\",\"code\":\"server_overloaded\"}}}\n\n",
+                "model overloaded",
+                503_i64,
+                "UNAVAILABLE",
+            ),
+            (
+                "response.error",
+                "data: {\"type\":\"response.error\",\"error\":{\"message\":\"request rejected\",\"type\":\"invalid_request_error\",\"code\":\"bad_request\"}}\n\n",
+                "request rejected",
+                400_i64,
+                "INVALID_ARGUMENT",
+            ),
+            (
+                "error",
+                "data: {\"type\":\"error\",\"error\":{\"message\":\"upstream unavailable\",\"type\":\"api_error\",\"code\":503}}\n\n",
+                "upstream unavailable",
+                503_i64,
+                "UNAVAILABLE",
+            ),
+        ];
+
+        for (name, event, expected_message, expected_code, expected_status) in cases {
+            let (log, context, sqlite_pool) = super::setup_responses_stream().await;
+            let upstream =
+                futures_util::stream::iter(vec![Ok::<Bytes, reqwest::Error>(Bytes::from(event))]);
+            let intermediate_tracker = crate::proxy::token_rate::RequestTokenTracker::disabled();
+            let chat_stream = super::super::responses_to_chat::stream_responses_to_chat(
+                upstream,
+                context.clone(),
+                Arc::new(LogWriter::new(None)),
+                intermediate_tracker,
+            )
+            .boxed();
+            let token_tracker = crate::proxy::token_rate::TokenRateTracker::new()
+                .register(None, None)
+                .await;
+            let gemini_stream = crate::proxy::gemini_compat::stream_chat_to_gemini(
+                chat_stream,
+                context,
+                log,
+                token_tracker,
+            );
+            let chunks = gemini_stream
+                .map(|item| item.expect("stream item"))
+                .collect::<Vec<_>>()
+                .await;
+            let payloads = chunks
+                .iter()
+                .filter_map(super::parse_sse_json)
+                .collect::<Vec<_>>();
+
+            assert_eq!(payloads.len(), 1, "case={name}: {payloads:?}");
+            assert_eq!(
+                payloads[0]["error"]["message"],
+                json!(expected_message),
+                "case={name}"
+            );
+            assert_eq!(
+                payloads[0]["error"]["code"],
+                json!(expected_code),
+                "case={name}"
+            );
+            assert_eq!(
+                payloads[0]["error"]["status"],
+                json!(expected_status),
+                "case={name}"
+            );
+            assert!(payloads[0].get("candidates").is_none(), "case={name}");
+
+            assert_eq!(super::wait_for_log_rows(&sqlite_pool, 1).await, 1);
+            let row =
+                sqlx::query("SELECT status, response_error FROM request_logs ORDER BY id LIMIT 1")
+                    .fetch_one(&sqlite_pool)
+                    .await
+                    .expect("request log");
+            assert_eq!(
+                row.try_get::<i64, _>("status").expect("status"),
+                expected_code,
+                "case={name}"
+            );
+            assert_eq!(
+                row.try_get::<Option<String>, _>("response_error")
+                    .expect("response_error")
+                    .as_deref(),
+                Some(expected_message),
+                "case={name}"
+            );
+        }
+    });
+}
+
+#[test]
 fn stream_anthropic_to_responses_emits_reasoning_summary_events_and_snapshot() {
     super::run_async(async {
         let sqlite_pool = super::create_test_sqlite_pool().await;
@@ -1290,5 +1484,66 @@ fn stream_chat_to_gemini_waits_for_complete_tool_call_arguments() {
         assert_eq!(function_calls.len(), 1);
         assert_eq!(function_calls[0]["name"], json!("get_weather"));
         assert_eq!(function_calls[0]["args"]["city"], json!("Paris"));
+    });
+}
+
+#[test]
+fn stream_with_logging_records_terminal_error_flushed_only_at_eof() {
+    super::run_async(async {
+        let cases = [
+            (
+                "response.failed",
+                "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"message\":\"model overloaded\",\"type\":\"server_error\",\"code\":\"server_overloaded\"}}}",
+                "model overloaded",
+                503_i64,
+            ),
+            (
+                "response.error",
+                "data: {\"type\":\"response.error\",\"error\":{\"message\":\"request rejected\",\"type\":\"invalid_request_error\",\"code\":\"bad_request\"}}",
+                "request rejected",
+                400_i64,
+            ),
+            (
+                "error",
+                "data: {\"type\":\"error\",\"error\":{\"message\":\"upstream unavailable\",\"type\":\"api_error\",\"code\":503}}",
+                "upstream unavailable",
+                503_i64,
+            ),
+        ];
+
+        for (name, event, expected_error, expected_status) in cases {
+            let (log, context, sqlite_pool) = super::setup_responses_stream().await;
+            // 故意不带尾部换行，确保 terminal event 只能由 parser.finish() 识别。
+            let upstream =
+                futures_util::stream::iter(vec![Ok::<Bytes, std::io::Error>(Bytes::from(event))]);
+            let token_tracker = crate::proxy::token_rate::TokenRateTracker::new()
+                .register(None, None)
+                .await;
+            let chunks =
+                super::super::streaming::stream_with_logging(upstream, context, log, token_tracker)
+                    .map(|item| item.expect("stream item"))
+                    .collect::<Vec<_>>()
+                    .await;
+
+            assert_eq!(chunks.len(), 1, "case={name}");
+            assert_eq!(super::wait_for_log_rows(&sqlite_pool, 1).await, 1);
+            let row =
+                sqlx::query("SELECT status, response_error FROM request_logs ORDER BY id LIMIT 1")
+                    .fetch_one(&sqlite_pool)
+                    .await
+                    .expect("request log");
+            assert_eq!(
+                row.try_get::<i64, _>("status").expect("status"),
+                expected_status,
+                "case={name}"
+            );
+            assert_eq!(
+                row.try_get::<Option<String>, _>("response_error")
+                    .expect("response_error")
+                    .as_deref(),
+                Some(expected_error),
+                "case={name}"
+            );
+        }
     });
 }

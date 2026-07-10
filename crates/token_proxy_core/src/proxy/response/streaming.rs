@@ -13,7 +13,9 @@ use super::super::sse::SseEventParser;
 use super::super::token_rate::RequestTokenTracker;
 use super::super::usage::SseUsageCollector;
 use super::{
-    PROVIDER_ANTHROPIC, PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_OPENAI_RESPONSES,
+    responses_error::{responses_stream_error, ResponsesStreamError},
+    PROVIDER_ANTHROPIC, PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI,
+    PROVIDER_OPENAI_RESPONSES,
 };
 
 pub(crate) const STREAM_DROPPED_ERROR: &str = "stream dropped before completion";
@@ -66,6 +68,7 @@ struct StreamObservation {
     terminal: bool,
     terminal_json: bool,
     saw_done: bool,
+    terminal_error: Option<ResponsesStreamError>,
     texts: Vec<String>,
 }
 
@@ -146,6 +149,7 @@ where
                 if observation.terminal {
                     self.terminal_seen = true;
                 }
+                apply_observed_error(&mut self.context, &mut self.terminal_error, &observation);
                 if observation.should_synthesize_done() {
                     out_chunk = append_openai_done(out_chunk);
                 }
@@ -173,13 +177,14 @@ where
                 if observation.starts_client_output {
                     self.context.mark_first_output();
                 }
-                for text in observation.texts {
-                    self.token_tracker.add_output_text(&text).await;
-                }
                 if observation.terminal {
                     self.terminal_seen = true;
+                    apply_observed_error(&mut self.context, &mut self.terminal_error, &observation);
                     self.write_terminal_log_once();
                     return Ok(None);
+                }
+                for text in observation.texts {
+                    self.token_tracker.add_output_text(&text).await;
                 }
                 let message = format!("Failed to read upstream response: {err}");
                 if semantics.responses_events {
@@ -189,10 +194,15 @@ where
                         .push_str(&String::from_utf8_lossy(out_chunk.as_ref()));
                     self.terminal_seen = true;
                     self.terminal_error = Some(message);
+                    self.context.status = 502;
                     self.context.mark_first_client_flush();
                     return Ok(Some((out_chunk, self)));
                 }
-                self.write_log_once(None);
+                if self.terminal_seen {
+                    self.write_terminal_log_once();
+                } else {
+                    self.write_log_once(None);
+                }
                 Err(std::io::Error::new(std::io::ErrorKind::Other, err))
             }
             None => {
@@ -207,13 +217,19 @@ where
                 if observation.terminal {
                     self.terminal_seen = true;
                 }
+                apply_observed_error(&mut self.context, &mut self.terminal_error, &observation);
                 if observation.starts_client_output {
                     self.context.mark_first_output();
                 }
                 for text in observation.texts {
                     self.token_tracker.add_output_text(&text).await;
                 }
-                self.write_log_once(None);
+                // 无尾部空行的 terminal event 只会在 finish 时出现，不能按正常 EOF 丢掉错误。
+                if self.terminal_seen {
+                    self.write_terminal_log_once();
+                } else {
+                    self.write_log_once(None);
+                }
                 Ok(None)
             }
         }
@@ -248,6 +264,7 @@ where
         );
         self.terminal_seen = true;
         self.terminal_error = Some(message.clone());
+        self.context.status = 504;
         openai_response_failed_done_chunk(&message, self.context.model.as_deref())
     }
 
@@ -362,12 +379,12 @@ where
                 self.context.mark_first_client_flush();
                 return Ok(Some((next, self)));
             }
-            if self.upstream_ended {
-                self.write_log_once(None);
-                return Ok(None);
-            }
             if self.terminal_seen {
                 self.write_terminal_log_once();
+                return Ok(None);
+            }
+            if self.upstream_ended {
+                self.write_log_once(None);
                 return Ok(None);
             }
 
@@ -403,6 +420,7 @@ where
                     if observation.terminal {
                         self.terminal_seen = true;
                     }
+                    apply_observed_error(&mut self.context, &mut self.terminal_error, &observation);
                     if observation.starts_client_output {
                         self.context.mark_first_output();
                     }
@@ -420,6 +438,7 @@ where
                             .push_str(&String::from_utf8_lossy(out_chunk.as_ref()));
                         self.terminal_seen = true;
                         self.terminal_error = Some(message);
+                        self.context.status = 502;
                         self.context.mark_first_client_flush();
                         return Ok(Some((out_chunk, self)));
                     }
@@ -454,6 +473,7 @@ where
                     if observation.terminal {
                         self.terminal_seen = true;
                     }
+                    apply_observed_error(&mut self.context, &mut self.terminal_error, &observation);
                     if observation.starts_client_output {
                         self.context.mark_first_output();
                     }
@@ -494,6 +514,7 @@ where
         );
         self.terminal_seen = true;
         self.terminal_error = Some(message.clone());
+        self.context.status = 504;
         openai_response_failed_done_chunk(&message, self.context.model.as_deref())
     }
 
@@ -549,6 +570,7 @@ fn observe_stream_data(
     };
     if semantics.responses_events {
         observation.semantic_event = true;
+        observation.terminal_error = responses_stream_error(&value);
         if openai_stream_value_is_terminal(&value) {
             observation.terminal = true;
             observation.terminal_json = true;
@@ -567,17 +589,41 @@ fn observe_stream_data(
 
 impl StreamObservation {
     fn merge(&mut self, next: StreamObservation) {
-        self.starts_client_output |= next.starts_client_output;
-        self.semantic_event |= next.semantic_event;
-        self.terminal |= next.terminal;
-        self.terminal_json |= next.terminal_json;
-        self.saw_done |= next.saw_done;
-        self.texts.extend(next.texts);
+        let StreamObservation {
+            starts_client_output,
+            semantic_event,
+            terminal,
+            terminal_json,
+            saw_done,
+            terminal_error,
+            texts,
+        } = next;
+        self.starts_client_output |= starts_client_output;
+        self.semantic_event |= semantic_event;
+        self.terminal |= terminal;
+        self.terminal_json |= terminal_json;
+        self.saw_done |= saw_done;
+        if self.terminal_error.is_none() {
+            self.terminal_error = terminal_error;
+        }
+        self.texts.extend(texts);
     }
 
     fn should_synthesize_done(&self) -> bool {
         self.terminal_json && !self.saw_done
     }
+}
+
+fn apply_observed_error(
+    context: &mut LogContext,
+    terminal_error: &mut Option<String>,
+    observation: &StreamObservation,
+) {
+    let Some(error) = observation.terminal_error.as_ref() else {
+        return;
+    };
+    context.status = error.status.as_u16();
+    *terminal_error = Some(error.message.clone());
 }
 
 fn append_openai_done(chunk: Bytes) -> Bytes {
@@ -656,6 +702,7 @@ fn openai_stream_value_is_terminal(value: &Value) -> bool {
         "response.completed"
             | "response.done"
             | "response.failed"
+            | "response.error"
             | "response.incomplete"
             | "response.cancelled"
             | "response.canceled"
@@ -691,7 +738,11 @@ fn openai_responses_data_starts_client_output(provider: &str, value: &Value) -> 
     };
     !matches!(
         event_type.trim(),
-        "" | "response.created" | "response.in_progress" | "response.failed" | "error"
+        "" | "response.created"
+            | "response.in_progress"
+            | "response.failed"
+            | "response.error"
+            | "error"
     )
 }
 

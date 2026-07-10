@@ -404,6 +404,77 @@ fn responses_request_to_anthropic_maps_tool_choice_and_tool_result() {
 }
 
 #[test]
+fn responses_request_to_anthropic_merges_system_roles_for_all_message_shapes() {
+    let http_clients = ProxyHttpClients::new().expect("http clients");
+    let cases = [
+        (
+            "chat-style string content",
+            json!({
+                "model": "claude-3-7-sonnet",
+                "instructions": "top-level rules",
+                "input": [
+                    { "role": "system", "content": "system rules" },
+                    { "role": "developer", "content": "developer rules" },
+                    { "role": "user", "content": "hello" }
+                ]
+            }),
+            "top-level rules\nsystem rules\ndeveloper rules",
+        ),
+        (
+            "Responses message array content",
+            json!({
+                "model": "claude-3-7-sonnet",
+                "input": [
+                    {
+                        "type": "message",
+                        "role": "system",
+                        "content": [{ "type": "input_text", "text": "system rules" }]
+                    },
+                    {
+                        "type": "message",
+                        "role": "developer",
+                        "content": [{ "type": "input_text", "text": "developer rules" }]
+                    },
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{ "type": "input_text", "text": "hello" }]
+                    }
+                ]
+            }),
+            "system rules\ndeveloper rules",
+        ),
+    ];
+
+    for (name, input, expected_system) in cases {
+        let output = run_async(async {
+            responses_request_to_anthropic(&bytes_from_json(input), &http_clients)
+                .await
+                .expect("transform")
+        });
+        let value = json_from_bytes(output);
+
+        assert_eq!(
+            value["system"],
+            json!([{ "type": "text", "text": expected_system }]),
+            "case={name}"
+        );
+        let messages = value["messages"].as_array().expect("messages array");
+        assert_eq!(messages.len(), 1, "case={name}");
+        assert_eq!(messages[0]["role"], json!("user"), "case={name}");
+        assert!(
+            messages.iter().all(|message| {
+                matches!(
+                    message.get("role").and_then(Value::as_str),
+                    Some("user" | "assistant")
+                )
+            }),
+            "case={name}: {messages:?}"
+        );
+    }
+}
+
+#[test]
 fn responses_request_to_anthropic_maps_google_search_tool() {
     let http_clients = ProxyHttpClients::new().expect("http clients");
 

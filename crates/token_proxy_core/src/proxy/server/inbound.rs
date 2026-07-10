@@ -57,6 +57,7 @@ pub(super) async fn prepare_inbound_request(
     let (plan, body) = resolve_plan_or_respond(
         &state.config,
         &state.log,
+        method,
         headers,
         body,
         capture_request_detail_enabled,
@@ -140,6 +141,7 @@ pub(super) async fn ensure_local_auth_or_respond(
 pub(super) async fn resolve_plan_or_respond(
     config: &ProxyConfig,
     log: &Arc<LogWriter>,
+    method: &Method,
     headers: &HeaderMap,
     body: Body,
     capture_request_detail_enabled: bool,
@@ -149,7 +151,7 @@ pub(super) async fn resolve_plan_or_respond(
     request_start: Instant,
     max_body_bytes: usize,
 ) -> Result<(DispatchPlan, Body), Response> {
-    match resolve_dispatch_plan_with_request(config, path, headers, query) {
+    match resolve_dispatch_plan_with_request(config, method, path, headers, query) {
         Ok(plan) => {
             tracing::debug!(provider = %plan.provider, "dispatch plan resolved");
             Ok((plan, body))

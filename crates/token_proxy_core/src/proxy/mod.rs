@@ -1,6 +1,7 @@
 mod account_selector;
 mod anthropic_compat;
 mod codex_compat;
+mod codex_models_manifest;
 mod codex_tool_types;
 mod compat_content;
 mod compat_reason;

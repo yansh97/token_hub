@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::fmt::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const DEFAULT_PRICING_VERSION: &str = "2026-07-09.grok";
+pub const DEFAULT_PRICING_VERSION: &str = "2026-07-10.grok-composer";
 // Multiplier is stored as a fixed-point decimal: 1_000_000_000_000 = 1x.
 pub const PRICE_MULTIPLIER_SCALE: u64 = 1_000_000_000_000;
 
@@ -487,6 +487,7 @@ pub fn default_model_pricing_settings() -> ModelPricingSettings {
             ModelPricingModel {
                 model_id: "grok-composer-2.5-fast".to_string(),
                 aliases: alias_list(&[
+                    "composer-2.5",
                     "x-ai/grok-composer-2.5-fast",
                     "xai/grok-composer-2.5-fast",
                 ]),
@@ -1088,11 +1089,9 @@ mod tests {
             ("grok-4.20-0309-non-reasoning", "grok-4.20"),
             ("x-ai/grok-4.20-multi-agent", "grok-4.20-multi-agent"),
             ("grok-4.20-multi-agent-0309", "grok-4.20-multi-agent"),
-            (
-                "x-ai/grok-4.20-multi-agent-0309",
-                "grok-4.20-multi-agent",
-            ),
+            ("x-ai/grok-4.20-multi-agent-0309", "grok-4.20-multi-agent"),
             ("x-ai/grok-build-0.1", "grok-build-0.1"),
+            ("composer-2.5", "grok-composer-2.5-fast"),
             ("x-ai/grok-composer-2.5-fast", "grok-composer-2.5-fast"),
         ];
 
@@ -1418,8 +1417,14 @@ mod tests {
         assert_eq!(grok_4_5.short.input_nano_usd_per_token, 2_000);
         assert_eq!(grok_4_5.short.cached_input_nano_usd_per_token, 500);
         assert_eq!(grok_4_5.short.output_nano_usd_per_token, 6_000);
-        assert!(grok_4_5.aliases.iter().any(|alias| alias == "grok-4.5-high"));
-        assert!(grok_4_5.aliases.iter().any(|alias| alias == "x-ai/grok-4.5"));
+        assert!(grok_4_5
+            .aliases
+            .iter()
+            .any(|alias| alias == "grok-4.5-high"));
+        assert!(grok_4_5
+            .aliases
+            .iter()
+            .any(|alias| alias == "x-ai/grok-4.5"));
 
         let grok_4_3 = settings
             .models

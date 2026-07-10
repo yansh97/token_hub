@@ -979,6 +979,98 @@ fn responses_request_to_codex_strips_output_parts_from_new_tool_output_types() {
 }
 
 #[test]
+fn responses_request_to_codex_sanitizes_store_false_reasoning_context() {
+    let input = json!({
+        "model": "gpt-5.5",
+        "input": [
+            {
+                "type": "reasoning",
+                "id": "rs_replayed_null_summary",
+                "encrypted_content": "encrypted-null",
+                "content": [{ "type": "reasoning_text", "text": "private context" }],
+                "summary": null
+            },
+            {
+                "type": "reasoning",
+                "id": "rs_replayed_missing_summary",
+                "encrypted_content": "encrypted-missing",
+                "content": []
+            },
+            {
+                "type": "reasoning",
+                "id": "reasoning_local_context",
+                "encrypted_content": "encrypted-existing",
+                "content": [],
+                "summary": [{ "type": "summary_text", "text": "existing summary" }]
+            }
+        ]
+    });
+
+    let output = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("convert responses request");
+    let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
+    let input_items = value["input"].as_array().expect("input array");
+
+    assert_eq!(input_items.len(), 3);
+    assert!(input_items[..2].iter().all(|item| item.get("id").is_none()));
+    assert_eq!(input_items[0]["encrypted_content"], "encrypted-null");
+    assert_eq!(
+        input_items[0]["content"],
+        json!([{ "type": "reasoning_text", "text": "private context" }])
+    );
+    assert_eq!(input_items[0]["summary"], json!([]));
+    assert_eq!(input_items[1]["encrypted_content"], "encrypted-missing");
+    assert_eq!(input_items[1]["content"], json!([]));
+    assert_eq!(input_items[1]["summary"], json!([]));
+    assert_eq!(input_items[2]["id"], "reasoning_local_context");
+    assert_eq!(
+        input_items[2]["summary"],
+        json!([{ "type": "summary_text", "text": "existing summary" }])
+    );
+}
+
+#[test]
+fn responses_request_to_codex_strips_invalid_call_input_ids_only() {
+    let input = json!({
+        "model": "gpt-5.5",
+        "input": [
+            { "type": "function_call", "id": "item_function", "call_id": "call_function", "name": "function", "arguments": "{}" },
+            { "type": "tool_call", "id": "item_tool", "call_id": "call_tool" },
+            { "type": "local_shell_call", "id": "item_shell", "call_id": "call_shell", "tool_name": "shell" },
+            { "type": "tool_search_call", "id": "item_search", "call_id": "call_search", "function": { "name": "search" } },
+            { "type": "custom_tool_call", "id": "item_custom", "call_id": "call_custom", "name": "custom" },
+            { "type": "mcp_tool_call", "id": "item_mcp", "call_id": "call_mcp", "name": "mcp" },
+            { "type": "function_call", "id": "fc_keep", "call_id": "call_keep", "name": "keep", "arguments": "{}" },
+            { "type": "function_call_output", "id": "item_output", "call_id": "call_output", "output": "ok" },
+            { "type": "message", "id": "item_message", "role": "user", "content": [{ "type": "input_text", "text": "continue" }] }
+        ]
+    });
+
+    let output = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("convert responses request");
+    let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
+    let input_items = value["input"].as_array().expect("input array");
+
+    for (item, expected_call_id) in input_items[..6].iter().zip([
+        "call_function",
+        "call_tool",
+        "call_shell",
+        "call_search",
+        "call_custom",
+        "call_mcp",
+    ]) {
+        assert!(item.get("id").is_none(), "item={item}");
+        assert_eq!(item["call_id"], expected_call_id);
+    }
+    assert_eq!(input_items[6]["id"], "fc_keep");
+    assert_eq!(input_items[6]["call_id"], "call_keep");
+    assert_eq!(input_items[7]["id"], "item_output");
+    assert_eq!(input_items[7]["call_id"], "call_output");
+    assert_eq!(input_items[8]["id"], "item_message");
+    assert_eq!(input_items[8]["content"][0]["text"], "continue");
+}
+
+#[test]
 fn responses_request_to_codex_preserves_name_less_tool_call_context_items() {
     let input = json!({
         "model": "gpt-5",
@@ -1033,6 +1125,70 @@ fn responses_request_to_codex_rejects_spark_image_generation_tool() {
 
     assert!(error.contains("gpt-5.3-codex-spark"), "error: {error}");
     assert!(error.contains("text-only"), "error: {error}");
+}
+
+#[test]
+fn responses_request_to_codex_rejects_spark_namespace_image_generation_tool() {
+    let input = json!({
+        "model": "gpt-5.3-codex-spark",
+        "input": "draw icon",
+        "tools": [
+            { "type": "namespace", "name": "image_gen", "description": "Generate an image" }
+        ]
+    });
+
+    let error = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect_err("should reject namespace image generation");
+
+    assert!(error.contains("gpt-5.3-codex-spark"), "error: {error}");
+    assert!(error.contains("text-only"), "error: {error}");
+}
+
+#[test]
+fn responses_request_to_codex_rejects_spark_additional_image_generation_tool() {
+    let input = json!({
+        "model": "gpt-5.3-codex-spark",
+        "input": [
+            {
+                "type": "additional_tools",
+                "tools": [
+                    { "type": "namespace", "name": "image_gen" }
+                ]
+            },
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{ "type": "input_text", "text": "draw icon" }]
+            }
+        ]
+    });
+
+    let error = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect_err("should reject additional image generation tool");
+
+    assert!(error.contains("gpt-5.3-codex-spark"), "error: {error}");
+    assert!(error.contains("text-only"), "error: {error}");
+}
+
+#[test]
+fn responses_request_to_codex_does_not_overmatch_namespace_tools() {
+    for input in [
+        json!({
+            "model": "gpt-5.3-codex-spark",
+            "input": "search docs",
+            "tools": [{ "type": "namespace", "name": "code_tools" }]
+        }),
+        json!({
+            "model": "gpt-5.5",
+            "input": [{
+                "type": "additional_tools",
+                "tools": [{ "type": "namespace", "name": "image_gen" }]
+            }]
+        }),
+    ] {
+        responses_request_to_codex(&Bytes::from(input.to_string()), None)
+            .expect("supported namespace tool request");
+    }
 }
 
 #[test]

@@ -1,11 +1,11 @@
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, Method};
 use url::form_urlencoded;
 
 use crate::proxy::server_helpers::is_anthropic_path;
 
 use super::{
     super::{
-        codex_compat,
+        codex_compat, codex_models_manifest,
         config::{InboundApiFormat, ProxyConfig},
         gemini,
         inbound::detect_inbound_api_format,
@@ -356,10 +356,21 @@ fn is_gemini_models_request(headers: &HeaderMap, query: Option<&str>) -> bool {
 
 fn resolve_models_plan(
     config: &ProxyConfig,
+    method: &Method,
     path: &str,
     headers: &HeaderMap,
     query: Option<&str>,
 ) -> Option<Result<DispatchPlan, String>> {
+    if codex_models_manifest::is_request(method, path, query) {
+        let provider = choose_provider_by_priority(config, None, &[PROVIDER_CODEX])
+            .ok_or_else(|| ERROR_NO_UPSTREAM.to_string());
+        return Some(provider.map(|provider| DispatchPlan {
+            provider,
+            outbound_path: Some(codex_models_manifest::CODEX_MODELS_MANIFEST_PATH),
+            request_transform: FormatTransform::None,
+            response_transform: FormatTransform::None,
+        }));
+    }
     if is_openai_compatible_models_path(path) {
         let provider =
             choose_provider_by_priority(config, None, &[PROVIDER_CHAT, PROVIDER_RESPONSES])
@@ -392,11 +403,12 @@ fn resolve_models_plan(
 
 pub(super) fn resolve_dispatch_plan_with_request(
     config: &ProxyConfig,
+    method: &Method,
     path: &str,
     headers: &HeaderMap,
     query: Option<&str>,
 ) -> Result<DispatchPlan, String> {
-    if let Some(plan) = resolve_models_plan(config, path, headers, query) {
+    if let Some(plan) = resolve_models_plan(config, method, path, headers, query) {
         return plan;
     }
     if let Some(plan) = resolve_responses_compact_plan(config, path, headers) {
@@ -756,5 +768,5 @@ pub(super) fn resolve_dispatch_plan(
     config: &ProxyConfig,
     path: &str,
 ) -> Result<DispatchPlan, String> {
-    resolve_dispatch_plan_with_request(config, path, &HeaderMap::new(), None)
+    resolve_dispatch_plan_with_request(config, &Method::POST, path, &HeaderMap::new(), None)
 }

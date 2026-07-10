@@ -12,8 +12,8 @@ use std::{
 use tokio::sync::RwLock;
 
 use super::{
-    http, server_helpers::extract_request_path, upstream::aggregate_model_catalog_request,
-    ProxyState, RequestMeta,
+    codex_models_manifest, http, server_helpers::extract_request_path,
+    upstream::aggregate_model_catalog_request, ProxyState, RequestMeta,
 };
 
 const PROVIDER_ANTHROPIC: &str = "anthropic";
@@ -127,7 +127,10 @@ async fn proxy_request_inner(
         return response;
     }
 
+    let is_codex_models_manifest =
+        codex_models_manifest::is_request(&method, &path, query.as_deref());
     if method == Method::GET
+        && !is_codex_models_manifest
         && (is_openai_models_index_path(&path) || is_openai_compatible_models_index_path(&path))
     {
         let body = match ensure_local_auth_or_respond(
@@ -151,6 +154,7 @@ async fn proxy_request_inner(
         let (plan, _body) = match resolve_plan_or_respond(
             &state.config,
             &state.log,
+            &method,
             &headers,
             body,
             capture_request_detail_enabled,

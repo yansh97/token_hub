@@ -363,7 +363,11 @@ fn attempt_selected_account_id(
 
 fn should_failover_codex_outcome(outcome: &AttemptOutcome) -> bool {
     match outcome {
-        AttemptOutcome::Success(response) => !response.status().is_success(),
+        AttemptOutcome::Success(response) => {
+            let status = response.status();
+            // 304 是条件请求成功命中缓存，继续切换账号会破坏 ETag 语义。
+            !status.is_success() && status != StatusCode::NOT_MODIFIED
+        }
         AttemptOutcome::Retryable { .. } => true,
         AttemptOutcome::Fatal(_) | AttemptOutcome::SkippedAuth => false,
     }
