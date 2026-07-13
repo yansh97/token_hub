@@ -274,6 +274,11 @@ impl KiroAccountStore {
         account_id: &str,
         record: KiroTokenRecord,
     ) -> Result<KiroTokenRecord, String> {
+        // 禁用账号不参与调度，也不应因 token 过期触发 refresh（避免把 status 写回 Active）。
+        if matches!(record.status, KiroAccountStatus::Disabled) {
+            tracing::debug!(account_id, "skip kiro token refresh for disabled account");
+            return Ok(record);
+        }
         if !record.is_expired() {
             return Ok(record);
         }
@@ -292,8 +297,12 @@ impl KiroAccountStore {
             "social" => oauth::refresh_social_token(&record, proxy_url.as_deref()).await?,
             _ => return Err("Unsupported Kiro auth method.".to_string()),
         };
+        // 防御：各 auth 路径必须保留本地调度字段；这里再强制回填一遍。
         let refreshed = KiroTokenRecord {
+            status: record.status,
+            proxy_url: record.proxy_url.clone(),
             priority: record.priority,
+            email: record.email.clone().or(refreshed.email),
             quota: record.quota.clone(),
             ..refreshed
         };
@@ -719,6 +728,12 @@ mod tests {
             .expect("format expires_at")
     }
 
+    fn past_rfc3339(hours: i64) -> String {
+        (OffsetDateTime::now_utc() - Duration::hours(hours))
+            .format(&Rfc3339)
+            .expect("format expires_at")
+    }
+
     #[test]
     fn quota_refresh_waits_for_30_second_interval() {
         let within_window = (OffsetDateTime::now_utc() - Duration::seconds(29))
@@ -1077,6 +1092,123 @@ INSERT INTO provider_accounts (
 
             assert_eq!(account_id, "kiro-google-b.json");
             assert!(record.is_schedulable());
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn get_account_record_does_not_refresh_disabled_expired_account() {
+        run_async(async {
+            let (store, data_dir) = create_test_store();
+            // 禁用 + 已过期：读取路径不得触发 refresh，status 必须保持 disabled。
+            store
+                .save_record(
+                    "kiro-builder-disabled.json".to_string(),
+                    KiroTokenRecord {
+                        access_token: "expired-access".to_string(),
+                        refresh_token: "refresh-token".to_string(),
+                        profile_arn: None,
+                        expires_at: past_rfc3339(2),
+                        auth_method: "builder-id".to_string(),
+                        provider: "AWS".to_string(),
+                        client_id: Some("client-id".to_string()),
+                        client_secret: Some("client-secret".to_string()),
+                        email: Some("disabled@example.com".to_string()),
+                        last_refresh: None,
+                        start_url: None,
+                        region: None,
+                        status: KiroAccountStatus::Disabled,
+                        proxy_url: Some("socks5://127.0.0.1:1080".to_string()),
+                        priority: 9,
+                        quota: crate::kiro::KiroQuotaCache::default(),
+                    },
+                )
+                .await
+                .expect("save disabled expired account");
+
+            let record = store
+                .get_account_record("kiro-builder-disabled.json")
+                .await
+                .expect("disabled account should still load");
+
+            assert!(matches!(record.status, KiroAccountStatus::Disabled));
+            assert!(!record.is_schedulable());
+            assert_eq!(record.access_token, "expired-access");
+            assert_eq!(record.proxy_url.as_deref(), Some("socks5://127.0.0.1:1080"));
+            assert_eq!(record.priority, 9);
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn resolve_account_record_skips_disabled_expired_builder_id_accounts() {
+        run_async(async {
+            let (store, data_dir) = create_test_store();
+            // 回归：禁用 builder-id 账号过期后仍不得进入调度，也不能被 refresh 复活成 Active。
+            store
+                .save_record(
+                    "kiro-builder-disabled.json".to_string(),
+                    KiroTokenRecord {
+                        access_token: "disabled-access".to_string(),
+                        refresh_token: "disabled-refresh".to_string(),
+                        profile_arn: None,
+                        expires_at: past_rfc3339(2),
+                        auth_method: "builder-id".to_string(),
+                        provider: "AWS".to_string(),
+                        client_id: Some("client-id".to_string()),
+                        client_secret: Some("client-secret".to_string()),
+                        email: Some("disabled@example.com".to_string()),
+                        last_refresh: None,
+                        start_url: None,
+                        region: None,
+                        status: KiroAccountStatus::Disabled,
+                        proxy_url: None,
+                        priority: 100,
+                        quota: crate::kiro::KiroQuotaCache::default(),
+                    },
+                )
+                .await
+                .expect("save disabled account");
+            store
+                .save_record(
+                    "kiro-active.json".to_string(),
+                    KiroTokenRecord {
+                        access_token: "active-access".to_string(),
+                        refresh_token: "active-refresh".to_string(),
+                        profile_arn: Some("arn:aws:iam::123456789012:user/active".to_string()),
+                        expires_at: future_rfc3339(6),
+                        auth_method: "google".to_string(),
+                        provider: "kiro".to_string(),
+                        client_id: None,
+                        client_secret: None,
+                        email: Some("active@example.com".to_string()),
+                        last_refresh: None,
+                        start_url: None,
+                        region: None,
+                        status: KiroAccountStatus::Active,
+                        proxy_url: None,
+                        priority: 1,
+                        quota: crate::kiro::KiroQuotaCache::default(),
+                    },
+                )
+                .await
+                .expect("save active account");
+
+            let (account_id, record) = store
+                .resolve_account_record(None)
+                .await
+                .expect("should resolve only active account");
+            assert_eq!(account_id, "kiro-active.json");
+            assert!(record.is_schedulable());
+
+            let disabled = store
+                .get_account_record("kiro-builder-disabled.json")
+                .await
+                .expect("disabled record should remain");
+            assert!(matches!(disabled.status, KiroAccountStatus::Disabled));
+            assert!(!disabled.is_schedulable());
 
             let _ = std::fs::remove_dir_all(data_dir);
         });

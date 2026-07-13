@@ -334,9 +334,29 @@ pub(crate) async fn refresh_builder_token(
         .as_deref()
         .ok_or_else(|| "Missing OIDC client_secret.".to_string())?;
     let client = SsoOidcClient::new(proxy_url)?;
-    client
+    // 底层 token 响应只带凭证字段，本地调度字段必须从原 record 回填，
+    // 否则禁用/代理/优先级会在 refresh 后被重置成 Active 默认值。
+    let refreshed = client
         .refresh_builder_token(client_id, client_secret, &record.refresh_token)
-        .await
+        .await?;
+    Ok(KiroTokenRecord {
+        access_token: refreshed.access_token,
+        refresh_token: refreshed.refresh_token,
+        profile_arn: record.profile_arn.clone(),
+        expires_at: refreshed.expires_at,
+        auth_method: "builder-id".to_string(),
+        provider: "AWS".to_string(),
+        client_id: Some(client_id.to_string()),
+        client_secret: Some(client_secret.to_string()),
+        email: record.email.clone(),
+        last_refresh: refreshed.last_refresh,
+        start_url: record.start_url.clone(),
+        region: record.region.clone(),
+        status: record.status,
+        proxy_url: record.proxy_url.clone(),
+        priority: record.priority,
+        quota: record.quota.clone(),
+    })
 }
 
 pub(crate) async fn refresh_idc_token(

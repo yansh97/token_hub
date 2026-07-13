@@ -412,6 +412,11 @@ impl CodexAccountStore {
         account_id: &str,
         record: CodexTokenRecord,
     ) -> Result<CodexTokenRecord, String> {
+        // 禁用账号不参与调度，读取路径也不应触发 token refresh。
+        if matches!(record.status, CodexAccountStatus::Disabled) {
+            tracing::debug!(account_id, "skip codex token refresh for disabled account");
+            return Ok(record);
+        }
         if !record_needs_refresh(&record) {
             return Ok(record);
         }
@@ -1848,6 +1853,12 @@ mod tests {
 
     fn future_rfc3339(hours: i64) -> String {
         (OffsetDateTime::now_utc() + time::Duration::hours(hours))
+            .format(&Rfc3339)
+            .expect("format expires_at")
+    }
+
+    fn past_rfc3339(hours: i64) -> String {
+        (OffsetDateTime::now_utc() - time::Duration::hours(hours))
             .format(&Rfc3339)
             .expect("format expires_at")
     }
@@ -3760,6 +3771,49 @@ INSERT INTO provider_accounts (
 
             assert_eq!(account_id, "codex-b.json");
             assert!(record.is_schedulable());
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn get_account_record_does_not_refresh_disabled_expired_account() {
+        run_async(async {
+            let (store, data_dir) = create_test_store();
+            store
+                .save_record(
+                    "codex-disabled.json".to_string(),
+                    CodexTokenRecord {
+                        access_token: "expired-access".to_string(),
+                        refresh_token: "refresh-token".to_string(),
+                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
+                        id_token: "".to_string(),
+                        auto_refresh_enabled: true,
+                        status: CodexAccountStatus::Disabled,
+                        account_id: Some("acct-disabled".to_string()),
+                        user_id: None,
+                        openai_device_id: None,
+                        email: Some("disabled@example.com".to_string()),
+                        expires_at: past_rfc3339(2),
+                        last_refresh: None,
+                        proxy_url: Some("socks5://127.0.0.1:1080".to_string()),
+                        priority: 7,
+                        quota: crate::codex::CodexQuotaCache::default(),
+                    },
+                )
+                .await
+                .expect("save disabled expired account");
+
+            let record = store
+                .get_account_record("codex-disabled.json")
+                .await
+                .expect("disabled account should still load");
+
+            assert!(matches!(record.status, CodexAccountStatus::Disabled));
+            assert!(!record.is_schedulable());
+            assert_eq!(record.access_token, "expired-access");
+            assert_eq!(record.proxy_url.as_deref(), Some("socks5://127.0.0.1:1080"));
+            assert_eq!(record.priority, 7);
 
             let _ = std::fs::remove_dir_all(data_dir);
         });

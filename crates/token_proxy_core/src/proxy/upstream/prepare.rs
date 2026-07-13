@@ -248,22 +248,31 @@ pub(super) async fn ordered_runtime_account_ids(
     provider: &str,
     cooldown_scope: &CooldownScope,
 ) -> Vec<String> {
+    // 候选集合只收 effective Active（可调度）账号。
+    // disabled/expired/invalid 不应进入 cooldown 排序与 resolve 候选，避免无用 refresh 副作用。
     let account_ids = match provider {
         "kiro" => state.kiro_accounts.list_accounts().await.map(|items| {
             items
                 .into_iter()
+                .filter(|item| matches!(item.status, crate::kiro::KiroAccountStatus::Active))
                 .map(|item| item.account_id)
                 .collect::<Vec<_>>()
         }),
         "codex" => state.codex_accounts.list_accounts().await.map(|items| {
             items
                 .into_iter()
+                .filter(|item| matches!(item.status, crate::codex::CodexAccountStatus::Active))
                 .map(|item| item.account_id)
                 .collect::<Vec<_>>()
         }),
         _ => Ok(Vec::new()),
     }
     .unwrap_or_default();
+    tracing::debug!(
+        provider,
+        candidate_count = account_ids.len(),
+        "ordered runtime account candidates after active filter"
+    );
     state
         .account_selector
         .order_accounts_scoped(provider, &account_ids, cooldown_scope)

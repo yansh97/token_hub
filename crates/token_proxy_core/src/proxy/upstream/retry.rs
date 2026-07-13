@@ -215,22 +215,9 @@ pub(super) async fn retry_with_next_codex_account(
             excluded_account_ids.push(selected_account_id);
         }
 
-        let ordered_account_ids = state
-            .codex_accounts
-            .list_accounts()
-            .await
-            .map(|items| {
-                items
-                    .into_iter()
-                    .map(|item| item.account_id)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let ordered_account_ids = state.account_selector.order_accounts_scoped(
-            provider,
-            &ordered_account_ids,
-            cooldown_scope,
-        );
+        // 与首跳一致：只从 Active 候选里做 failover，禁用账号不进入轮询集合。
+        let ordered_account_ids =
+            super::ordered_runtime_account_ids(state, provider, cooldown_scope).await;
         let next_account_id = match state
             .codex_accounts
             .resolve_next_account_record_with_order(
