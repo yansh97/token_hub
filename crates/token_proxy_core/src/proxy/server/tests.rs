@@ -5799,6 +5799,99 @@ fn responses_stream_request_retries_same_upstream_once_after_split_prelude_capac
 }
 
 #[test]
+fn grok_responses_stream_502_503_504_retry_exhaustion_emits_sequenced_error() {
+    run_async(async {
+        for upstream_status in [
+            StatusCode::BAD_GATEWAY,
+            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::GATEWAY_TIMEOUT,
+        ] {
+            // Responses streams encode terminal failures inside HTTP 200 SSE events.
+            let message = format!("mock {} failure", upstream_status.as_u16());
+            let event = json!({
+                "type": "response.failed",
+                "response": {
+                    "status": "failed",
+                    "error": {
+                        "message": message,
+                        "type": "server_error",
+                        "code": upstream_status.as_u16()
+                    }
+                }
+            });
+            let upstream = spawn_mock_raw_upstream(
+                StatusCode::OK,
+                Bytes::from(format!("event: response.failed\ndata: {event}\n\n")),
+                "text/event-stream",
+            )
+            .await;
+            let mut config = config_with_runtime_upstreams(&[(
+                PROVIDER_RESPONSES,
+                10,
+                "airouter-grok",
+                upstream.base_url.as_str(),
+                FORMATS_RESPONSES,
+            )]);
+            config.upstream_strategy = UpstreamStrategyRuntime {
+                order: UpstreamOrderStrategy::FillFirst,
+                dispatch: UpstreamDispatchRuntime::Serial,
+            };
+            let data_dir = next_test_data_dir(&format!(
+                "grok_responses_stream_{}_retry_exhaustion",
+                upstream_status.as_u16()
+            ));
+            let state = build_test_state_handle(config, data_dir.clone()).await;
+
+            let response = proxy_request(
+                State(state),
+                Method::POST,
+                Uri::from_static(RESPONSES_PATH),
+                axum::http::HeaderMap::new(),
+                Body::from(
+                    json!({
+                        "model": "grok-4.5-high",
+                        "input": "hi",
+                        "stream": true
+                    })
+                    .to_string(),
+                ),
+            )
+            .await;
+
+            let status = response.status();
+            let response_bytes = to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("proxy stream response bytes");
+            let response_text = String::from_utf8(response_bytes.to_vec()).expect("response text");
+            let payload = response_text
+                .lines()
+                .find_map(|line| line.strip_prefix("data: "))
+                .and_then(|line| serde_json::from_str::<Value>(line).ok())
+                .expect("Responses error SSE payload");
+            let requests = upstream.requests();
+
+            upstream.abort();
+            let _ = std::fs::remove_dir_all(&data_dir);
+
+            assert_eq!(status, StatusCode::OK, "upstream status: {upstream_status}");
+            assert_eq!(payload["type"], json!("response.failed"));
+            assert_eq!(payload["sequence_number"], json!(0));
+            assert_eq!(payload["response"]["error"]["message"], json!(message));
+            assert!(response_text.contains("data: [DONE]"), "{response_text}");
+            assert_eq!(
+                requests.len(),
+                2,
+                "{upstream_status} should retry the same upstream once"
+            );
+            assert!(requests.iter().all(|request| {
+                request.path == RESPONSES_PATH
+                    && request.body["model"].as_str() == Some("grok-4.5-high")
+            }));
+        }
+    });
+}
+
+#[test]
 fn anthropic_stream_retry_exhaustion_emits_anthropic_error() {
     run_async(async {
         let responses = spawn_mock_raw_upstream(

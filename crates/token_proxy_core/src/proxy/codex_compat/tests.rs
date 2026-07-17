@@ -514,6 +514,10 @@ async fn stream_codex_to_responses_emits_error_event_for_invalid_json_event() {
     );
     assert!(text.contains("invalid JSON stream event"), "chunks: {text}");
     assert!(text.contains("data: [DONE]"), "chunks: {text}");
+    assert!(
+        text.contains("\"sequence_number\":0"),
+        "first terminal event must start the Responses sequence: {text}"
+    );
 }
 
 #[tokio::test]
@@ -689,7 +693,7 @@ async fn stream_codex_to_responses_semantic_timeout_ignores_heartbeat_comments()
 async fn stream_codex_to_responses_upstream_error_emits_response_failed_after_stream_started() {
     let upstream = futures_util::stream::iter(vec![
         Ok::<Bytes, std::io::Error>(Bytes::from(
-            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\",\"sequence_number\":7}\n\n",
         )),
         Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -712,6 +716,10 @@ async fn stream_codex_to_responses_upstream_error_emits_response_failed_after_st
     );
     assert!(text.contains("codex stream reset"), "chunks: {text}");
     assert!(text.contains("data: [DONE]"), "chunks: {text}");
+    assert!(
+        text.contains("\"sequence_number\":8"),
+        "terminal event must continue the Responses sequence: {text}"
+    );
 }
 
 #[tokio::test]

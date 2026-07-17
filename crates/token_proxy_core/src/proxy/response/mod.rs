@@ -314,6 +314,7 @@ mod kiro_to_responses_helpers;
 pub(crate) mod responses_error;
 mod responses_to_anthropic;
 mod responses_to_chat;
+pub(crate) mod sequence;
 mod streaming;
 mod token_count;
 mod upstream_read;

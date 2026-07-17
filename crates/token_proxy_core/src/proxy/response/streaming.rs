@@ -14,6 +14,7 @@ use super::super::token_rate::RequestTokenTracker;
 use super::super::usage::SseUsageCollector;
 use super::{
     responses_error::{responses_stream_error, ResponsesStreamError},
+    sequence::ResponsesEventSequence,
     PROVIDER_ANTHROPIC, PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI,
     PROVIDER_OPENAI_RESPONSES,
 };
@@ -59,6 +60,7 @@ struct LoggingStreamState<S> {
     semantic_timeout: Option<Duration>,
     last_semantic_event_at: Instant,
     response_body_buf: String,
+    sequence: ResponsesEventSequence,
 }
 
 #[derive(Default)]
@@ -125,6 +127,7 @@ where
             semantic_timeout,
             last_semantic_event_at: Instant::now(),
             response_body_buf: String::new(),
+            sequence: ResponsesEventSequence::default(),
         }
     }
 
@@ -140,9 +143,12 @@ where
                 let mut out_chunk = chunk;
                 let semantics = self.openai_stream_semantics();
                 let mut observation = StreamObservation::default();
-                self.parser.push_chunk(&out_chunk, |data| {
+                let mut events = Vec::new();
+                self.parser.push_chunk(&out_chunk, |data| events.push(data));
+                for data in events {
+                    self.sequence.observe_data(&data);
                     observe_stream_data(semantics, &self.context.provider, &data, &mut observation);
-                });
+                }
                 if observation.semantic_event {
                     self.last_semantic_event_at = Instant::now();
                 }
@@ -168,9 +174,12 @@ where
             Some(Err(err)) => {
                 let semantics = self.openai_stream_semantics();
                 let mut observation = StreamObservation::default();
-                self.parser.finish(|data| {
+                let mut events = Vec::new();
+                self.parser.finish(|data| events.push(data));
+                for data in events {
+                    self.sequence.observe_data(&data);
                     observe_stream_data(semantics, &self.context.provider, &data, &mut observation);
-                });
+                }
                 if observation.semantic_event {
                     self.last_semantic_event_at = Instant::now();
                 }
@@ -188,8 +197,12 @@ where
                 }
                 let message = format!("Failed to read upstream response: {err}");
                 if semantics.responses_events {
-                    let out_chunk =
-                        openai_response_failed_done_chunk(&message, self.context.model.as_deref());
+                    let sequence_number = self.sequence.take_next();
+                    let out_chunk = openai_response_failed_done_chunk(
+                        &message,
+                        self.context.model.as_deref(),
+                        sequence_number,
+                    );
                     self.response_body_buf
                         .push_str(&String::from_utf8_lossy(out_chunk.as_ref()));
                     self.terminal_seen = true;
@@ -208,9 +221,12 @@ where
             None => {
                 let semantics = self.openai_stream_semantics();
                 let mut observation = StreamObservation::default();
-                self.parser.finish(|data| {
+                let mut events = Vec::new();
+                self.parser.finish(|data| events.push(data));
+                for data in events {
+                    self.sequence.observe_data(&data);
                     observe_stream_data(semantics, &self.context.provider, &data, &mut observation);
-                });
+                }
                 if observation.semantic_event {
                     self.last_semantic_event_at = Instant::now();
                 }
@@ -265,7 +281,8 @@ where
         self.terminal_seen = true;
         self.terminal_error = Some(message.clone());
         self.context.status = 504;
-        openai_response_failed_done_chunk(&message, self.context.model.as_deref())
+        let sequence_number = self.sequence.take_next();
+        openai_response_failed_done_chunk(&message, self.context.model.as_deref(), sequence_number)
     }
 
     fn openai_stream_semantics(&self) -> OpenAiStreamSemantics {
@@ -311,6 +328,7 @@ struct ModelOverrideStreamState<S> {
     semantic_timeout: Option<Duration>,
     last_semantic_event_at: Instant,
     response_body_buf: String,
+    sequence: ResponsesEventSequence,
 }
 
 impl<S> ModelOverrideStreamState<S> {
@@ -370,6 +388,7 @@ where
             semantic_timeout,
             last_semantic_event_at: Instant::now(),
             response_body_buf: String::new(),
+            sequence: ResponsesEventSequence::default(),
         }
     }
 
@@ -432,8 +451,12 @@ where
                     let semantics = self.openai_stream_semantics();
                     if semantics.responses_events {
                         let message = format!("Failed to read upstream response: {err}");
-                        let out_chunk =
-                            openai_response_failed_done_chunk(&message, Some(&self.model_override));
+                        let sequence_number = self.sequence.take_next();
+                        let out_chunk = openai_response_failed_done_chunk(
+                            &message,
+                            Some(&self.model_override),
+                            sequence_number,
+                        );
                         self.response_body_buf
                             .push_str(&String::from_utf8_lossy(out_chunk.as_ref()));
                         self.terminal_seen = true;
@@ -515,7 +538,8 @@ where
         self.terminal_seen = true;
         self.terminal_error = Some(message.clone());
         self.context.status = 504;
-        openai_response_failed_done_chunk(&message, self.context.model.as_deref())
+        let sequence_number = self.sequence.take_next();
+        openai_response_failed_done_chunk(&message, self.context.model.as_deref(), sequence_number)
     }
 
     fn openai_stream_semantics(&self) -> OpenAiStreamSemantics {
@@ -524,6 +548,7 @@ where
 
     fn push_event_output(&mut self, data: &str) {
         let output = rewrite_sse_data(data, &self.model_override);
+        let output = self.ensure_error_event_sequence(output);
         if sse_data_type(&output).as_deref() == Some("response.failed") {
             self.out.push_back(Bytes::from(format!(
                 "event: response.failed\ndata: {output}\n\n"
@@ -532,6 +557,27 @@ where
         }
         self.out
             .push_back(Bytes::from(format!("data: {output}\n\n")));
+    }
+
+    fn ensure_error_event_sequence(&mut self, output: String) -> String {
+        let Ok(mut value) = serde_json::from_str::<Value>(&output) else {
+            return output;
+        };
+        let event_type = value
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        if let Some(sequence_number) = self.sequence.ensure_error_event(&mut value) {
+            tracing::warn!(
+                provider = %self.context.provider,
+                upstream_id = %self.context.upstream_id,
+                event_type,
+                sequence_number,
+                "added missing Responses error event sequence number"
+            );
+        }
+        value.to_string()
     }
 }
 
@@ -633,14 +679,22 @@ fn append_openai_done(chunk: Bytes) -> Bytes {
     Bytes::from(bytes)
 }
 
-fn openai_response_failed_done_chunk(message: &str, model: Option<&str>) -> Bytes {
-    let payload = openai_response_failed_payload(message, model);
+fn openai_response_failed_done_chunk(
+    message: &str,
+    model: Option<&str>,
+    sequence_number: u64,
+) -> Bytes {
+    let payload = openai_response_failed_payload(message, model, sequence_number);
     Bytes::from(format!(
         "event: response.failed\ndata: {payload}\n\ndata: [DONE]\n\n"
     ))
 }
 
-fn openai_response_failed_payload(message: &str, model: Option<&str>) -> Value {
+fn openai_response_failed_payload(
+    message: &str,
+    model: Option<&str>,
+    sequence_number: u64,
+) -> Value {
     let mut response = json!({
         "id": synthetic_response_id(),
         "object": "response",
@@ -657,6 +711,7 @@ fn openai_response_failed_payload(message: &str, model: Option<&str>) -> Value {
     json!({
         "type": "response.failed",
         "response": response,
+        "sequence_number": sequence_number,
     })
 }
 

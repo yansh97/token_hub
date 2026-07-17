@@ -1059,7 +1059,7 @@ fn responses_prelude_error_body(
         }
         FormatTransform::CodexToImagesGenerations => image_generation_error_sse(&error.message),
         FormatTransform::None | FormatTransform::CodexToResponses => {
-            sse_with_done(codex_compat::stream_responses_error_sse(&message))
+            sse_with_done(codex_compat::stream_responses_error_sse(&message, 0))
         }
         _ => unreachable!("Responses prelude inspector only accepts Responses upstreams"),
     }
@@ -1181,6 +1181,7 @@ fn log_response_stream_if_debug(stream: ResponseStream) -> ResponseStream {
 mod tests {
     use super::*;
     use crate::proxy::openai_compat::CHAT_PATH;
+    use axum::body::to_bytes;
     use axum::http::HeaderMap;
     use futures_util::stream;
     use std::io;
@@ -1337,6 +1338,15 @@ mod tests {
             .get::<RetryableStreamResponse>()
             .expect("retry marker");
         assert!(retry.message.contains("unexpected"));
+
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read retry response body");
+        let body = String::from_utf8(body.to_vec()).expect("SSE body");
+        assert!(
+            body.contains("\"sequence_number\":0"),
+            "prelude terminal event must start the Responses sequence: {body}"
+        );
     }
 
     #[tokio::test]
