@@ -149,61 +149,131 @@ async fn send_upstream_request_once(
         DEBUG_UPSTREAM_LOG_LIMIT_BYTES,
     )
     .await;
-    let client = state
-        .http_clients
-        .client_for_proxy_url(proxy_url)
-        .map_err(|message| {
-            AttemptOutcome::Fatal(http::error_response(StatusCode::BAD_GATEWAY, message))
-        })?;
-    let upstream_body = request_body::build_upstream_body(
+    // 0: 共享 H2 池；1: rotate 后 H2（force fresh）；2: HTTP/1.1 降级。
+    // 每步都重建 body，因为 reqwest::Body 只能消费一次。
+    let mut last_transport_error: Option<reqwest::Error> = None;
+    for transport_step in 0u8..3 {
+        let client = match resolve_ordinary_client(state, proxy_url, transport_step) {
+            Ok(client) => client,
+            Err(message) => {
+                return Err(AttemptOutcome::Fatal(http::error_response(
+                    StatusCode::BAD_GATEWAY,
+                    message,
+                )));
+            }
+        };
+        let upstream_body = request_body::build_upstream_body(
+            provider,
+            upstream,
+            upstream_path_with_query,
+            body,
+            meta,
+            codex_openai_device_id,
+        )
+        .await?;
+        let response_header_timeout = response_header_timeout_for_request(&state.config, meta);
+        match send_request_once(
+            client,
+            &method,
+            upstream_url,
+            request_headers,
+            upstream_body,
+            response_header_timeout,
+            start_time,
+            timings.clone(),
+        )
+        .await
+        {
+            Ok(response) => {
+                if transport_step > 0 {
+                    tracing::info!(
+                        provider,
+                        upstream = %upstream.id,
+                        transport_step,
+                        "upstream request recovered after transport recovery step"
+                    );
+                }
+                return Ok(response);
+            }
+            Err(SendFailure::Timeout) => {
+                return Err(handle_upstream_timeout(
+                    state,
+                    provider,
+                    upstream,
+                    inbound_path,
+                    meta,
+                    selected_account_id,
+                    request_detail,
+                    start_time,
+                    response_header_timeout,
+                    cooldown_scope,
+                    TransportRecovery::SameUpstreamOnce,
+                ));
+            }
+            Err(SendFailure::Transport(err)) => {
+                let stale = super::utils::is_stale_connection_transport_error(&err);
+                tracing::warn!(
+                    provider,
+                    upstream = %upstream.id,
+                    transport_step,
+                    stale,
+                    error = %err,
+                    "upstream send failed before response headers"
+                );
+                if stale && transport_step < 2 {
+                    last_transport_error = Some(err);
+                    continue;
+                }
+                return Err(map_upstream_error(
+                    state,
+                    provider,
+                    upstream,
+                    inbound_path,
+                    meta,
+                    selected_account_id,
+                    request_detail,
+                    err,
+                    start_time,
+                    cooldown_scope,
+                    TransportRecovery::SameUpstreamOnce,
+                ));
+            }
+        }
+    }
+    let err = last_transport_error.expect("stale transport loop always records an error");
+    Err(map_upstream_error(
+        state,
         provider,
         upstream,
-        upstream_path_with_query,
-        body,
+        inbound_path,
         meta,
-        codex_openai_device_id,
-    )
-    .await?;
-    let response_header_timeout = response_header_timeout_for_request(&state.config, meta);
-    match send_request_once(
-        client,
-        &method,
-        upstream_url,
-        request_headers,
-        upstream_body,
-        response_header_timeout,
+        selected_account_id,
+        request_detail,
+        err,
         start_time,
-        timings,
-    )
-    .await
-    {
-        Ok(response) => Ok(response),
-        Err(SendFailure::Transport(err)) => Err(map_upstream_error(
-            state,
-            provider,
-            upstream,
-            inbound_path,
-            meta,
-            selected_account_id,
-            request_detail,
-            err,
-            start_time,
-            cooldown_scope,
-            TransportRecovery::SameUpstreamOnce,
-        )),
-        Err(SendFailure::Timeout) => Err(handle_upstream_timeout(
-            state,
-            provider,
-            upstream,
-            inbound_path,
-            meta,
-            selected_account_id,
-            request_detail,
-            start_time,
-            response_header_timeout,
-            cooldown_scope,
-            TransportRecovery::SameUpstreamOnce,
-        )),
+        cooldown_scope,
+        TransportRecovery::SameUpstreamOnce,
+    ))
+}
+
+fn resolve_ordinary_client(
+    state: &ProxyState,
+    proxy_url: Option<&str>,
+    transport_step: u8,
+) -> Result<reqwest::Client, String> {
+    match transport_step {
+        0 => state.http_clients.client_for_proxy_url(proxy_url),
+        1 => {
+            // 丢弃毒 H2 session，强制下一次走新 TCP/TLS/H2。
+            state.http_clients.rotate_client_for_proxy_url(proxy_url)
+        }
+        _ => {
+            tracing::warn!(
+                proxy = proxy_url.unwrap_or("direct"),
+                "falling back to HTTP/1.1 after repeated pre-header H2/transport failures"
+            );
+            state.http_clients.client_for_proxy_url_http1(proxy_url)
+        }
     }
 }
 
@@ -510,8 +580,8 @@ fn handle_upstream_timeout(
     inbound_path: &str,
     meta: &RequestMeta,
     selected_account_id: Option<&str>,
-    request_detail: Option<&RequestDetailSnapshot>,
-    start_time: Instant,
+    _request_detail: Option<&RequestDetailSnapshot>,
+    _start_time: Instant,
     response_header_timeout: Option<Duration>,
     cooldown_scope: &CooldownScope,
     request_recovery: TransportRecovery,
@@ -535,23 +605,18 @@ fn handle_upstream_timeout(
         Some(message.clone()),
         cooldown_scope,
     );
-    result::log_upstream_error_if_needed(
-        &state.log,
-        request_detail,
-        meta,
-        provider,
-        &upstream.id,
-        selected_account_id,
-        inbound_path,
-        StatusCode::GATEWAY_TIMEOUT,
-        message.clone(),
-        start_time,
-    );
+    // 不立即写 SQLite：若 same-upstream / failover 恢复成功，不应出现中间 504 行。
+    let deferred_log = Some(format!(
+        "provider={provider}; class=timeout; recovery={}; status=504; message={message}",
+        request_recovery.as_str(),
+    ));
+    let _ = (inbound_path, meta);
     AttemptOutcome::Retryable {
         message,
         response: None,
         is_timeout: true,
         should_cooldown: true,
+        deferred_log,
     }
 }
 
@@ -605,23 +670,14 @@ fn map_upstream_error(
         Some(failure.client_message.clone()),
         cooldown_scope,
     );
-    result::log_upstream_error_if_needed(
-        &state.log,
-        request_detail,
-        meta,
-        provider,
-        &upstream.id,
-        selected_account_id,
-        inbound_path,
-        failure.status,
-        failure.diagnostic_message,
-        start_time,
-    );
+    // Retryable 诊断延后到本请求终态失败再落库；恢复成功则不刷中间 502。
+    let _ = (request_detail, start_time, inbound_path, meta);
     AttemptOutcome::Retryable {
         message: failure.client_message,
         response: None,
         is_timeout: failure.is_timeout,
         should_cooldown: true,
+        deferred_log: Some(failure.diagnostic_message),
     }
 }
 

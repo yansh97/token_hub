@@ -107,6 +107,7 @@ pub(super) async fn handle_upstream_result(
                 response: Some(response),
                 is_timeout: false,
                 should_cooldown,
+                deferred_log: None,
             }
         }
         Ok(res) => {
@@ -148,6 +149,7 @@ pub(super) async fn handle_upstream_result(
                     response: Some(response),
                     is_timeout: false,
                     should_cooldown: retryable.should_cooldown,
+                    deferred_log: None,
                 };
             }
             update_account_cooldown_from_status(
@@ -164,11 +166,6 @@ pub(super) async fn handle_upstream_result(
             // 无 response body 可统计，释放发送前 register 的窗口。
             drop(request_tracker);
             let message = sanitize_upstream_error(provider, &err);
-            let status = if err.is_timeout() {
-                StatusCode::GATEWAY_TIMEOUT
-            } else {
-                StatusCode::BAD_GATEWAY
-            };
             mark_retryable_account_failure(
                 state,
                 provider,
@@ -176,23 +173,13 @@ pub(super) async fn handle_upstream_result(
                 Some(message.clone()),
                 cooldown_scope,
             );
-            log_upstream_error_if_needed(
-                &log,
-                request_detail.as_ref(),
-                meta,
-                provider,
-                upstream_id,
-                account_id.as_deref(),
-                inbound_path,
-                status,
-                message.clone(),
-                start_time,
-            );
+            // 延后到本请求终态失败再写 SQLite，避免中间 attempt 刷 502。
             AttemptOutcome::Retryable {
-                message,
+                message: message.clone(),
                 response: None,
                 is_timeout: err.is_timeout(),
                 should_cooldown: true,
+                deferred_log: Some(message),
             }
         }
         Err(err) => {
@@ -305,6 +292,27 @@ fn finalize_forward_response(
     }
     if let Some(response) = summary.last_retry_response {
         return response;
+    }
+    // 仅终态失败落一条 deferred transport 诊断（中间 attempt 已跳过写库）。
+    if let Some(deferred) = summary.last_deferred_log.as_ref() {
+        let status = StatusCode::from_u16(deferred.status).unwrap_or(StatusCode::BAD_GATEWAY);
+        let upstream_id = if deferred.upstream_id.is_empty() {
+            LOCAL_UPSTREAM_ID
+        } else {
+            deferred.upstream_id.as_str()
+        };
+        log_upstream_error_if_needed(
+            log,
+            request_detail,
+            meta,
+            provider,
+            upstream_id,
+            deferred.account_id.as_deref(),
+            inbound_path,
+            status,
+            deferred.message.clone(),
+            deferred.start_time,
+        );
     }
     if let Some(err) = summary.last_timeout_error {
         return http::error_response(StatusCode::GATEWAY_TIMEOUT, err);

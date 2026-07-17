@@ -239,6 +239,7 @@ fn codex_account_resolution_outcome(has_pinned_account: bool, err: String) -> At
         response: Some(response),
         is_timeout: false,
         should_cooldown: false,
+        deferred_log: None,
     }
 }
 

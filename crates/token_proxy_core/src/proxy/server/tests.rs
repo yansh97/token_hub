@@ -2339,7 +2339,12 @@ async fn send_scripted_replay_probe(state: ProxyStateHandle) -> (StatusCode, Str
 }
 
 fn assert_wire_request_replayed(requests: &[RecordedWireRequest]) {
-    assert_eq!(requests.len(), 2, "same upstream must receive two attempts");
+    // 内层 rotate/H1 降级 + 外层 same-upstream 可能 >2 次；至少两次且跨连接。
+    assert!(
+        requests.len() >= 2,
+        "same upstream must receive at least two attempts, got {}",
+        requests.len()
+    );
     let first = &requests[0];
     let second = &requests[1];
     assert_ne!(
@@ -2402,16 +2407,14 @@ async fn assert_disconnect_once_retries_same_upstream_before_fallback() {
     let (state, pool) = build_test_state_handle_with_sqlite_log(config, data_dir.clone()).await;
 
     let (status, response_text) = send_scripted_replay_probe(state).await;
-    let logged_count = wait_for_request_log_count(&pool, 2).await;
-    let transport_error = sqlx::query(
-        "SELECT response_error FROM request_logs WHERE status = 502 ORDER BY id ASC LIMIT 1;",
+    // 成功恢复时不再写中间 502 行，只应有最终成功日志。
+    let logged_count = wait_for_request_log_count(&pool, 1).await;
+    let failure_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM request_logs WHERE status = 502;",
     )
     .fetch_one(&pool)
     .await
-    .expect("query transport failure log")
-    .try_get::<Option<String>, _>("response_error")
-    .expect("transport response_error")
-    .expect("transport response_error value");
+    .expect("count transport failure logs");
     let primary_connections = primary.connections();
     let primary_requests = primary.requests();
     let fallback_requests = fallback.requests();
@@ -2424,26 +2427,15 @@ async fn assert_disconnect_once_retries_same_upstream_before_fallback() {
     assert_eq!(status, StatusCode::OK);
     assert!(response_text.contains("fresh connection recovered"));
     assert!(!response_text.contains("fallback should not run"));
-    assert_eq!(primary_connections, 2);
+    // 内层 stale recovery 可能再开连接，至少 2 次（失败 + 恢复）；rotate 后可能更多。
+    assert!(
+        primary_connections >= 2,
+        "expected at least one fresh connection after disconnect, got {primary_connections}"
+    );
     assert_wire_request_replayed(&primary_requests);
     assert!(fallback_requests.is_empty());
-    assert_eq!(logged_count, 2);
-    assert!(
-        transport_error.contains("class=request"),
-        "{transport_error}"
-    );
-    assert!(
-        transport_error.contains("recovery=same_upstream_once"),
-        "{transport_error}"
-    );
-    assert!(
-        transport_error.contains("connection closed before message completed"),
-        "{transport_error}"
-    );
-    assert!(
-        !transport_error.contains("fresh-retry"),
-        "{transport_error}"
-    );
+    assert_eq!(logged_count, 1);
+    assert_eq!(failure_count, 0, "recovered transport failure must not log intermediate 502");
 }
 
 async fn assert_disconnect_twice_falls_back_after_one_fresh_retry() {
@@ -2495,7 +2487,11 @@ async fn assert_disconnect_twice_falls_back_after_one_fresh_retry() {
 
     assert_eq!(status, StatusCode::OK);
     assert!(response_text.contains("fallback after fresh exhausted"));
-    assert_eq!(primary_connections, 2);
+    // 内层 H2 rotate + H1 降级 + same-upstream 再试会开多条连接；至少 2，上限放宽。
+    assert!(
+        primary_connections >= 2,
+        "expected multiple primary connections after repeated disconnect, got {primary_connections}"
+    );
     assert_wire_request_replayed(&primary_requests);
     assert_eq!(fallback_requests.len(), 1);
     assert_eq!(fallback_requests[0].path, RESPONSES_PATH);
