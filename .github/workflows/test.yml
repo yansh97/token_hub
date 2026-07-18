@@ -5,9 +5,6 @@ on:
     branches:
       - main
       - release/**
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 
@@ -19,6 +16,9 @@ env:
 jobs:
   test:
     name: Test (Rust)
+    # 单人维护时，普通 push 依赖本地验证；正式 release 提交仍由 CI 完整验证。
+    if: >-
+      ${{ github.event_name != 'push' || startsWith(github.event.head_commit.message, 'chore: token-hub release v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
