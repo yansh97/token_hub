@@ -51,3 +51,11 @@ _Avoid_: 跨上游 failover、冷却
 **Responses Stream Event**:
 `/v1/responses` 流中的单个 JSON 生命周期事件。每个事件都必须携带单调递增的 `sequence_number`；错误终止事件也不例外。`[DONE]` 是流结束哨兵，不是事件，不编号。
 _Avoid_: SSE Chunk（传输分块可能拆分或合并事件）
+
+**Pre-stream Error Response**:
+Responses 流尚未向客户端提交时返回的 HTTP 4xx/5xx JSON 错误。它必须保留真实 HTTP 状态，并满足 OpenAI `ErrorResponse` 的 `type/message/param/code` 字段合同。
+_Avoid_: `response.failed`（只用于已经提交的 SSE 流）
+
+**In-stream Terminal Failure**:
+Responses SSE 已以 HTTP 200 提交后用于终止流的 `response.failed` 事件。事件必须包含连续的 `sequence_number`，其 `response` 必须包含 `created_at`、`model` 和完整失败状态；请求日志仍记录真实 4xx/5xx 失败状态。
+_Avoid_: HTTP Error Response（响应头提交后已无法更改 HTTP 状态）

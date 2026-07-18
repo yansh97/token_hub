@@ -574,7 +574,9 @@ pub(crate) fn error_response(status: StatusCode, message: impl AsRef<str>) -> Re
     let body = json!({
         "error": {
             "message": message.as_ref(),
-            "type": "proxy_error"
+            "type": "proxy_error",
+            "param": null,
+            "code": "proxy_error",
         }
     });
     let mut response = Response::new(Body::from(body.to_string()));

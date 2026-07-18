@@ -1,6 +1,6 @@
 use axum::body::Bytes;
 use futures_util::{future, StreamExt};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -518,6 +518,14 @@ async fn stream_codex_to_responses_emits_error_event_for_invalid_json_event() {
         text.contains("\"sequence_number\":0"),
         "first terminal event must start the Responses sequence: {text}"
     );
+    let failed = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .find(|line| line.contains("response.failed"))
+        .and_then(|line| serde_json::from_str::<Value>(line).ok())
+        .expect("response.failed payload");
+    assert!(failed["response"]["created_at"].as_i64().is_some());
+    assert_eq!(failed["response"]["model"], json!("unknown"));
 }
 
 #[tokio::test]
@@ -720,6 +728,41 @@ async fn stream_codex_to_responses_upstream_error_emits_response_failed_after_st
         text.contains("\"sequence_number\":8"),
         "terminal event must continue the Responses sequence: {text}"
     );
+}
+
+#[tokio::test]
+async fn stream_codex_to_responses_normalizes_upstream_response_failed() {
+    let upstream = futures_util::stream::iter(vec![
+        Ok::<Bytes, std::io::Error>(Bytes::from(
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\",\"sequence_number\":7}\n\n",
+        )),
+        Ok::<Bytes, std::io::Error>(Bytes::from(
+            "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"server_error\",\"message\":\"codex overloaded\"}}}\n\n",
+        )),
+    ]);
+    let tracker = TokenRateTracker::new().register(None, None).await;
+    let context = test_log_context();
+    let log = Arc::new(LogWriter::new(None));
+
+    let chunks = stream_codex_to_responses(upstream, context, log, tracker)
+        .collect::<Vec<_>>()
+        .await;
+    let text = join_stream_chunks(&chunks);
+    let failed = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .find(|line| line.contains("response.failed"))
+        .and_then(|line| serde_json::from_str::<Value>(line).ok())
+        .expect("response.failed payload");
+
+    assert_eq!(failed["sequence_number"], json!(8));
+    assert!(failed["response"]["created_at"].as_i64().is_some());
+    assert_eq!(failed["response"]["model"], json!("gpt-5-codex"));
+    assert_eq!(
+        failed["response"]["error"]["message"],
+        json!("codex overloaded")
+    );
+    assert!(text.contains("data: [DONE]"));
 }
 
 #[tokio::test]

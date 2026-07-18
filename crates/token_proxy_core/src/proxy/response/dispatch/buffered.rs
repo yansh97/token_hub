@@ -26,8 +26,8 @@ use super::super::super::{
     usage::extract_usage_from_response,
 };
 use super::super::{
-    kiro_to_anthropic, kiro_to_responses, token_count, upstream_read, upstream_stream,
-    NonRetryableSemanticResponse, RetryableStreamResponse, PROVIDER_GEMINI,
+    kiro_to_anthropic, kiro_to_responses, responses_failure, token_count, upstream_read,
+    upstream_stream, NonRetryableSemanticResponse, RetryableStreamResponse, PROVIDER_GEMINI,
     RESPONSE_ERROR_LIMIT_BYTES,
 };
 
@@ -80,6 +80,20 @@ pub(super) async fn build_buffered_response(
                 return respond_transform_error(&mut context, usage, log, message);
             }
         }
+    } else if is_openai_responses_path(&context.path) {
+        let normalized = responses_failure::normalize_http_error(status, &bytes);
+        if normalized.changed {
+            tracing::warn!(
+                path = %context.path,
+                provider = %context.provider,
+                upstream_id = %context.upstream_id,
+                status = status.as_u16(),
+                "normalized incomplete Responses HTTP error envelope"
+            );
+            headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+            headers.remove(CONTENT_LENGTH);
+        }
+        normalized.body
     } else {
         bytes
     };
@@ -571,6 +585,11 @@ fn serialize_buffered_event(
 
 fn is_chat_completions_path(path: &str) -> bool {
     path.split_once('?').map(|(path, _)| path).unwrap_or(path) == "/v1/chat/completions"
+}
+
+fn is_openai_responses_path(path: &str) -> bool {
+    let path = path.split_once('?').map(|(path, _)| path).unwrap_or(path);
+    path == "/v1/responses" || path == "/v1/responses/compact" || path.starts_with("/v1/responses/")
 }
 
 fn now_unix_seconds() -> i64 {

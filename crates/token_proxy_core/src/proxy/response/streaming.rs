@@ -1,10 +1,10 @@
 use axum::body::Bytes;
 use futures_util::{stream::try_unfold, StreamExt};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     collections::VecDeque,
     sync::Arc,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use super::super::log::{attach_response_body, build_log_entry, LogContext, LogWriter};
@@ -14,6 +14,7 @@ use super::super::token_rate::RequestTokenTracker;
 use super::super::usage::SseUsageCollector;
 use super::{
     responses_error::{responses_stream_error, ResponsesStreamError},
+    responses_failure,
     sequence::ResponsesEventSequence,
     PROVIDER_ANTHROPIC, PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI,
     PROVIDER_OPENAI_RESPONSES,
@@ -39,12 +40,23 @@ pub(super) fn stream_with_logging_and_semantic_timeout<E>(
     log: Arc<LogWriter>,
     token_tracker: RequestTokenTracker,
     semantic_timeout: Option<Duration>,
-) -> impl futures_util::stream::Stream<Item = Result<Bytes, std::io::Error>> + Send
+) -> futures_util::stream::BoxStream<'static, Result<Bytes, std::io::Error>>
 where
     E: std::error::Error + Send + Sync + 'static,
 {
+    if openai_stream_semantics(&context.provider, &context.path).responses_events {
+        let state = ModelOverrideStreamState::new(
+            upstream,
+            context,
+            log,
+            None,
+            token_tracker,
+            semantic_timeout,
+        );
+        return try_unfold(state, |state| async move { state.step().await }).boxed();
+    }
     let state = LoggingStreamState::new(upstream, context, log, token_tracker, semantic_timeout);
-    try_unfold(state, |state| async move { state.step().await })
+    try_unfold(state, |state| async move { state.step().await }).boxed()
 }
 
 struct LoggingStreamState<S> {
@@ -305,7 +317,7 @@ where
         upstream,
         context,
         log,
-        model_override,
+        Some(model_override),
         token_tracker,
         semantic_timeout,
     );
@@ -320,7 +332,7 @@ struct ModelOverrideStreamState<S> {
     context: LogContext,
     token_tracker: RequestTokenTracker,
     out: VecDeque<Bytes>,
-    model_override: String,
+    model_override: Option<String>,
     upstream_ended: bool,
     logged: bool,
     terminal_seen: bool,
@@ -329,6 +341,7 @@ struct ModelOverrideStreamState<S> {
     last_semantic_event_at: Instant,
     response_body_buf: String,
     sequence: ResponsesEventSequence,
+    saw_sse_event: bool,
 }
 
 impl<S> ModelOverrideStreamState<S> {
@@ -368,7 +381,7 @@ where
         upstream: S,
         context: LogContext,
         log: Arc<LogWriter>,
-        model_override: String,
+        model_override: Option<String>,
         token_tracker: RequestTokenTracker,
         semantic_timeout: Option<Duration>,
     ) -> Self {
@@ -389,6 +402,7 @@ where
             last_semantic_event_at: Instant::now(),
             response_body_buf: String::new(),
             sequence: ResponsesEventSequence::default(),
+            saw_sse_event: false,
         }
     }
 
@@ -415,6 +429,7 @@ where
                         .push_str(&String::from_utf8_lossy(chunk.as_ref()));
                     let mut events = Vec::new();
                     self.parser.push_chunk(&chunk, |data| events.push(data));
+                    self.saw_sse_event |= !events.is_empty();
                     let mut observation = StreamObservation::default();
                     let saw_done = events.iter().any(|data| data.trim() == "[DONE]");
                     let semantics = self.openai_stream_semantics();
@@ -430,7 +445,7 @@ where
                         observation.merge(event_observation);
                         self.push_event_output(&data);
                         if should_synthesize_done {
-                            self.out.push_back(Bytes::from("data: [DONE]\n\n"));
+                            self.append_done_to_last_output();
                         }
                     }
                     if observation.semantic_event {
@@ -454,7 +469,7 @@ where
                         let sequence_number = self.sequence.take_next();
                         let out_chunk = openai_response_failed_done_chunk(
                             &message,
-                            Some(&self.model_override),
+                            self.failure_model(),
                             sequence_number,
                         );
                         self.response_body_buf
@@ -472,6 +487,16 @@ where
                     self.upstream_ended = true;
                     let mut events = Vec::new();
                     self.parser.finish(|data| events.push(data));
+                    if events.is_empty()
+                        && !self.saw_sse_event
+                        && !self.response_body_buf.is_empty()
+                    {
+                        // A non-SSE HTTP 200 body is invalid for a stream, but preserving it keeps
+                        // the upstream diagnostic visible instead of turning it into an empty body.
+                        self.out
+                            .push_back(Bytes::from(self.response_body_buf.clone()));
+                    }
+                    self.saw_sse_event |= !events.is_empty();
                     let mut observation = StreamObservation::default();
                     let saw_done = events.iter().any(|data| data.trim() == "[DONE]");
                     let semantics = self.openai_stream_semantics();
@@ -487,7 +512,7 @@ where
                         observation.merge(event_observation);
                         self.push_event_output(&data);
                         if should_synthesize_done {
-                            self.out.push_back(Bytes::from("data: [DONE]\n\n"));
+                            self.append_done_to_last_output();
                         }
                     }
                     if observation.semantic_event {
@@ -539,7 +564,7 @@ where
         self.terminal_error = Some(message.clone());
         self.context.status = 504;
         let sequence_number = self.sequence.take_next();
-        openai_response_failed_done_chunk(&message, self.context.model.as_deref(), sequence_number)
+        openai_response_failed_done_chunk(&message, self.failure_model(), sequence_number)
     }
 
     fn openai_stream_semantics(&self) -> OpenAiStreamSemantics {
@@ -547,8 +572,12 @@ where
     }
 
     fn push_event_output(&mut self, data: &str) {
-        let output = rewrite_sse_data(data, &self.model_override);
-        let output = self.ensure_error_event_sequence(output);
+        let output = self
+            .model_override
+            .as_deref()
+            .map(|model| rewrite_sse_data(data, model))
+            .unwrap_or_else(|| data.to_string());
+        let output = self.normalize_failure_event(output);
         if sse_data_type(&output).as_deref() == Some("response.failed") {
             self.out.push_back(Bytes::from(format!(
                 "event: response.failed\ndata: {output}\n\n"
@@ -559,7 +588,7 @@ where
             .push_back(Bytes::from(format!("data: {output}\n\n")));
     }
 
-    fn ensure_error_event_sequence(&mut self, output: String) -> String {
+    fn normalize_failure_event(&mut self, output: String) -> String {
         let Ok(mut value) = serde_json::from_str::<Value>(&output) else {
             return output;
         };
@@ -568,16 +597,43 @@ where
             .and_then(Value::as_str)
             .unwrap_or("unknown")
             .to_string();
-        if let Some(sequence_number) = self.sequence.ensure_error_event(&mut value) {
+        let failure_model = self.failure_model().map(str::to_string);
+        let normalization = responses_failure::normalize_stream_event(
+            &mut value,
+            &mut self.sequence,
+            failure_model.as_deref(),
+        );
+        if normalization.changed() {
             tracing::warn!(
                 provider = %self.context.provider,
                 upstream_id = %self.context.upstream_id,
                 event_type,
-                sequence_number,
-                "added missing Responses error event sequence number"
+                sequence_number = ?normalization.sequence_number,
+                added_created_at = normalization.added_created_at,
+                added_model = normalization.added_model,
+                repaired_response_shape = normalization.repaired_response_shape,
+                "normalized incomplete Responses terminal failure event"
             );
+            return value.to_string();
         }
-        value.to_string()
+        output
+    }
+
+    fn failure_model(&self) -> Option<&str> {
+        self.model_override
+            .as_deref()
+            .or(self.context.model.as_deref())
+    }
+
+    fn append_done_to_last_output(&mut self) {
+        let Some(last) = self.out.pop_back() else {
+            self.out.push_back(Bytes::from("data: [DONE]\n\n"));
+            return;
+        };
+        let mut combined = Vec::with_capacity(last.len() + b"data: [DONE]\n\n".len());
+        combined.extend_from_slice(&last);
+        combined.extend_from_slice(b"data: [DONE]\n\n");
+        self.out.push_back(Bytes::from(combined));
     }
 }
 
@@ -695,32 +751,7 @@ fn openai_response_failed_payload(
     model: Option<&str>,
     sequence_number: u64,
 ) -> Value {
-    let mut response = json!({
-        "id": synthetic_response_id(),
-        "object": "response",
-        "status": "failed",
-        "output": [],
-        "error": {
-            "code": "server_error",
-            "message": message,
-        }
-    });
-    if let Some(model) = model.filter(|value| !value.trim().is_empty()) {
-        response["model"] = json!(model);
-    }
-    json!({
-        "type": "response.failed",
-        "response": response,
-        "sequence_number": sequence_number,
-    })
-}
-
-fn synthetic_response_id() -> String {
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    format!("resp_proxy_{millis}")
+    responses_failure::failed_event(message, model, sequence_number)
 }
 
 fn sse_data_type(data: &str) -> Option<String> {
