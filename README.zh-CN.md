@@ -170,7 +170,9 @@ pnpm exec tsc --noEmit
 - debug/trace 日志的请求体最大 64KiB
 
 ## Dashboard
-- 应用内 **Dashboard** 展示总览、按 provider 统计、时间序列、最近请求（分页 50，支持 offset）
+- 应用内 **Dashboard** 展示总览、Token 使用趋势、**模型用量**排行（Top 20）、上游可用模型探测
+- 支持时间范围、上游、账户筛选；筛选条件作用于 summary / series / models
+- 最近请求在 **Logs** 页查看（分页 50，支持 offset）
 - Logs 面板支持“记录 30 秒内请求详情”：开启后会在 30 秒窗口内记录请求 header/body，失败请求的错误响应始终保留，到时自动关闭
 
 ## 一键写 CLI 配置

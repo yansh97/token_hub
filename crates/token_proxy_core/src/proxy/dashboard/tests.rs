@@ -7,6 +7,7 @@ fn series_point(ts_ms: u64, total_requests: u64) -> DashboardSeriesPoint {
         error_requests: 0,
         input_tokens: total_requests,
         output_tokens: 0,
+        cost_nano_usd: 0,
         usage: DashboardUsageBreakdown::default(),
         total_tokens: total_requests,
     }
@@ -491,6 +492,104 @@ async fn read_snapshot_sums_logged_costs_and_returns_recent_pricing_fields() {
     );
     assert_eq!(snapshot.recent[1].cost_nano_usd, Some(1_210_000_000));
     assert_eq!(snapshot.recent[1].pricing_model.as_deref(), Some("gpt-5.5"));
+
+    // insert_priced_request 固定 model=gpt-5.4，两笔应合并到同一模型桶。
+    assert_eq!(snapshot.models.len(), 1);
+    assert_eq!(snapshot.models[0].model, "gpt-5.4");
+    assert_eq!(snapshot.models[0].requests, 2);
+    assert_eq!(snapshot.models[0].total_tokens, 300);
+    assert_eq!(snapshot.models[0].cost_nano_usd, 5_535_000_000);
+    assert_eq!(snapshot.providers[0].cost_nano_usd, 5_535_000_000);
+    assert!(
+        snapshot
+            .series
+            .iter()
+            .map(|point| point.cost_nano_usd)
+            .sum::<u64>()
+            >= 5_535_000_000
+    );
+}
+
+#[tokio::test]
+async fn read_snapshot_groups_models_with_fallback_and_filters() {
+    let pool = setup_test_db().await;
+
+    // 显式 model
+    sqlx::query(
+        r#"
+        INSERT INTO request_logs (
+          ts_ms, path, provider, upstream_id, model, mapped_model, stream, status,
+          input_tokens, output_tokens, total_tokens, latency_ms, cost_nano_usd
+        ) VALUES
+          (100, '/test', 'openai', 'alpha', 'gpt-5.4', 'gpt-5.4-mapped', 0, 200, 100, 50, 150, 30, 1000),
+          (110, '/test', 'openai', 'alpha', 'gpt-5.4', NULL, 0, 200, 200, 50, 250, 30, 2000),
+          (120, '/test', 'anthropic', 'beta', 'claude-4', 'claude-4', 0, 200, 10, 5, 15, 30, 100)
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("insert model rows");
+
+    // 空 model，回退 mapped_model
+    sqlx::query(
+        r#"
+        INSERT INTO request_logs (
+          ts_ms, path, provider, upstream_id, model, mapped_model, stream, status,
+          input_tokens, output_tokens, total_tokens, latency_ms, cost_nano_usd
+        ) VALUES
+          (130, '/test', 'openai', 'alpha', '', 'fallback-model', 0, 200, 40, 10, 50, 30, 500),
+          (140, '/test', 'openai', 'alpha', NULL, NULL, 0, 200, 1, 1, 2, 30, 10)
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("insert fallback model rows");
+
+    let all = read_snapshot(
+        &pool,
+        DashboardRange {
+            from_ts_ms: None,
+            to_ts_ms: None,
+        },
+        Some(0),
+        None,
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+
+    // tokens: gpt-5.4=400, fallback=50, claude=15, unknown=2
+    assert_eq!(all.models.len(), 4);
+    assert_eq!(all.models[0].model, "gpt-5.4");
+    assert_eq!(all.models[0].requests, 2);
+    assert_eq!(all.models[0].total_tokens, 400);
+    assert_eq!(all.models[0].input_tokens, 300);
+    assert_eq!(all.models[0].output_tokens, 100);
+    assert_eq!(all.models[0].cost_nano_usd, 3000);
+    assert_eq!(all.models[1].model, "fallback-model");
+    assert_eq!(all.models[1].total_tokens, 50);
+    assert_eq!(all.models[2].model, "claude-4");
+    assert_eq!(all.models[3].model, "(unknown)");
+    assert_eq!(all.models[3].total_tokens, 2);
+
+    let filtered = read_snapshot(
+        &pool,
+        DashboardRange {
+            from_ts_ms: None,
+            to_ts_ms: None,
+        },
+        Some(0),
+        Some(String::from("alpha")),
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(filtered.models.len(), 3);
+    assert!(filtered.models.iter().all(|item| item.model != "claude-4"));
+    assert_eq!(filtered.models[0].model, "gpt-5.4");
 }
 
 #[tokio::test]

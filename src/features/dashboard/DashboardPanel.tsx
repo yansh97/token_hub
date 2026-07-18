@@ -14,6 +14,11 @@ const ChartAreaInteractive = lazy(() =>
     default: module.ChartAreaInteractive,
   }))
 )
+const ChartModelUsage = lazy(() =>
+  import("@/features/dashboard/components/chart-usage-ranking").then((module) => ({
+    default: module.ChartModelUsage,
+  }))
+)
 const UpstreamModelProbes = lazy(() =>
   import("@/features/dashboard/components/upstream-model-probes").then((module) => ({
     default: module.UpstreamModelProbes,
@@ -25,6 +30,15 @@ function ChartAreaFallback() {
     <div
       aria-hidden="true"
       className="h-[334px] rounded-lg border border-border/60 bg-muted/20"
+    />
+  )
+}
+
+function ModelUsageFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="h-[280px] rounded-lg border border-border/60 bg-muted/20"
     />
   )
 }
@@ -83,6 +97,12 @@ export function DashboardPanel() {
             series={snapshot?.series ?? []}
             range={activeRange}
           />
+        </Suspense>
+      </div>
+
+      <div className="px-4 lg:px-6">
+        <Suspense fallback={<ModelUsageFallback />}>
+          <ChartModelUsage models={snapshot?.models ?? []} />
         </Suspense>
       </div>
 

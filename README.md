@@ -170,7 +170,9 @@ Notes:
 - Debug/trace log bodies capped at 64KiB.
 
 ## Dashboard
-- In-app **Dashboard** page visualizes totals, per-provider stats, time series, and recent requests (page size 50, offset supported).
+- In-app **Dashboard** page visualizes totals, token usage trend, **model usage** ranking (Top 20), and upstream model probes
+- Time range, upstream, and account filters apply to summary / series / models
+- Recent requests live on the **Logs** page (page size 50, offset supported)
 - The Logs panel supports a 30-second request-detail capture window: when enabled it stores request headers/bodies during that window, always keeps error responses for failed requests, and turns off automatically afterward.
 
 ## One-click CLI setup

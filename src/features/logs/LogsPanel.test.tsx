@@ -184,6 +184,7 @@ describe("logs/LogsPanel", () => {
             },
           ],
           series: [],
+          models: [],
           modelProbes: [],
           truncated: false,
         };
