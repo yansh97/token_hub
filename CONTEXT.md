@@ -47,3 +47,7 @@ _Avoid_: 可用模型、模型白名单
 **Same-Upstream Retry（原地重试）**:
 可重试失败后，在切换到其它上游之前，对同一上游额外再发的次数；由全局配置 `same_upstream_retry_count` 控制，默认 1，0 表示关闭。
 _Avoid_: 跨上游 failover、冷却
+
+**Responses Stream Event**:
+`/v1/responses` 流中的单个 JSON 生命周期事件。每个事件都必须携带单调递增的 `sequence_number`；错误终止事件也不例外。`[DONE]` 是流结束哨兵，不是事件，不编号。
+_Avoid_: SSE Chunk（传输分块可能拆分或合并事件）

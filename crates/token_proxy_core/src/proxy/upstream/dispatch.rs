@@ -23,6 +23,8 @@ pub(super) struct GroupAttemptResult {
     pub(super) last_timeout_error: Option<String>,
     pub(super) last_retry_error: Option<String>,
     pub(super) last_retry_response: Option<Response>,
+    /// 首响应头前 transport 诊断；仅在最终失败时落库。
+    pub(super) last_deferred_log: Option<DeferredTransportLog>,
 }
 
 impl GroupAttemptResult {
@@ -34,6 +36,7 @@ impl GroupAttemptResult {
             last_timeout_error: None,
             last_retry_error: None,
             last_retry_response: None,
+            last_deferred_log: None,
         }
     }
 }
@@ -45,6 +48,7 @@ pub(super) struct ForwardAttemptState {
     pub(super) last_timeout_error: Option<String>,
     pub(super) last_retry_error: Option<String>,
     pub(super) last_retry_response: Option<Response>,
+    pub(super) last_deferred_log: Option<DeferredTransportLog>,
 }
 
 impl ForwardAttemptState {
@@ -56,8 +60,19 @@ impl ForwardAttemptState {
             last_timeout_error: None,
             last_retry_error: None,
             last_retry_response: None,
+            last_deferred_log: None,
         }
     }
+}
+
+/// 可重试 transport 失败的延后落库载荷；成功恢复时丢弃。
+#[derive(Clone, Debug)]
+pub(super) struct DeferredTransportLog {
+    pub(super) upstream_id: String,
+    pub(super) account_id: Option<String>,
+    pub(super) status: u16,
+    pub(super) message: String,
+    pub(super) start_time: std::time::Instant,
 }
 
 type GroupAttemptFuture<'a> = Pin<Box<dyn Future<Output = (usize, AttemptOutcome)> + Send + 'a>>;
@@ -114,6 +129,8 @@ impl GroupDispatchPlan {
 fn apply_attempt_outcome(result: &mut GroupAttemptResult, outcome: AttemptOutcome) -> bool {
     match outcome {
         AttemptOutcome::Success(response) | AttemptOutcome::Fatal(response) => {
+            // 成功或 Fatal 已自带终态日志路径；丢弃中间 deferred。
+            result.last_deferred_log = None;
             result.response = Some(response);
             true
         }
@@ -122,6 +139,7 @@ fn apply_attempt_outcome(result: &mut GroupAttemptResult, outcome: AttemptOutcom
             response,
             is_timeout,
             should_cooldown: _,
+            deferred_log,
         } => {
             if is_timeout {
                 result.last_timeout_error = Some(message.clone());
@@ -130,6 +148,12 @@ fn apply_attempt_outcome(result: &mut GroupAttemptResult, outcome: AttemptOutcom
             }
             if response.is_some() {
                 result.last_retry_response = response;
+            }
+            // deferred_log 仅 transport 路径设置；HTTP 可重试响应已由 response 路径记日志。
+            // 中间 attempt 不落库，仅保留最后一次，供 finalize 终态失败时写一条。
+            if deferred_log.is_none() {
+                // HTTP/语义 Retryable 没有 deferred 诊断，清掉旧 transport deferred，避免串台。
+                result.last_deferred_log = None;
             }
             false
         }
@@ -145,6 +169,7 @@ fn merge_group_result(state: &mut ForwardAttemptState, result: GroupAttemptResul
     state.missing_auth |= result.missing_auth;
     if let Some(response) = result.response {
         state.response = Some(response);
+        state.last_deferred_log = None;
         return true;
     }
     if result.last_timeout_error.is_some() {
@@ -155,6 +180,9 @@ fn merge_group_result(state: &mut ForwardAttemptState, result: GroupAttemptResul
     }
     if let Some(response) = result.last_retry_response {
         state.last_retry_response = Some(response);
+    }
+    if result.last_deferred_log.is_some() {
+        state.last_deferred_log = result.last_deferred_log;
     }
     false
 }
@@ -325,7 +353,26 @@ fn apply_group_attempt_outcome(
     if !matches!(outcome, AttemptOutcome::SkippedAuth) {
         result.attempted += 1;
     }
-    apply_attempt_outcome(result, outcome)
+    // 在 move outcome 前抽出 deferred，绑定当前 upstream。
+    let deferred = match &outcome {
+        AttemptOutcome::Retryable {
+            deferred_log: Some(message),
+            is_timeout,
+            ..
+        } => Some(DeferredTransportLog {
+            upstream_id: upstream.id.clone(),
+            account_id: None,
+            status: if *is_timeout { 504 } else { 502 },
+            message: message.clone(),
+            start_time: std::time::Instant::now(),
+        }),
+        _ => None,
+    };
+    let terminal = apply_attempt_outcome(result, outcome);
+    if let Some(deferred) = deferred {
+        result.last_deferred_log = Some(deferred);
+    }
+    terminal
 }
 
 async fn dispatch_group_upstreams(
@@ -551,6 +598,19 @@ async fn apply_same_upstream_retries(
             max = max_retries,
             "retrying same upstream before upstream failover"
         );
+        // 原地重试前：已 rotate 过的毒连接由 transport 内层处理；此处再清一次 H2 槽，
+        // 覆盖 dispatch 层 capacity/HTTP 类 Retryable 之外的同连接复用风险。
+        if let Err(message) = state
+            .http_clients
+            .rotate_client_for_proxy_url(upstream.proxy_url.as_deref())
+        {
+            tracing::warn!(
+                provider,
+                upstream = %upstream.id,
+                error = %message,
+                "failed to rotate HTTP client before same-upstream retry"
+            );
+        }
         current = attempt::attempt_upstream(
             state,
             method.clone(),

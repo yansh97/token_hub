@@ -123,7 +123,7 @@ fn stream_with_logging_semantic_timeout_emits_response_failed_and_done() {
             if index == 0 {
                 return Some((
                     Ok::<Bytes, std::io::Error>(Bytes::from(
-                        "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n",
+                        "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\",\"sequence_number\":7}\n\n",
                     )),
                     1,
                 ));
@@ -164,6 +164,10 @@ fn stream_with_logging_semantic_timeout_emits_response_failed_and_done() {
         assert!(body.contains("\"status\":\"failed\""), "chunks: {body}");
         assert!(body.contains("semantic timeout"), "chunks: {body}");
         assert!(body.contains("data: [DONE]"), "chunks: {body}");
+        assert!(
+            body.contains("\"sequence_number\":8"),
+            "terminal event must continue the Responses sequence: {body}"
+        );
 
         super::wait_for_log_rows(&sqlite_pool, 1).await;
         let row = sqlx::query("SELECT response_error FROM request_logs ORDER BY id LIMIT 1")
@@ -188,7 +192,7 @@ fn stream_with_logging_upstream_error_emits_response_failed_after_stream_started
         let (log, context, _sqlite_pool) = super::setup_responses_stream().await;
         let upstream = futures_util::stream::iter(vec![
             Ok::<Bytes, std::io::Error>(Bytes::from(
-                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n",
+                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\",\"sequence_number\":7}\n\n",
             )),
             Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -222,6 +226,10 @@ fn stream_with_logging_upstream_error_emits_response_failed_after_stream_started
         );
         assert!(body.contains("upstream reset"), "chunks: {body}");
         assert!(body.contains("data: [DONE]"), "chunks: {body}");
+        assert!(
+            body.contains("\"sequence_number\":8"),
+            "terminal event must continue the Responses sequence: {body}"
+        );
     });
 }
 

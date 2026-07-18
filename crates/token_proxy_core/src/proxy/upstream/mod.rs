@@ -128,17 +128,19 @@ pub(super) async fn forward_upstream_request(
     )
 }
 
-enum AttemptOutcome {
-    Success(Response),
-    Retryable {
-        message: String,
-        response: Option<Response>,
-        is_timeout: bool,
-        should_cooldown: bool,
-    },
-    Fatal(Response),
-    SkippedAuth,
-}
+	enum AttemptOutcome {
+	    Success(Response),
+	    Retryable {
+	        message: String,
+	        response: Option<Response>,
+	        is_timeout: bool,
+	        should_cooldown: bool,
+	        /// 首响应头前 transport 诊断；仅在本请求最终失败时写入 SQLite，成功恢复不落 502 行。
+	        deferred_log: Option<String>,
+	    },
+	    Fatal(Response),
+	    SkippedAuth,
+	}
 
 pub(super) struct PreparedUpstreamRequest {
     upstream_path_with_query: String,

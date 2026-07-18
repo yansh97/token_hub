@@ -8,6 +8,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use super::super::log::{attach_response_body, build_log_entry, LogContext, LogWriter};
 use super::super::response::{
     responses_error::{responses_stream_error, ResponsesStreamError},
+    sequence::ResponsesEventSequence,
     STREAM_DROPPED_ERROR,
 };
 use super::super::sse::SseEventParser;
@@ -389,6 +390,7 @@ struct CodexToResponsesState<S> {
     response_body_buf: String,
     semantic_timeout: Option<Duration>,
     last_semantic_event_at: Instant,
+    sequence: ResponsesEventSequence,
 }
 
 impl<S> CodexToResponsesState<S> {
@@ -448,6 +450,7 @@ where
             response_body_buf: String::new(),
             semantic_timeout,
             last_semantic_event_at: Instant::now(),
+            sequence: ResponsesEventSequence::default(),
         }
     }
 
@@ -545,6 +548,15 @@ where
             self.fail_stream(malformed_event_message(&value), 502);
             return;
         };
+        if let Some(sequence_number) = self.sequence.ensure_error_event(&mut value) {
+            tracing::warn!(
+                provider = %self.context.provider,
+                upstream_id = %self.context.upstream_id,
+                event_type,
+                sequence_number,
+                "added missing Responses error event sequence number"
+            );
+        }
         self.last_semantic_event_at = Instant::now();
         if event_type == "response.created" {
             self.update_from_created(&value);
@@ -607,7 +619,14 @@ where
             "OpenAI Responses stream semantic timeout"
         );
         self.response_error_override = Some(message.clone());
-        stream_responses_failed_done_sse(&message, &self.response_id, self.created, &self.model)
+        let sequence_number = self.sequence.take_next();
+        stream_responses_failed_done_sse(
+            &message,
+            &self.response_id,
+            self.created,
+            &self.model,
+            sequence_number,
+        )
     }
 
     fn push_semantic_timeout_if_due(&mut self) {
@@ -655,17 +674,21 @@ where
         self.saw_terminal_event = true;
         self.response_error_override =
             Some("Codex upstream stream disconnected before response.completed".to_string());
+        let sequence_number = self.sequence.take_next();
         self.out
             .push_back(stream_responses_compatible_incomplete_sse(
                 &self.response_id,
                 self.created,
                 &self.model,
+                sequence_number,
             ));
     }
 
     fn fail_stream(&mut self, message: String, status: u16) {
         self.context.status = status;
-        self.out.push_back(stream_responses_error_sse(&message));
+        let sequence_number = self.sequence.take_next();
+        self.out
+            .push_back(stream_responses_error_sse(&message, sequence_number));
         self.out.push_back(Bytes::from("data: [DONE]\n\n"));
         self.sent_done = true;
         self.write_log_once(Some(message));
@@ -674,11 +697,13 @@ where
     fn fail_with_response_failed(&mut self, message: String) {
         self.context.status = 502;
         self.response_error_override = Some(message.clone());
+        let sequence_number = self.sequence.take_next();
         self.out.push_back(stream_responses_failed_done_sse(
             &message,
             &self.response_id,
             self.created,
             &self.model,
+            sequence_number,
         ));
         self.sent_done = true;
     }
@@ -737,12 +762,13 @@ pub(crate) fn stream_chat_error_sse(message: &str) -> Bytes {
     ))
 }
 
-pub(crate) fn stream_responses_error_sse(message: &str) -> Bytes {
+pub(crate) fn stream_responses_error_sse(message: &str, sequence_number: u64) -> Bytes {
     let created = now_unix_seconds();
     Bytes::from(format!(
         "event: response.failed\ndata: {}\n\n",
         json!({
             "type": "response.failed",
+            "sequence_number": sequence_number,
             "response": {
                 "id": format!("resp_proxy_{created}"),
                 "object": "response",
@@ -759,11 +785,18 @@ pub(crate) fn stream_responses_error_sse(message: &str) -> Bytes {
     ))
 }
 
-fn stream_responses_failed_done_sse(message: &str, id: &str, created: i64, model: &str) -> Bytes {
+fn stream_responses_failed_done_sse(
+    message: &str,
+    id: &str,
+    created: i64,
+    model: &str,
+    sequence_number: u64,
+) -> Bytes {
     Bytes::from(format!(
         "event: response.failed\ndata: {}\n\ndata: [DONE]\n\n",
         json!({
             "type": "response.failed",
+            "sequence_number": sequence_number,
             "response": {
                 "id": id,
                 "object": "response",
@@ -780,11 +813,17 @@ fn stream_responses_failed_done_sse(message: &str, id: &str, created: i64, model
     ))
 }
 
-fn stream_responses_compatible_incomplete_sse(id: &str, created: i64, model: &str) -> Bytes {
+fn stream_responses_compatible_incomplete_sse(
+    id: &str,
+    created: i64,
+    model: &str,
+    sequence_number: u64,
+) -> Bytes {
     Bytes::from(format!(
         "data: {}\n\n",
         json!({
             "type": "response.completed",
+            "sequence_number": sequence_number,
             "response": {
                 "id": id,
                 "object": "response",

@@ -489,29 +489,32 @@ mod tests {
                         .expect("valid H2 request");
                     // 在任何响应头前 reset stream，复现共享 H2 session 的 request-kind 错误。
                     respond.send_reset(h2::Reason::INTERNAL_ERROR);
-                    let _ = tokio::time::timeout(
-                        std::time::Duration::from_secs(1),
-                        connection.accept(),
-                    )
-                    .await;
+                    // 不阻塞等待更多 accept；drop connection 结束会话。
+                    drop(connection);
                 });
                 let client = reqwest::Client::builder()
                     .http2_prior_knowledge()
+                    // keep-alive 会让本测试在 idle 连接上挂住；显式关掉。
+                    .pool_max_idle_per_host(0)
                     .build()
                     .expect("build H2 client");
-                let error = client
-                    .post(format!("http://{address}/v1/responses?token=secret"))
-                    .body("{}")
-                    .send()
-                    .await
-                    .expect_err("H2 reset must fail before headers");
+                let error = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    client
+                        .post(format!("http://{address}/v1/responses?token=secret"))
+                        .body("{}")
+                        .send(),
+                )
+                .await
+                .expect("H2 reset client must finish within 5s")
+                .expect_err("H2 reset must fail before headers");
 
                 let failure = analyze_transport_error(
                     "openai-response",
                     error,
                     TransportRecovery::SameUpstreamOnce,
                 );
-                server.await.expect("H2 reset server task");
+                let _ = tokio::time::timeout(std::time::Duration::from_secs(2), server).await;
 
                 assert_eq!(failure.class, TransportErrorClass::Request);
                 assert_eq!(failure.recovery, TransportRecovery::SameUpstreamOnce);
