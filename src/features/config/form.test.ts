@@ -157,6 +157,7 @@ describe("config/form", () => {
       localApiKey: " ",
       corsEnabled: true,
       modelListPrefix: true,
+      trayTokenRate: { enabled: false, format: "both" },
       upstreams: [upstream],
     });
 
@@ -169,6 +170,7 @@ describe("config/form", () => {
     expect(payload.codex_session_scoped_cooldown_enabled).toBe(false);
     expect(payload.stream_first_output_timeout_secs).toBe(60);
     expect(payload.sync_response_timeout_secs).toBe(300);
+    expect(payload.tray_token_rate).toEqual({ enabled: true, format: "split" });
     expect("upstream_no_data_timeout_secs" in payload).toBe(false);
     expect("openai_response_header_timeout_secs" in payload).toBe(false);
     expect("model_discovery_refresh_secs" in payload).toBe(false);

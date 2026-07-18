@@ -9,7 +9,6 @@ import {
   type UpstreamDispatchStrategy,
   type UpstreamForm,
   type UpstreamStrategy,
-  TRAY_TOKEN_RATE_FORMATS,
 } from "@/features/config/types";
 import {
   ACCOUNT_BACKED_PROVIDERS,
@@ -50,10 +49,6 @@ const INTEGER_PATTERN = /^-?\d+$/;
 const NON_NEGATIVE_INTEGER_PATTERN = /^\d+$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 let modelMappingCounter = 0;
-
-const TRAY_TOKEN_RATE_FORMAT_VALUES: ReadonlySet<string> = new Set(
-  TRAY_TOKEN_RATE_FORMATS.map((format) => format.value)
-);
 
 function isKiroPreferredEndpoint(value: string): value is KiroPreferredEndpoint {
   return value === "ide" || value === "cli";
@@ -231,7 +226,7 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
     syncResponseTimeoutSecs: String(
       config.sync_response_timeout_secs ?? DEFAULT_SYNC_RESPONSE_TIMEOUT_SECS,
     ),
-    trayTokenRate: normalizeTrayTokenRate(config.tray_token_rate),
+    trayTokenRate: { ...DEFAULT_TRAY_TOKEN_RATE },
     upstreamStrategy: toUpstreamStrategyForm(config.upstream_strategy),
     hotModelMappings: toModelMappingForm(config.hot_model_mappings ?? {}),
     upstreams: config.upstreams.map((upstream) => {
@@ -285,7 +280,7 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
       form.syncResponseTimeoutSecs,
       DEFAULT_SYNC_RESPONSE_TIMEOUT_SECS,
     ),
-    tray_token_rate: form.trayTokenRate,
+    tray_token_rate: { ...DEFAULT_TRAY_TOKEN_RATE },
     upstream_strategy: toUpstreamStrategyPayload(form.upstreamStrategy),
     hot_model_mappings: toModelMappingPayload(form.hotModelMappings),
     upstreams: form.upstreams.map((upstream) => {
@@ -546,13 +541,6 @@ function toOverridesPayload(
   return {
     header: Object.fromEntries(headerEntries),
   };
-}
-
-function normalizeTrayTokenRate(value: TrayTokenRateConfig) {
-  if (!TRAY_TOKEN_RATE_FORMAT_VALUES.has(value.format)) {
-    return { ...value, format: DEFAULT_TRAY_TOKEN_RATE.format };
-  }
-  return value;
 }
 
 function toUpstreamStrategyForm(strategy: UpstreamStrategy): ConfigForm["upstreamStrategy"] {

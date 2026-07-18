@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Token Proxy (dev)",
-  "version": "0.1.48",
-  "identifier": "com.mxyhi.token-proxy.dev",
+  "productName": "Token Hub (dev)",
+  "version": "0.1.153",
+  "identifier": "com.yansh97.token-hub.dev",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Token Proxy (dev)",
+        "title": "Token Hub (dev)",
         "width": 1064,
         "height": 658,
         "visible": false
@@ -41,9 +41,9 @@
       }
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAzMTE2N0E5RTRGNkE4NzgKUldSNHFQYmtxV2NSQTBsUW9ML0lmS0k0a05iSkVXc1VKNnNxZkdsZTRHcGxyODZnVUQ0T21zTEQK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQzRERDQzZFRjM0RTcxQkMKUldTOGNVN3pic3pkUTRZR3VaL3BVd2tUK3RyYys0MWR4akZDaFBCTHU0U2JjcUJwengvOTB0aHkK",
       "endpoints": [
-        "https://github.com/mxyhi/token_proxy/releases/latest/download/latest.json"
+        "https://github.com/yansh97/token_hub/releases/latest/download/latest.json"
       ]
     }
   }

@@ -282,7 +282,7 @@ pub(crate) fn init_tray(
     let is_template = !cfg!(debug_assertions);
     let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(load_tray_icon()?)
-        .tooltip("Token Proxy")
+        .tooltip("Token Hub")
         .show_menu_on_left_click(true)
         .icon_as_template(is_template)
         .menu(&menu)

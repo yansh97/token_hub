@@ -14,6 +14,7 @@ const ROOT = process.cwd();
 const PATHS = {
   packageJson: path.join(ROOT, "package.json"),
   tauriConf: path.join(ROOT, "src-tauri", "tauri.conf.json"),
+  tauriDevConf: path.join(ROOT, "src-tauri", "tauri.conf.dev.json"),
   cargoToml: path.join(ROOT, "src-tauri", "Cargo.toml"),
   // 本仓库是 Cargo workspace，锁文件默认位于 workspace 根目录而不是成员 crate 目录。
   cargoLock: path.join(ROOT, "Cargo.lock"),
@@ -152,6 +153,10 @@ function applyVersion(version) {
   const tauriConf = readJson(PATHS.tauriConf);
   tauriConf.version = version;
   writeJson(PATHS.tauriConf, tauriConf);
+
+  const tauriDevConf = readJson(PATHS.tauriDevConf);
+  tauriDevConf.version = version;
+  writeJson(PATHS.tauriDevConf, tauriDevConf);
 
   const cargoToml = fs.readFileSync(PATHS.cargoToml, "utf8");
   writeText(PATHS.cargoToml, updateCargoToml(cargoToml, version));

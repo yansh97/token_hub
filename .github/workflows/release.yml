@@ -250,8 +250,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           expected=(
-            "Token.Proxy_aarch64.app.tar.gz"
-            "Token.Proxy_aarch64.app.tar.gz.sig"
+            "Token.Hub_aarch64.app.tar.gz"
+            "Token.Hub_aarch64.app.tar.gz.sig"
           )
           api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100"
 
@@ -543,7 +543,7 @@ jobs:
           git config --local user.name "GitHub Action"
           git fetch origin "$branch" || true
           git switch -C "$branch"
-          git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json Cargo.lock
+          git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json src-tauri/tauri.conf.dev.json Cargo.lock
           git commit -m "chore: release v${version}"
           git push --force-with-lease=refs/heads/$branch origin "HEAD:$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"

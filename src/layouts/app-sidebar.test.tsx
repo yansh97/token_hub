@@ -40,7 +40,7 @@ describe("layouts/AppSidebar", () => {
     routerState.pathname = "/config/dashboard";
   });
 
-  it("localizes the Agent Node menu item", () => {
+  it("hides the localized Agent Node menu item", () => {
     setLocale("zh", { reload: false });
     routerState.pathname = "/agent-node";
 
@@ -50,10 +50,29 @@ describe("layouts/AppSidebar", () => {
       </SidebarProvider>
     );
 
-    expect(screen.getByRole("link", { name: m.agent_node_title({}, { locale: "zh" }) })).toHaveAttribute(
-      "href",
-      "/agent-node"
-    );
+    expect(screen.getByRole("link", { name: "Token Hub (dev)" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: m.agent_node_title({}, { locale: "zh" }) })).not.toBeInTheDocument();
     expect(screen.queryByText("Agent Node")).not.toBeInTheDocument();
+  });
+
+  it("hides the providers menu item", () => {
+    render(
+      <SidebarProvider>
+        <AppSidebar />
+      </SidebarProvider>
+    );
+
+    expect(screen.queryByRole("link", { name: m.config_section_providers_label() })).not.toBeInTheDocument();
+  });
+
+  it("hides the Agents and Agent Node menu items", () => {
+    render(
+      <SidebarProvider>
+        <AppSidebar />
+      </SidebarProvider>
+    );
+
+    expect(screen.queryByRole("link", { name: m.config_section_agents_label() })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: m.agent_node_title() })).not.toBeInTheDocument();
   });
 });

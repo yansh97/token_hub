@@ -34,7 +34,7 @@ The upstream project and this fork are distributed under the [Apache License 2.0
 | **Upstreams**<br>![Upstreams](images/upstream.png) | **Add upstream**<br>![Add upstream](images/add-upstream.png) |
 
 ## Quick start (macOS)
-1) Install: move `Token Proxy.app` to `/Applications`. If blocked: `xattr -cr /Applications/Token\ Proxy.app`.
+1) Install: move `Token Hub.app` to `/Applications`. If blocked: `xattr -cr /Applications/Token\ Hub.app`.
 2) Launch the app. The proxy starts automatically.
 3) Open **Config File** tab, edit and save (writes `config.jsonc` in the Tauri config dir). Defaults are usable; just paste your upstream API keys. Running proxies auto-apply the new config via reload or restart when needed.
 4) Call via curl (example with local auth):

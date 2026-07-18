@@ -44,7 +44,11 @@ function normalizeConfigForCompare(
   extras: Record<string, unknown>
 ) {
   // 将配置走一遍 toForm/toPayload，统一空值/null/overrides 等形态，避免启动即脏。
-  return mergeConfigExtras(toPayload(toForm(config)), extras);
+  // tray_token_rate 是前端固定的展示偏好，保留旧值用于触发一次迁移保存。
+  return mergeConfigExtras(
+    { ...toPayload(toForm(config)), tray_token_rate: config.tray_token_rate },
+    extras
+  );
 }
 
 export type StatusState = "idle" | "loading" | "saving" | "saved" | "error";

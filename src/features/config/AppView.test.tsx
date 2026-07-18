@@ -19,9 +19,7 @@ vi.mock("@/features/config/cards", () => ({
   ConfigFileCard: () => <div data-testid="config-file-card" />,
   StorageUsageCard: () => <div data-testid="storage-usage-card" />,
   AutoStartCard: () => <div data-testid="auto-start-card" />,
-  ProjectLinksCard: () => <div data-testid="project-links-card" />,
   ProxyCoreCard: () => <div data-testid="proxy-core-card" />,
-  TrayTokenRateCard: () => <div data-testid="tray-token-rate-card" />,
   UpdateCard: () => <div data-testid="update-card" />,
   UpstreamsCard: () => <div data-testid="upstreams-card" />,
 }));

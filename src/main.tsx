@@ -1,12 +1,21 @@
 import { LanguageObserver } from "@/components/LanguageObserver";
 import { Toaster } from "@/components/ui/sonner";
 import { I18nProvider } from "@/lib/i18n";
+import { setLocale } from "@/paraglide/runtime.js";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { Agentation } from "agentation";
 import { ThemeProvider } from "next-themes";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { routeTree } from "./routeTree.gen";
+
+const THEME_STORAGE_KEY = "token-proxy-theme";
+
+if (typeof window !== "undefined") {
+  window.localStorage.setItem(THEME_STORAGE_KEY, "system");
+}
+
+setLocale("zh", { reload: false });
 
 const router = createRouter({ routeTree });
 
@@ -32,7 +41,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         attribute="class"
         defaultTheme="system"
         enableSystem
-        storageKey="token-proxy-theme"
+        storageKey={THEME_STORAGE_KEY}
         disableTransitionOnChange
       >
         <Toaster position="bottom-right" closeButton richColors />

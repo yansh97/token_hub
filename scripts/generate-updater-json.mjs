@@ -103,14 +103,14 @@ function buildUpdaterRules(version) {
       arch: "aarch64",
       bundle: "app",
       label: "macOS (aarch64) app.tar.gz",
-      assetPattern: /^Token\.Proxy_aarch64\.app\.tar\.gz$/,
+      assetPattern: /^Token\.Hub_aarch64\.app\.tar\.gz$/,
     },
     {
       os: "darwin",
       arch: "x86_64",
       bundle: "app",
       label: "macOS (x86_64) app.tar.gz",
-      assetPattern: /^Token\.Proxy_x64\.app\.tar\.gz$/,
+      assetPattern: /^Token\.Hub_x64\.app\.tar\.gz$/,
     },
     // Windows installers
     {
@@ -118,14 +118,14 @@ function buildUpdaterRules(version) {
       arch: "x86_64",
       bundle: "msi",
       label: "Windows (x86_64) msi",
-      assetPattern: new RegExp(`^Token\\.Proxy_${version}_x64_.*\\.msi$`),
+      assetPattern: new RegExp(`^Token\\.Hub_${version}_x64_.*\\.msi$`),
     },
     {
       os: "windows",
       arch: "x86_64",
       bundle: "nsis",
       label: "Windows (x86_64) nsis exe",
-      assetPattern: new RegExp(`^Token\\.Proxy_${version}_x64-setup\\.exe$`),
+      assetPattern: new RegExp(`^Token\\.Hub_${version}_x64-setup\\.exe$`),
     },
     // Linux (x86_64 / aarch64)
     {
@@ -133,21 +133,21 @@ function buildUpdaterRules(version) {
       arch: "x86_64",
       bundle: "appimage",
       label: "Linux (x86_64) AppImage",
-      assetPattern: new RegExp(`^Token\\.Proxy_${version}_amd64\\.AppImage$`),
+      assetPattern: new RegExp(`^Token\\.Hub_${version}_amd64\\.AppImage$`),
     },
     {
       os: "linux",
       arch: "aarch64",
       bundle: "appimage",
       label: "Linux (aarch64) AppImage",
-      assetPattern: new RegExp(`^Token\\.Proxy_${version}_aarch64\\.AppImage$`),
+      assetPattern: new RegExp(`^Token\\.Hub_${version}_aarch64\\.AppImage$`),
     },
     {
       os: "linux",
       arch: "x86_64",
       bundle: "deb",
       label: "Linux (x86_64) deb",
-      assetPattern: new RegExp(`^Token\\.Proxy_${version}_amd64\\.deb$`),
+      assetPattern: new RegExp(`^Token\\.Hub_${version}_amd64\\.deb$`),
     },
     // 注意：deb 的 arm64 发行包命名为 arm64，但 updater 平台键使用 aarch64。
     {
@@ -155,21 +155,21 @@ function buildUpdaterRules(version) {
       arch: "aarch64",
       bundle: "deb",
       label: "Linux (aarch64) deb",
-      assetPattern: new RegExp(`^Token\\.Proxy_${version}_arm64\\.deb$`),
+      assetPattern: new RegExp(`^Token\\.Hub_${version}_arm64\\.deb$`),
     },
     {
       os: "linux",
       arch: "x86_64",
       bundle: "rpm",
       label: "Linux (x86_64) rpm",
-      assetPattern: new RegExp(`^Token\\.Proxy-${version}-\\d+\\.x86_64\\.rpm$`),
+      assetPattern: new RegExp(`^Token\\.Hub-${version}-\\d+\\.x86_64\\.rpm$`),
     },
     {
       os: "linux",
       arch: "aarch64",
       bundle: "rpm",
       label: "Linux (aarch64) rpm",
-      assetPattern: new RegExp(`^Token\\.Proxy-${version}-\\d+\\.aarch64\\.rpm$`),
+      assetPattern: new RegExp(`^Token\\.Hub-${version}-\\d+\\.aarch64\\.rpm$`),
     },
   ];
 }

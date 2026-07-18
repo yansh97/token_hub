@@ -19,10 +19,8 @@ import {
   ClientSetupCard,
   ConfigFileCard,
   AutoStartCard,
-  ProjectLinksCard,
   ProxyCoreCard,
   StorageUsageCard,
-  TrayTokenRateCard,
   UpdateCard,
   UpstreamsCard,
   type StatusBadge,
@@ -277,11 +275,6 @@ function ConfigSectionBody({
             message={props.autoStartMessage}
             onChange={props.onAutoStartChange}
           />
-          <TrayTokenRateCard
-            value={props.form.trayTokenRate}
-            onChange={(nextValue) => props.onFormChange({ trayTokenRate: nextValue })}
-          />
-          <ProjectLinksCard />
           <UpdateCard />
         </div>
       );
