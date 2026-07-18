@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  createDefaultColumnVisibility,
   mergeProviderOptions,
   UPSTREAM_COLUMNS,
 } from "@/features/config/cards/upstreams/constants";
@@ -16,7 +15,6 @@ import {
   providersEqual,
   resolveUpstreamIdForProviderChange,
 } from "@/features/config/cards/upstreams/upstream-editor-helpers";
-import { ColumnsDialog } from "@/features/config/cards/upstreams/columns-dialog";
 import { DeleteUpstreamDialog } from "@/features/config/cards/upstreams/delete-dialog";
 import { UpstreamEditorDialog } from "@/features/config/cards/upstreams/editor-dialog";
 import {
@@ -24,22 +22,18 @@ import {
   UpstreamsToolbar,
 } from "@/features/config/cards/upstreams/table";
 import type {
-  ColumnVisibility,
   DeleteDialogState,
   UpstreamEditorState,
 } from "@/features/config/cards/upstreams/types";
 import { createEmptyUpstream } from "@/features/config/form";
-import type { ConfigForm, UpstreamForm } from "@/features/config/types";
+import type { UpstreamForm } from "@/features/config/types";
 import { m } from "@/paraglide/messages.js";
 
 type UpstreamsCardProps = {
   upstreams: UpstreamForm[];
-  appProxyUrl: string;
-  strategy: ConfigForm["upstreamStrategy"];
   showApiKeys: boolean;
   providerOptions: string[];
   onToggleApiKeys: () => void;
-  onStrategyChange: (value: ConfigForm["upstreamStrategy"]) => void;
   onAdd: (upstream: UpstreamForm) => void;
   onRemove: (index: number) => void;
   onChange: (index: number, patch: Partial<UpstreamForm>) => void;
@@ -47,12 +41,9 @@ type UpstreamsCardProps = {
 
 export function UpstreamsCard({
   upstreams,
-  appProxyUrl,
-  strategy,
   showApiKeys,
   providerOptions,
   onToggleApiKeys,
-  onStrategyChange,
   onAdd,
   onRemove,
   onChange,
@@ -61,19 +52,11 @@ export function UpstreamsCard({
     () => mergeProviderOptions(providerOptions),
     [providerOptions],
   );
-  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>(
-    () => createDefaultColumnVisibility(),
-  );
-  const [columnsOpen, setColumnsOpen] = useState(false);
   const [editor, setEditor] = useState<UpstreamEditorState>({ open: false });
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({
     open: false,
   });
-  const columns = useMemo(
-    () => UPSTREAM_COLUMNS.filter((column) => columnVisibility[column.id]),
-    [columnVisibility],
-  );
-  const apiKeyVisible = columnVisibility.apiKeys;
+  const columns = UPSTREAM_COLUMNS;
   const isSpecialAccountBackedUpstream = useCallback(
     (upstream: UpstreamForm) => {
       const providers = normalizeProviders(upstream.providers);
@@ -245,22 +228,18 @@ export function UpstreamsCard({
   };
 
   return (
-    <Card data-slot="upstreams-card">
-      <CardContent className="space-y-4">
-        <UpstreamsToolbar
-          apiKeyVisible={apiKeyVisible}
-          showApiKeys={showApiKeys}
-          onToggleApiKeys={onToggleApiKeys}
-          onAddClick={openCreateDialog}
-          onColumnsClick={() => setColumnsOpen(true)}
-          strategy={strategy}
-          onStrategyChange={onStrategyChange}
-        />
+    <Card
+      data-slot="upstreams-card"
+      className="mt-2.5 gap-0 rounded-none border-0 bg-transparent py-0 shadow-none"
+    >
+      <CardContent className="space-y-4 px-4">
+        <h2 className="text-[15px] font-semibold leading-5">
+          {m.upstreams_title()}
+        </h2>
         {upstreams.length ? (
           <UpstreamsTable
             upstreams={upstreams}
             columns={columns}
-            showApiKeys={showApiKeys}
             disableDelete={false}
             isCopyDisabled={isSpecialAccountBackedUpstream}
             isDeleteDisabled={isSpecialAccountBackedUpstream}
@@ -278,24 +257,12 @@ export function UpstreamsCard({
         ) : (
           <p className="text-sm text-muted-foreground">{m.upstreams_empty()}</p>
         )}
-        <p className="text-xs text-muted-foreground">{m.upstreams_tip()}</p>
+        <UpstreamsToolbar onAddClick={openCreateDialog} />
       </CardContent>
 
-      <ColumnsDialog
-        open={columnsOpen}
-        visibility={columnVisibility}
-        onOpenChange={setColumnsOpen}
-        onToggleColumn={(columnId) =>
-          setColumnVisibility((prev) => ({
-            ...prev,
-            [columnId]: !prev[columnId],
-          }))
-        }
-      />
       <UpstreamEditorDialog
         editor={editor}
         providerOptions={mergedProviderOptions}
-        appProxyUrl={appProxyUrl}
         showApiKeys={showApiKeys}
         onToggleApiKeys={onToggleApiKeys}
         onOpenChange={(open) => !open && setEditor({ open: false })}

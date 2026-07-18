@@ -1,13 +1,5 @@
-import { ChevronDown } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { isAccountBackedProvider } from "@/features/config/cards/upstreams/upstream-editor-helpers";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type ProviderMultiSelectProps = {
   providerOptions: readonly string[];
@@ -79,53 +71,43 @@ export function ProviderMultiSelect({
   onChange,
 }: ProviderMultiSelectProps) {
   const selected = orderProviders(normalizeProviders(value), providerOptions);
-  const label = selected.length ? selected.join(", ") : "openai";
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-between"
-          data-slot="provider-multi-select"
-          disabled={disabled}
+    <ToggleGroup
+      type="multiple"
+      variant="outline"
+      size="sm"
+      spacing={0}
+      disabled={disabled}
+      value={selected}
+      onValueChange={(next) => {
+        const nextSet = new Set(next);
+        const changedOption = providerOptions.find(
+          (option) => nextSet.has(option) !== selected.includes(option),
+        );
+        if (!changedOption || disabled) {
+          return;
+        }
+        onChange(
+          toggleProvider(
+            selected,
+            providerOptions,
+            changedOption,
+            nextSet.has(changedOption),
+          ),
+        );
+      }}
+      className="max-w-full overflow-x-auto"
+      data-slot="provider-multi-select"
+    >
+      {providerOptions.map((option) => (
+        <ToggleGroupItem
+          key={option}
+          value={option}
+          className="data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
-          <span className="truncate">{label}</span>
-          <ChevronDown
-            className="size-4 text-muted-foreground"
-            aria-hidden="true"
-          />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="w-[var(--radix-dropdown-menu-trigger-width)]"
-      >
-        {providerOptions.map((option) => {
-          const checked = selected.includes(option);
-          return (
-            <DropdownMenuCheckboxItem
-              key={option}
-              checked={checked}
-              onCheckedChange={(nextChecked) =>
-                disabled
-                  ? undefined
-                  : onChange(
-                      toggleProvider(
-                        selected,
-                        providerOptions,
-                        option,
-                        nextChecked === true,
-                      ),
-                    )
-              }
-            >
-              {option}
-            </DropdownMenuCheckboxItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {option}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }

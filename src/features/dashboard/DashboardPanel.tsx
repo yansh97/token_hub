@@ -60,7 +60,7 @@ export function DashboardPanel() {
   const isLoading = status === "loading";
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col">
       {status === "error" ? (
         <Alert variant="destructive" className="mx-4 lg:mx-6">
           <AlertCircle className="size-4" aria-hidden="true" />
@@ -79,11 +79,12 @@ export function DashboardPanel() {
         onRangeChange={onRangeChange}
         onUpstreamChange={onUpstreamChange}
         onRefresh={refresh}
+        className="mb-2.5"
       />
 
       <SectionCards summary={snapshot?.summary ?? null} />
 
-      <div className="border-border/70 grid gap-2.5 border-t px-4 pb-3 pt-3 lg:auto-rows-[250px] lg:grid-cols-2 lg:px-6">
+      <div className="relative mx-4 mt-2.5 grid gap-2.5 pb-3 pt-3 before:absolute before:inset-x-4 before:top-0 before:border-t before:border-border/70 before:content-[''] lg:mx-6 lg:auto-rows-[250px] lg:grid-cols-2">
         <Suspense fallback={<ChartAreaFallback />}>
           <ChartAreaInteractive
             series={snapshot?.series ?? []}
@@ -97,7 +98,9 @@ export function DashboardPanel() {
       </div>
 
       <Suspense fallback={null}>
-        <UpstreamModelProbes probes={snapshot?.modelProbes ?? []} />
+        <div className="mt-2.5">
+          <UpstreamModelProbes probes={snapshot?.modelProbes ?? []} />
+        </div>
       </Suspense>
     </div>
   );

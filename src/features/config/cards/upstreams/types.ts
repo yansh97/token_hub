@@ -1,23 +1,13 @@
 import type { UpstreamForm } from "@/features/config/types";
 
-export type UpstreamColumnId =
-  | "id"
-  | "provider"
-  | "baseUrl"
-  | "apiKeys"
-  | "proxyUrl"
-  | "priority"
-  | "status";
+export type UpstreamColumnId = "id" | "provider" | "priority" | "status";
 
 export type UpstreamColumnDefinition = {
   id: UpstreamColumnId;
   label: () => string;
-  defaultVisible: boolean;
   headerClassName?: string;
   cellClassName?: string;
 };
-
-export type ColumnVisibility = Record<UpstreamColumnId, boolean>;
 
 export type UpstreamEditorState =
   | { open: false }

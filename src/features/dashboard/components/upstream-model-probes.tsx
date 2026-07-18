@@ -81,7 +81,7 @@ function ProbeModels({ models }: { models: string[] }) {
     const observer = new ResizeObserver(updateWidth);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [models.length]);
 
   if (models.length === 0) {
     return (
@@ -93,12 +93,13 @@ function ProbeModels({ models }: { models: string[] }) {
 
   const minColumnWidth = 176;
   const columnGap = 16;
-  const columnCount = containerWidth
+  const widthColumnCount = containerWidth
     ? Math.max(
         1,
         Math.floor((containerWidth + columnGap) / (minColumnWidth + columnGap)),
       )
     : 1;
+  const columnCount = widthColumnCount;
   const rowCount = Math.ceil(models.length / columnCount);
 
   return (
@@ -168,7 +169,7 @@ function ProbeRow({
 
 export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
   return (
-    <div className="border-border/70 border-t px-4 pt-3 lg:px-6">
+    <div className="relative mx-4 pt-3 before:absolute before:inset-x-4 before:top-0 before:border-t before:border-border/70 before:content-[''] lg:mx-6">
       <Card className="h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
         <CardHeader className="gap-1.5 px-4 py-3">
           <CardTitle className="text-[15px] font-semibold leading-5">

@@ -26,11 +26,9 @@ type ConfigActionsArgs = {
   autoStartEnabled: boolean;
   autoStartBaseline: boolean;
   autoStartStatus: AutoStartStatus;
-  setConfigPath: (path: string) => void;
   setForm: (value: ConfigForm) => void;
   setLastConfig: (value: ProxyConfigFile | null) => void;
   setConfigExtras: (extras: Record<string, unknown>) => void;
-  setSavedAt: (value: string) => void;
   setStatus: (value: StatusState) => void;
   setStatusMessage: (value: string) => void;
   setAutoStartEnabled: (value: boolean) => void;
@@ -108,34 +106,25 @@ async function applyAutoStartChange({
 
 type LoadConfigArgs = Pick<
   ConfigActionsArgs,
-  | "setConfigPath"
-  | "setForm"
-  | "setLastConfig"
-  | "setStatus"
-  | "setStatusMessage"
+  "setForm" | "setLastConfig" | "setStatus" | "setStatusMessage"
 > & {
   setConfigExtras: (extras: Record<string, unknown>) => void;
-  setSavedAt: (value: string) => void;
 };
 
 async function loadConfigImpl({
-  setConfigPath,
   setForm,
   setLastConfig,
   setConfigExtras,
   setStatus,
   setStatusMessage,
-  setSavedAt,
 }: LoadConfigArgs) {
   setStatus("loading");
   setStatusMessage("");
   try {
     const response = await invoke<ConfigResponse>("read_proxy_config");
-    setConfigPath(response.path);
     setForm(toForm(response.config));
     setConfigExtras(extractConfigExtras(response.config));
     setLastConfig(response.config);
-    setSavedAt("");
     setStatus("idle");
   } catch (error) {
     setStatus("error");
@@ -147,7 +136,6 @@ type WriteConfigArgs = {
   configDirty: boolean;
   currentPayload: ProxyConfigFile;
   setLastConfig: (value: ProxyConfigFile | null) => void;
-  setSavedAt: (value: string) => void;
   setProxyServiceStatus: (value: ProxyServiceStatus) => void;
 };
 
@@ -155,7 +143,6 @@ async function writeConfigIfDirty({
   configDirty,
   currentPayload,
   setLastConfig,
-  setSavedAt,
   setProxyServiceStatus,
 }: WriteConfigArgs) {
   if (!configDirty) {
@@ -167,7 +154,6 @@ async function writeConfigIfDirty({
     });
     setProxyServiceStatus(result.status);
     setLastConfig(currentPayload);
-    setSavedAt(new Date().toLocaleString());
     return { saved: true, error: result.apply_error ?? "" };
   } catch (error) {
     return { saved: false, error: parseError(error) };
@@ -177,7 +163,6 @@ async function writeConfigIfDirty({
 type SaveConfigArgs = Pick<
   ConfigActionsArgs,
   | "setLastConfig"
-  | "setSavedAt"
   | "setStatus"
   | "setStatusMessage"
   | "setAutoStartBaseline"
@@ -202,7 +187,6 @@ async function saveConfigImpl({
   autoStartBaseline,
   autoStartStatus,
   setLastConfig,
-  setSavedAt,
   setStatus,
   setStatusMessage,
   setAutoStartBaseline,
@@ -223,7 +207,6 @@ async function saveConfigImpl({
     configDirty,
     currentPayload,
     setLastConfig,
-    setSavedAt,
     setProxyServiceStatus,
   });
   if (configResult.error) {
@@ -258,11 +241,9 @@ async function saveConfigImpl({
 
 type LoadConfigActionArgs = Pick<
   ConfigActionsArgs,
-  | "setConfigPath"
   | "setForm"
   | "setLastConfig"
   | "setConfigExtras"
-  | "setSavedAt"
   | "setStatus"
   | "setStatusMessage"
   | "setAutoStartEnabled"
@@ -272,11 +253,9 @@ type LoadConfigActionArgs = Pick<
 >;
 
 function useLoadConfigAction({
-  setConfigPath,
   setForm,
   setLastConfig,
   setConfigExtras,
-  setSavedAt,
   setStatus,
   setStatusMessage,
   setAutoStartEnabled,
@@ -288,13 +267,11 @@ function useLoadConfigAction({
     () =>
       Promise.all([
         loadConfigImpl({
-          setConfigPath,
           setForm,
           setLastConfig,
           setConfigExtras,
           setStatus,
           setStatusMessage,
-          setSavedAt,
         }),
         loadAutoStartImpl({
           setAutoStartEnabled,
@@ -304,13 +281,11 @@ function useLoadConfigAction({
         }),
       ]).then(() => undefined),
     [
-      setConfigPath,
       setForm,
       setLastConfig,
       setConfigExtras,
       setStatus,
       setStatusMessage,
-      setSavedAt,
       setAutoStartEnabled,
       setAutoStartBaseline,
       setAutoStartStatus,
@@ -328,7 +303,6 @@ type SaveConfigActionArgs = Pick<
   | "autoStartBaseline"
   | "autoStartStatus"
   | "setLastConfig"
-  | "setSavedAt"
   | "setStatus"
   | "setStatusMessage"
   | "setAutoStartBaseline"
@@ -346,7 +320,6 @@ function useSaveConfigAction({
   autoStartBaseline,
   autoStartStatus,
   setLastConfig,
-  setSavedAt,
   setStatus,
   setStatusMessage,
   setAutoStartBaseline,
@@ -365,7 +338,6 @@ function useSaveConfigAction({
         autoStartBaseline,
         autoStartStatus,
         setLastConfig,
-        setSavedAt,
         setStatus,
         setStatusMessage,
         setAutoStartBaseline,
@@ -382,7 +354,6 @@ function useSaveConfigAction({
       autoStartBaseline,
       autoStartStatus,
       setLastConfig,
-      setSavedAt,
       setStatus,
       setStatusMessage,
       setAutoStartBaseline,

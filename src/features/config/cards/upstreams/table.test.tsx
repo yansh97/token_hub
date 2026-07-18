@@ -42,7 +42,6 @@ describe("upstreams/table", () => {
       <UpstreamsTable
         upstreams={[buildUpstream()]}
         columns={UPSTREAM_COLUMNS}
-        showApiKeys={false}
         disableDelete={false}
         onEdit={() => undefined}
         onCopy={() => undefined}
@@ -61,7 +60,6 @@ describe("upstreams/table", () => {
       <UpstreamsTable
         upstreams={[buildUpstream()]}
         columns={UPSTREAM_COLUMNS}
-        showApiKeys={false}
         disableDelete={false}
         onEdit={() => undefined}
         onCopy={() => undefined}
@@ -86,7 +84,6 @@ describe("upstreams/table", () => {
       <UpstreamsTable
         upstreams={[buildUpstream()]}
         columns={UPSTREAM_COLUMNS}
-        showApiKeys={false}
         disableDelete={false}
         isDeleteDisabled={(upstream) =>
           upstream.providers.length === 1 && upstream.providers[0] === "codex"
@@ -108,7 +105,6 @@ describe("upstreams/table", () => {
       <UpstreamsTable
         upstreams={[buildUpstream()]}
         columns={UPSTREAM_COLUMNS}
-        showApiKeys={false}
         disableDelete={false}
         isCopyDisabled={(upstream) =>
           upstream.providers.length === 1 && upstream.providers[0] === "codex"

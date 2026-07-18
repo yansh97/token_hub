@@ -1,6 +1,3 @@
-import { RotateCcw } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,54 +8,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   ProxyServicePanel,
   type ProxyServiceViewProps,
 } from "@/features/config/cards/proxy-service-card";
-import {
-  type ConfigForm,
-  type KiroPreferredEndpoint,
-} from "@/features/config/types";
+import type { ConfigForm } from "@/features/config/types";
 import { m } from "@/paraglide/messages.js";
-
-const KIRO_ENDPOINT_OPTIONS: ReadonlyArray<{
-  value: KiroPreferredEndpoint;
-  label: () => string;
-}> = [
-  { value: "ide", label: () => m.kiro_preferred_endpoint_ide() },
-  { value: "cli", label: () => m.kiro_preferred_endpoint_cli() },
-];
-
-function isKiroPreferredEndpoint(
-  value: string,
-): value is KiroPreferredEndpoint {
-  return value === "ide" || value === "cli";
-}
 
 type ProxyCoreCardProps = {
   form: ConfigForm;
   showLocalKey: boolean;
   onToggleLocalKey: () => void;
   onChange: (patch: Partial<ConfigForm>) => void;
-  onResetHotModelMappings: () => void;
   proxyService: ProxyServiceViewProps;
 };
 
 type ProxyCoreFieldsProps = Pick<
   ProxyCoreCardProps,
-  | "form"
-  | "showLocalKey"
-  | "onToggleLocalKey"
-  | "onChange"
-  | "onResetHotModelMappings"
+  "form" | "showLocalKey" | "onToggleLocalKey" | "onChange"
 >;
 
 function ProxyCoreFields({
@@ -66,7 +34,6 @@ function ProxyCoreFields({
   showLocalKey,
   onToggleLocalKey,
   onChange,
-  onResetHotModelMappings,
 }: ProxyCoreFieldsProps) {
   return (
     <>
@@ -103,94 +70,6 @@ function ProxyCoreFields({
         />
         <p className="text-xs text-muted-foreground">
           {m.proxy_core_local_api_key_help()}
-        </p>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="app-proxy-url">
-          {m.proxy_core_app_proxy_url_label()}
-        </Label>
-        <Input
-          id="app-proxy-url"
-          value={form.appProxyUrl}
-          onChange={(event) => onChange({ appProxyUrl: event.target.value })}
-          placeholder="socks5h://127.0.0.1:7891"
-        />
-        <p className="text-xs text-muted-foreground">
-          {m.proxy_core_app_proxy_url_help({ placeholder: "$app_proxy_url" })}
-        </p>
-      </div>
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <Label htmlFor="cors-enabled">允许浏览器跨域调用本地代理</Label>
-          <p className="text-xs text-muted-foreground">
-            开启后，loopback 页面可从浏览器访问本地代理；实际请求仍需要本地访问
-            key。
-          </p>
-        </div>
-        <Switch
-          id="cors-enabled"
-          checked={form.corsEnabled}
-          onCheckedChange={(checked) => onChange({ corsEnabled: checked })}
-        />
-      </div>
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <Label htmlFor="model-list-prefix">模型列表显示渠道前缀</Label>
-          <p className="text-xs text-muted-foreground">
-            开启后，`/v1/models` 会返回
-            `upstream_id/模型名`；同名模型额外保留无前缀入口用于轮询。
-          </p>
-        </div>
-        <Switch
-          id="model-list-prefix"
-          checked={form.modelListPrefix}
-          onCheckedChange={(checked) => onChange({ modelListPrefix: checked })}
-        />
-      </div>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <Label>{m.proxy_core_hot_model_mappings_title()}</Label>
-          <p className="text-xs text-muted-foreground">
-            {m.proxy_core_hot_model_mappings_desc({
-              count: form.hotModelMappings.length,
-            })}
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onResetHotModelMappings}
-        >
-          <RotateCcw className="size-4" aria-hidden="true" />
-          {m.proxy_core_hot_model_mappings_reset()}
-        </Button>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="kiro-preferred-endpoint">
-          {m.proxy_core_kiro_preferred_endpoint_label()}
-        </Label>
-        <Select
-          value={form.kiroPreferredEndpoint}
-          onValueChange={(value) => {
-            if (isKiroPreferredEndpoint(value)) {
-              onChange({ kiroPreferredEndpoint: value });
-            }
-          }}
-        >
-          <SelectTrigger id="kiro-preferred-endpoint">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {KIRO_ENDPOINT_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label()}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          {m.proxy_core_kiro_preferred_endpoint_help()}
         </p>
       </div>
       <div className="grid gap-2">
@@ -301,7 +180,6 @@ export function ProxyCoreCard({
   showLocalKey,
   onToggleLocalKey,
   onChange,
-  onResetHotModelMappings,
   proxyService,
 }: ProxyCoreCardProps) {
   return (
@@ -316,7 +194,6 @@ export function ProxyCoreCard({
           showLocalKey={showLocalKey}
           onToggleLocalKey={onToggleLocalKey}
           onChange={onChange}
-          onResetHotModelMappings={onResetHotModelMappings}
         />
         <ProxyCoreServiceSection proxyService={proxyService} />
       </CardContent>

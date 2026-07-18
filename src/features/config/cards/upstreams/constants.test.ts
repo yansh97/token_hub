@@ -15,12 +15,12 @@ describe("upstreams/constants", () => {
       (column) => column.id === "priority",
     );
 
-    expect(idColumn?.headerClassName).toBe("w-[12rem]");
-    expect(idColumn?.cellClassName).toBe("w-[12rem] max-w-[12rem]");
-    expect(providerColumn?.headerClassName).toBe("w-[10rem]");
-    expect(providerColumn?.cellClassName).toBe("w-[10rem] max-w-[10rem]");
-    expect(priorityColumn?.headerClassName).toBe("w-[6rem]");
-    expect(priorityColumn?.cellClassName).toBe("w-[6rem]");
+    expect(idColumn?.headerClassName).toBe("w-[16%]");
+    expect(idColumn?.cellClassName).toBe("w-[16%]");
+    expect(providerColumn?.headerClassName).toBe("w-[46%]");
+    expect(providerColumn?.cellClassName).toBe("w-[46%]");
+    expect(priorityColumn?.headerClassName).toBe("w-[10%]");
+    expect(priorityColumn?.cellClassName).toBe("w-[10%]");
   });
 
   it("exposes public API provider options first by default", () => {

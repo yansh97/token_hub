@@ -219,6 +219,7 @@ type DashboardFiltersProps = {
   onRangeChange: (range: DashboardTimeRange) => void;
   onUpstreamChange: (upstreamId: string | null) => void;
   onRefresh: () => void;
+  className?: string;
   /** 请求详情捕获相关，仅 LogsPanel 使用 */
   capture?: {
     enabled: boolean;
@@ -236,12 +237,13 @@ export function DashboardFilters({
   onRangeChange,
   onUpstreamChange,
   onRefresh,
+  className,
   capture,
 }: DashboardFiltersProps) {
   return (
     <div
       data-slot="dashboard-filters"
-      className="sticky top-0 z-20 px-4 lg:px-6"
+      className={cn("sticky top-2.5 z-20 px-4 lg:px-6", className)}
     >
       <Card className="gap-0 rounded-lg border-border/70 bg-card/95 py-0 shadow-none">
         <CardContent className="flex flex-wrap items-start justify-between gap-2 px-3 py-2">

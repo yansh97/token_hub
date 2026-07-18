@@ -17,7 +17,6 @@ vi.mock("@/layouts/site-header", () => ({
 }));
 
 vi.mock("@/features/config/cards", () => ({
-  ConfigFileCard: () => <div data-testid="config-file-card" />,
   StorageUsageCard: () => <div data-testid="storage-usage-card" />,
   AutoStartCard: () => <div data-testid="auto-start-card" />,
   ProxyCoreCard: () => <div data-testid="proxy-core-card" />,
@@ -49,8 +48,6 @@ const BASE_APP_VIEW_PROPS = {
   showLocalKey: false,
   showUpstreamKeys: false,
   providerOptions: [],
-  configPath: "/tmp/config.json",
-  savedAt: "",
   autoStartEnabled: false,
   autoStartStatus: "idle" as const,
   autoStartMessage: "",
@@ -60,13 +57,10 @@ const BASE_APP_VIEW_PROPS = {
   onToggleLocalKey: () => undefined,
   onToggleUpstreamKeys: () => undefined,
   onFormChange: () => undefined,
-  onResetHotModelMappings: () => undefined,
-  onStrategyChange: () => undefined,
   onAutoStartChange: () => undefined,
   onAddUpstream: () => undefined,
   onRemoveUpstream: () => undefined,
   onChangeUpstream: () => undefined,
-  onReload: () => undefined,
   onSave: () => undefined,
   onProxyServiceRefresh: () => undefined,
   onProxyServiceStart: () => undefined,
@@ -89,9 +83,6 @@ describe("config/AppView", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", { name: m.common_refresh() }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: m.common_save() }),
     ).not.toBeInTheDocument();
@@ -173,7 +164,7 @@ describe("config/AppView", () => {
       />,
     );
 
-    expect(screen.getByTestId("config-file-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("config-file-card")).not.toBeInTheDocument();
     expect(screen.getByTestId("storage-usage-card")).toBeInTheDocument();
     expect(screen.queryByTestId("validation-card")).not.toBeInTheDocument();
   });

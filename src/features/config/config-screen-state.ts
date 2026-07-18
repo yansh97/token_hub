@@ -94,12 +94,10 @@ function createStatusBadge(
 
 export function useConfigState() {
   const [form, setForm] = useState<ConfigForm>(EMPTY_FORM);
-  const [configPath, setConfigPath] = useState("");
   const [lastConfig, setLastConfig] = useState<ProxyConfigFile | null>(null);
   const [configExtras, setConfigExtras] = useState<Record<string, unknown>>({});
   const [status, setStatus] = useState<StatusState>("idle");
   const [statusMessage, setStatusMessage] = useState("");
-  const [savedAt, setSavedAt] = useState("");
   const [showLocalKey, setShowLocalKey] = useState(false);
   const [showUpstreamKeys, setShowUpstreamKeys] = useState(false);
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
@@ -114,10 +112,8 @@ export function useConfigState() {
 
   return {
     form,
-    configPath,
     lastConfig,
     configExtras,
-    savedAt,
     showLocalKey,
     showUpstreamKeys,
     status,
@@ -126,11 +122,9 @@ export function useConfigState() {
     autoStartBaseline,
     autoStartStatus,
     autoStartMessage,
-    setConfigPath,
     setForm,
     setLastConfig,
     setConfigExtras,
-    setSavedAt,
     setShowLocalKey,
     setShowUpstreamKeys,
     setAutoStartEnabled,

@@ -13,14 +13,13 @@ afterEach(() => {
 });
 
 describe("upstreams/editor-dialog-form", () => {
-  it("shows connection, model access, and collapsed advanced sections", () => {
+  it("shows connection, model access, and expanded advanced sections", () => {
     const draft = createEmptyUpstream();
 
     render(
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["openai"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}
@@ -34,7 +33,7 @@ describe("upstreams/editor-dialog-form", () => {
     expect(
       screen.getByText(m.upstreams_section_advanced()),
     ).toBeInTheDocument();
-    expect(screen.getByText(m.available_models_all_desc())).toBeInTheDocument();
+    expect(screen.getByLabelText(m.field_id())).toBeInTheDocument();
   });
 
   it("switches from all models to selected-model mode", async () => {
@@ -46,7 +45,6 @@ describe("upstreams/editor-dialog-form", () => {
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["openai"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
@@ -71,7 +69,6 @@ describe("upstreams/editor-dialog-form", () => {
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["openai"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
@@ -103,7 +100,6 @@ describe("upstreams/editor-dialog-form", () => {
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["openai"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
@@ -136,7 +132,6 @@ describe("upstreams/editor-dialog-form", () => {
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["openai"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
@@ -165,7 +160,6 @@ describe("upstreams/editor-dialog-form", () => {
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["kiro"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}
@@ -190,7 +184,6 @@ describe("upstreams/editor-dialog-form", () => {
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["codex"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}
@@ -215,7 +208,6 @@ describe("upstreams/editor-dialog-form", () => {
       <UpstreamEditorFields
         draft={draft}
         providerOptions={["antigravity"]}
-        appProxyUrl=""
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}

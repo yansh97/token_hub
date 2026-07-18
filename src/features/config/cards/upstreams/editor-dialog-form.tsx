@@ -1,4 +1,4 @@
-import { ChevronDown, CirclePlus, HelpCircle } from "lucide-react";
+import { CirclePlus, HelpCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,6 @@ function isLockedAccountBackedUpstream(draft: UpstreamForm) {
 export type UpstreamEditorFieldsProps = {
   draft: UpstreamForm;
   providerOptions: readonly string[];
-  appProxyUrl: string;
   showApiKeys: boolean;
   onToggleApiKeys: () => void;
   onChangeDraft: (patch: Partial<UpstreamForm>) => void;
@@ -77,17 +76,13 @@ export type UpstreamEditorFieldsProps = {
 
 type EditorSectionProps = {
   title: string;
-  description: string;
   children: ReactNode;
 };
 
-function EditorSection({ title, description, children }: EditorSectionProps) {
+function EditorSection({ title, children }: EditorSectionProps) {
   return (
     <section className="space-y-4 border-b pb-5 last:border-b-0 last:pb-0">
-      <div className="space-y-1">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
+      <h3 className="text-sm font-semibold">{title}</h3>
       {children}
     </section>
   );
@@ -120,7 +115,10 @@ function UpstreamConnectionFields({
 
   return (
     <div className="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-4 gap-y-4">
-      <EditorField label={m.field_provider()} tooltip={m.field_provider_tip()}>
+      <EditorField
+        label={m.upstreams_column_provider()}
+        tooltip={m.field_provider_tip()}
+      >
         <ProviderMultiSelect
           providerOptions={providerOptions}
           value={draft.providers}
@@ -397,39 +395,20 @@ function UpstreamHeaderOverrideFields({
   );
 }
 
-type UpstreamAdvancedFieldsProps = UpstreamOpenAIResponsesFieldsProps & {
-  appProxyUrl: string;
-};
+type UpstreamAdvancedFieldsProps = UpstreamOpenAIResponsesFieldsProps;
 
 function UpstreamAdvancedFields({
   draft,
-  appProxyUrl,
   onChangeDraft,
 }: UpstreamAdvancedFieldsProps) {
-  const providers = draft.providers
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const isAccountBackedProvider = isAccountBackedProviderSet(providers);
   const isLocked = isLockedAccountBackedUpstream(draft);
-  const canUseAppProxy = !!appProxyUrl.trim();
 
   return (
-    <details className="group">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-md py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold">
-            {m.upstreams_section_advanced()}
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            {m.upstreams_section_advanced_summary()}
-          </p>
-        </div>
-        <ChevronDown
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-          aria-hidden="true"
-        />
-      </summary>
-      <div className="mt-4 grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-4 gap-y-4 border-t pt-4">
+    <section className="space-y-4">
+      <h3 className="text-sm font-semibold">
+        {m.upstreams_section_advanced()}
+      </h3>
+      <div className="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-4 gap-y-4">
         <EditorField
           label={m.field_id()}
           tooltip={m.field_id_tip()}
@@ -443,36 +422,6 @@ function UpstreamAdvancedFields({
             placeholder="openai-default"
           />
         </EditorField>
-
-        {isAccountBackedProvider ? null : (
-          <EditorField
-            label={m.field_proxy_url()}
-            tooltip={m.upstreams_proxy_tip({ placeholder: "$app_proxy_url" })}
-            htmlFor="upstream-editor-proxyUrl"
-          >
-            <div className="flex items-center gap-2">
-              <Input
-                id="upstream-editor-proxyUrl"
-                value={draft.proxyUrl}
-                onChange={(event) =>
-                  onChangeDraft({ proxyUrl: event.target.value })
-                }
-                placeholder="http://127.0.0.1:7890"
-                className="min-w-0 flex-1"
-              />
-              {canUseAppProxy ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onChangeDraft({ proxyUrl: "$app_proxy_url" })}
-                >
-                  {m.upstreams_proxy_use_app()}
-                </Button>
-              ) : null}
-            </div>
-          </EditorField>
-        )}
 
         <EditorField
           label={m.field_priority()}
@@ -509,24 +458,20 @@ function UpstreamAdvancedFields({
           onChangeDraft={onChangeDraft}
         />
       </div>
-    </details>
+    </section>
   );
 }
 
 export function UpstreamEditorFields({
   draft,
   providerOptions,
-  appProxyUrl,
   showApiKeys,
   onToggleApiKeys,
   onChangeDraft,
 }: UpstreamEditorFieldsProps) {
   return (
     <div data-slot="upstream-editor-fields" className="space-y-5">
-      <EditorSection
-        title={m.upstreams_section_connection()}
-        description={m.upstreams_section_connection_desc()}
-      >
+      <EditorSection title={m.upstreams_section_connection()}>
         <UpstreamConnectionFields
           draft={draft}
           providerOptions={providerOptions}
@@ -536,10 +481,7 @@ export function UpstreamEditorFields({
         />
       </EditorSection>
 
-      <EditorSection
-        title={m.upstreams_section_models()}
-        description={m.upstreams_section_models_desc()}
-      >
+      <EditorSection title={m.upstreams_section_models()}>
         <AvailableModelsEditor
           key={draft.providers.join("|")}
           draft={draft}
@@ -547,11 +489,7 @@ export function UpstreamEditorFields({
         />
       </EditorSection>
 
-      <UpstreamAdvancedFields
-        draft={draft}
-        appProxyUrl={appProxyUrl}
-        onChangeDraft={onChangeDraft}
-      />
+      <UpstreamAdvancedFields draft={draft} onChangeDraft={onChangeDraft} />
     </div>
   );
 }

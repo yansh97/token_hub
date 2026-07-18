@@ -160,19 +160,21 @@ export function AvailableModelsEditor({
         }}
         aria-label={m.field_available_models()}
       >
-        <ToggleGroupItem value="all">
+        <ToggleGroupItem
+          value="all"
+          className="data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+        >
           {m.available_models_all()}
         </ToggleGroupItem>
-        <ToggleGroupItem value="selected">
+        <ToggleGroupItem
+          value="selected"
+          className="data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+        >
           {m.available_models_selected()}
         </ToggleGroupItem>
       </ToggleGroup>
 
-      {draft.availableModelsMode === "all" ? (
-        <p className="text-sm text-muted-foreground">
-          {m.available_models_all_desc()}
-        </p>
-      ) : (
+      {draft.availableModelsMode === "all" ? null : (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">
