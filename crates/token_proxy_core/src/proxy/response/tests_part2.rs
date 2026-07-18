@@ -168,6 +168,14 @@ fn stream_with_logging_semantic_timeout_emits_response_failed_and_done() {
             body.contains("\"sequence_number\":8"),
             "terminal event must continue the Responses sequence: {body}"
         );
+        let failed = body
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .find(|line| line.contains("response.failed"))
+            .and_then(|line| serde_json::from_str::<Value>(line).ok())
+            .expect("response.failed payload");
+        assert!(failed["response"]["created_at"].as_i64().is_some());
+        assert_eq!(failed["response"]["model"], json!("unit-model"));
 
         super::wait_for_log_rows(&sqlite_pool, 1).await;
         let row = sqlx::query("SELECT response_error FROM request_logs ORDER BY id LIMIT 1")
@@ -229,6 +237,81 @@ fn stream_with_logging_upstream_error_emits_response_failed_after_stream_started
         assert!(
             body.contains("\"sequence_number\":8"),
             "terminal event must continue the Responses sequence: {body}"
+        );
+    });
+}
+
+#[test]
+fn stream_with_logging_normalizes_split_upstream_response_failed() {
+    super::run_async(async {
+        let (log, context, _sqlite_pool) = super::setup_responses_stream().await;
+        let upstream = futures_util::stream::iter(vec![
+            Ok::<Bytes, std::io::Error>(Bytes::from(
+                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\",\"sequence_number\":7}\n\n\
+                 data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"server_error\",",
+            )),
+            Ok::<Bytes, std::io::Error>(Bytes::from(
+                "\"message\":\"upstream overloaded\"}}}\n\ndata: [DONE]\n\n",
+            )),
+        ]);
+        let token_tracker = crate::proxy::token_rate::TokenRateTracker::new()
+            .register(None, None)
+            .await;
+        let stream = super::super::streaming::stream_with_logging_and_semantic_timeout(
+            upstream,
+            context,
+            log,
+            token_tracker,
+            Some(Duration::from_secs(30)),
+        );
+
+        let chunks = stream
+            .map(|item| item.expect("normalized stream item"))
+            .collect::<Vec<Bytes>>()
+            .await;
+        let body = chunks
+            .iter()
+            .map(|chunk| String::from_utf8_lossy(chunk).to_string())
+            .collect::<String>();
+        let failed = body
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .find(|line| line.contains("response.failed"))
+            .and_then(|line| serde_json::from_str::<Value>(line).ok())
+            .expect("response.failed payload");
+
+        assert_eq!(failed["type"], json!("response.failed"));
+        assert_eq!(failed["sequence_number"], json!(8));
+        assert!(failed["response"]["created_at"].as_i64().is_some());
+        assert_eq!(failed["response"]["model"], json!("unit-model"));
+        assert_eq!(
+            failed["response"]["error"]["message"],
+            json!("upstream overloaded")
+        );
+        assert!(body.contains("data: [DONE]"));
+    });
+}
+
+#[test]
+fn stream_with_logging_preserves_non_sse_responses_body() {
+    super::run_async(async {
+        let (log, context, _sqlite_pool) = super::setup_responses_stream().await;
+        let upstream = futures_util::stream::iter(vec![Ok::<Bytes, std::io::Error>(Bytes::from(
+            r#"{"error":{"message":"unexpected JSON body"}}"#,
+        ))]);
+        let token_tracker = crate::proxy::token_rate::TokenRateTracker::new()
+            .register(None, None)
+            .await;
+        let chunks =
+            super::super::streaming::stream_with_logging(upstream, context, log, token_tracker)
+                .map(|item| item.expect("stream item"))
+                .collect::<Vec<_>>()
+                .await;
+
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(
+            chunks[0].as_ref(),
+            br#"{"error":{"message":"unexpected JSON body"}}"#
         );
     });
 }
@@ -334,6 +417,14 @@ fn stream_with_model_override_semantic_timeout_emits_response_failed_and_done() 
         assert!(body.contains("\"status\":\"failed\""), "chunks: {body}");
         assert!(body.contains("semantic timeout"), "chunks: {body}");
         assert!(body.contains("data: [DONE]"), "chunks: {body}");
+        let failed = body
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .find(|line| line.contains("response.failed"))
+            .and_then(|line| serde_json::from_str::<Value>(line).ok())
+            .expect("response.failed payload");
+        assert!(failed["response"]["created_at"].as_i64().is_some());
+        assert_eq!(failed["response"]["model"], json!("visible-model"));
     });
 }
 

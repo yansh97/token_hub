@@ -45,6 +45,31 @@ fn config_without_local() -> ProxyConfig {
     }
 }
 
+#[tokio::test]
+async fn local_error_response_uses_complete_openai_error_contract() {
+    let response = error_response(StatusCode::BAD_GATEWAY, "upstream unavailable");
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .cloned();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("error body");
+    let value: serde_json::Value = serde_json::from_slice(&body).expect("error JSON");
+
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(
+        content_type.as_ref().and_then(|value| value.to_str().ok()),
+        Some("application/json")
+    );
+    assert_eq!(value["error"]["message"], "upstream unavailable");
+    assert_eq!(value["error"]["type"], "proxy_error");
+    assert_eq!(value["error"]["code"], "proxy_error");
+    assert!(value["error"].get("param").is_some());
+    assert!(value["error"]["param"].is_null());
+}
+
 fn upstream_without_key() -> UpstreamRuntime {
     UpstreamRuntime {
         id: "anthropic-test".to_string(),

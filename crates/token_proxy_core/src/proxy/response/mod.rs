@@ -312,6 +312,7 @@ mod kiro_to_anthropic;
 mod kiro_to_responses;
 mod kiro_to_responses_helpers;
 pub(crate) mod responses_error;
+pub(crate) mod responses_failure;
 mod responses_to_anthropic;
 mod responses_to_chat;
 pub(crate) mod sequence;

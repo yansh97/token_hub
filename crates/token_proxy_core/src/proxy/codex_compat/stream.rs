@@ -8,6 +8,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use super::super::log::{attach_response_body, build_log_entry, LogContext, LogWriter};
 use super::super::response::{
     responses_error::{responses_stream_error, ResponsesStreamError},
+    responses_failure,
     sequence::ResponsesEventSequence,
     STREAM_DROPPED_ERROR,
 };
@@ -548,13 +549,21 @@ where
             self.fail_stream(malformed_event_message(&value), 502);
             return;
         };
-        if let Some(sequence_number) = self.sequence.ensure_error_event(&mut value) {
+        let normalization = responses_failure::normalize_stream_event(
+            &mut value,
+            &mut self.sequence,
+            Some(&self.model),
+        );
+        if normalization.changed() {
             tracing::warn!(
                 provider = %self.context.provider,
                 upstream_id = %self.context.upstream_id,
                 event_type,
-                sequence_number,
-                "added missing Responses error event sequence number"
+                sequence_number = ?normalization.sequence_number,
+                added_created_at = normalization.added_created_at,
+                added_model = normalization.added_model,
+                repaired_response_shape = normalization.repaired_response_shape,
+                "normalized incomplete Codex Responses terminal failure event"
             );
         }
         self.last_semantic_event_at = Instant::now();
@@ -763,25 +772,9 @@ pub(crate) fn stream_chat_error_sse(message: &str) -> Bytes {
 }
 
 pub(crate) fn stream_responses_error_sse(message: &str, sequence_number: u64) -> Bytes {
-    let created = now_unix_seconds();
     Bytes::from(format!(
         "event: response.failed\ndata: {}\n\n",
-        json!({
-            "type": "response.failed",
-            "sequence_number": sequence_number,
-            "response": {
-                "id": format!("resp_proxy_{created}"),
-                "object": "response",
-                "created_at": created,
-                "model": "unknown",
-                "status": "failed",
-                "output": [],
-                "error": {
-                    "code": "server_error",
-                    "message": message,
-                }
-            }
-        })
+        super::super::response::responses_failure::failed_event(message, None, sequence_number)
     ))
 }
 

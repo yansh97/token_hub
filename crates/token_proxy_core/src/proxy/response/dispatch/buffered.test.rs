@@ -104,6 +104,100 @@ fn response_error_for_status_ignores_success() {
     assert_eq!(error, None);
 }
 
+#[tokio::test]
+async fn buffered_responses_502_normalizes_complete_error_contract() {
+    let upstream_res = axum::http::Response::builder()
+        .status(StatusCode::BAD_GATEWAY)
+        .header(CONTENT_TYPE, "application/json")
+        .body(reqwest::Body::from(
+            r#"{"error":{"message":"Upstream request failed"}}"#,
+        ))
+        .expect("response")
+        .into();
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(CONTENT_LENGTH, HeaderValue::from_static("999"));
+    let tracker = TokenRateTracker::new().register(None, None).await;
+    let mut context = test_context();
+    context.path = "/v1/responses".to_string();
+    context.model = Some("grok-4.5-high".to_string());
+
+    let response = build_buffered_response(
+        StatusCode::BAD_GATEWAY,
+        upstream_res,
+        headers,
+        context,
+        Arc::new(LogWriter::new(None)),
+        tracker,
+        FormatTransform::None,
+        None,
+        None,
+        None,
+        Duration::from_secs(1),
+    )
+    .await;
+    let (parts, body) = response.into_parts();
+    let body = to_bytes(body, usize::MAX).await.expect("body");
+    let value: serde_json::Value = serde_json::from_slice(&body).expect("error JSON");
+
+    assert_eq!(parts.status, StatusCode::BAD_GATEWAY);
+    assert_eq!(parts.headers.get(CONTENT_TYPE).unwrap(), "application/json");
+    assert!(parts.headers.get(CONTENT_LENGTH).is_none());
+    assert_eq!(value["error"]["message"], "Upstream request failed");
+    assert_eq!(value["error"]["type"], "server_error");
+    assert_eq!(value["error"]["code"], "server_error");
+    assert!(value["error"].get("param").is_some());
+    assert!(value["error"]["param"].is_null());
+}
+
+#[tokio::test]
+async fn buffered_responses_complete_error_preserves_body_and_content_length() {
+    let body = r#"{ "error": { "type": "server_error", "message": "already complete", "param": null, "code": "upstream_error" } }"#;
+    let expected_content_length = body.len().to_string();
+    let upstream_res = axum::http::Response::builder()
+        .status(StatusCode::BAD_GATEWAY)
+        .header(CONTENT_TYPE, "application/json")
+        .body(reqwest::Body::from(body))
+        .expect("response")
+        .into();
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(
+        CONTENT_LENGTH,
+        HeaderValue::from_str(&expected_content_length).expect("content length"),
+    );
+    let tracker = TokenRateTracker::new().register(None, None).await;
+    let mut context = test_context();
+    context.path = "/v1/responses".to_string();
+
+    let response = build_buffered_response(
+        StatusCode::BAD_GATEWAY,
+        upstream_res,
+        headers,
+        context,
+        Arc::new(LogWriter::new(None)),
+        tracker,
+        FormatTransform::None,
+        None,
+        None,
+        None,
+        Duration::from_secs(1),
+    )
+    .await;
+    let (parts, response_body) = response.into_parts();
+    let response_body = to_bytes(response_body, usize::MAX).await.expect("body");
+
+    assert_eq!(parts.status, StatusCode::BAD_GATEWAY);
+    assert_eq!(
+        parts
+            .headers
+            .get(CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok()),
+        Some(expected_content_length.as_str())
+    );
+    assert_eq!(response_body.as_ref(), body.as_bytes());
+}
+
 #[test]
 fn buffer_event_stream_response_converts_chat_completion_chunks_to_json() {
     let sse = Bytes::from(
