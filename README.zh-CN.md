@@ -1,8 +1,18 @@
-# Token Proxy
+# Token Hub
 
 [English](README.md) | 中文
 
+> 本 README 在上游文档基础上进行了修改。Token Hub fork 自 [mxyhi/token_proxy](https://github.com/mxyhi/token_proxy)，专注于 UI/UX 优化，同时尽可能保持上游后端和项目结构不变。
+
 本地 AI API 网关，支持 OpenAI / Gemini / Anthropic。本地运行、记录 Token（SQLite），按优先级负载均衡，支持可选的 API 格式互转（OpenAI Chat/Responses ↔ Anthropic Messages，Gemini ↔ OpenAI/Anthropic，含 SSE/工具/图片），并提供 Claude Code / Codex 一键配置。
+
+## 关于本 Fork
+
+Token Hub 构建于上游 [Token Proxy](https://github.com/mxyhi/token_proxy) 稳定的后端能力和持续的功能更新之上。本 Fork 主要进行有针对性的 UI/UX 优化，并尽可能保持原项目结构和后端行为不变，以便持续合并上游更新。
+
+应用对外名称为 **Token Hub**。部分内部 package 名称、CLI 标识、配置字段和兼容性字符串仍保留为 `token_proxy`，以确保现有集成正常工作，并降低同步上游更新的成本。
+
+上游项目及本 Fork 均采用 [Apache License 2.0](LICENSE) 发布。本仓库保留原项目的版权、许可证和归属声明；本 Fork 的修改通过 Git 历史和项目文档记录。
 
 > 默认监听端口：**9208**（release）/ **19208**（debug 构建）。
 

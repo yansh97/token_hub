@@ -1,8 +1,18 @@
-# Token Proxy
+# Token Hub
 
 English | [中文](README.zh-CN.md)
 
+> This README is modified from the upstream project. Token Hub is a fork of [mxyhi/token_proxy](https://github.com/mxyhi/token_proxy), focused on UI/UX improvements while preserving the upstream backend and project structure as much as possible.
+
 Local AI API gateway for OpenAI / Gemini / Anthropic. Runs on your machine, keeps tokens counted (SQLite), offers priority-based load balancing, optional API format conversion (OpenAI Chat/Responses ↔ Anthropic Messages, plus Gemini ↔ OpenAI/Anthropic, including SSE/tools/images), and one-click setup for Claude Code / Codex.
+
+## About This Fork
+
+Token Hub builds on the stable backend and ongoing feature development of the upstream [Token Proxy](https://github.com/mxyhi/token_proxy) project. This fork focuses on targeted UI/UX improvements and aims to keep the original project structure and backend behavior intact, making it practical to incorporate future upstream updates.
+
+The application-facing name is **Token Hub**. Some internal package names, CLI identifiers, configuration keys, and compatibility strings intentionally remain `token_proxy` so existing integrations and upstream synchronization continue to work.
+
+The upstream project and this fork are distributed under the [Apache License 2.0](LICENSE). The original copyright, license, and attribution notices are retained. Changes made in this fork are documented in the repository history and project documentation.
 
 > Default listen port: **9208** (release) / **19208** (debug builds).
 

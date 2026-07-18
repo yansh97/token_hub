@@ -1,10 +1,21 @@
-# Token Proxy 代码库rule
+# Token Hub 代码库规则
 
-本文件为在 `token_proxy` 项目中工作的 AI 智能体提供指导。
+本文件为在 `token_hub` 项目中工作的 AI 智能体提供指导。
+
+> 本文件已从上游项目修改。Token Hub fork 自 [mxyhi/token_proxy](https://github.com/mxyhi/token_proxy)，主要进行 UI/UX 优化，并尽可能保持上游后端能力、项目结构和同步路径稳定。
+
+## 项目关系与许可证
+
+- 上游项目：[mxyhi/token_proxy](https://github.com/mxyhi/token_proxy)
+- 当前项目：[yansh97/token_hub](https://github.com/yansh97/token_hub)
+- 许可证：[Apache License 2.0](LICENSE)
+- 保留上游版权、许可证和归属声明；修改文件应明确说明已修改。
+- 优先通过小范围、易同步的提交维护 UI/UX 改进，避免无必要地改动后端和项目结构。
+- 上游更新应优先合并；若 UI/UX 调整与上游变更冲突，应尽量将冲突限制在前端边界内。
 
 ## 项目概览
 
-**Token Proxy** 是基于 Tauri 的 AI API 代理工具，用于转发 OpenAI、Gemini、Anthropic 等 AI API 格式，支持本地运行、token 使用统计、负载均衡和优先级管理。
+**Token Hub** 是基于 Tauri 的 AI API 代理工具，继承上游 Token Proxy 的后端能力，用于转发 OpenAI、Gemini、Anthropic 等 AI API 格式，支持本地运行、token 使用统计、负载均衡和优先级管理。本项目的主要工作范围是前端 UI/UX 优化。
 
 - 前端: React 19 + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui(pnpm dlx shadcn@latest add xxx)
 - 后端: Rust (Edition 2021) + Tokio + Axum
