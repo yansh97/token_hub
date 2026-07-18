@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -29,7 +22,6 @@ import {
   toDashboardTimeRange,
 } from "@/features/dashboard/range";
 import type {
-  DashboardAccountOption,
   DashboardRange,
   DashboardSnapshot,
   DashboardUpstreamOption,
@@ -39,8 +31,6 @@ import { m } from "@/paraglide/messages.js";
 
 export const RECENT_PAGE_SIZE = 50;
 const ALL_UPSTREAMS_VALUE = "__all_upstreams__";
-const ALL_ACCOUNTS_VALUE = "__all_accounts__";
-const PUBLIC_ACCOUNT_VALUE = "__public_account__";
 
 type DashboardStatus = "idle" | "loading" | "error";
 
@@ -53,20 +43,6 @@ function hasUpstreamOption(
   upstreamId: string,
 ) {
   return upstreams.some((item) => item.upstreamId === upstreamId);
-}
-
-function hasAccountOption(
-  accounts: DashboardAccountOption[],
-  accountId: string | null,
-  publicOnly: boolean,
-) {
-  if (publicOnly) {
-    return accounts.some((item) => item.accountId === null);
-  }
-  if (accountId === null) {
-    return true;
-  }
-  return accounts.some((item) => item.accountId === accountId);
 }
 
 function usePagination(totalRequests: number) {
@@ -104,10 +80,6 @@ export function useDashboardSnapshot({
   const [selectedUpstreamId, setSelectedUpstreamId] = useState<string | null>(
     null,
   );
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
-    null,
-  );
-  const [selectedPublicOnly, setSelectedPublicOnly] = useState(false);
   const [activeRange, setActiveRange] = useState<DashboardRange>(() =>
     resolveDashboardRange("today"),
   );
@@ -129,8 +101,8 @@ export function useDashboardSnapshot({
         range,
         offset,
         upstreamId: selectedUpstreamId,
-        accountId: selectedAccountId,
-        publicOnly: selectedPublicOnly,
+        accountId: null,
+        publicOnly: false,
       });
       if (requestSeq.current !== requestId) {
         return;
@@ -145,21 +117,6 @@ export function useDashboardSnapshot({
         setStatus("loading");
         return;
       }
-      const visibleAccountOptions =
-        selectedUpstreamId === null ? [] : data.accounts;
-      if (
-        selectedUpstreamId !== null &&
-        !hasAccountOption(
-          visibleAccountOptions,
-          selectedAccountId,
-          selectedPublicOnly,
-        )
-      ) {
-        setSelectedAccountId(null);
-        setSelectedPublicOnly(false);
-        setStatus("loading");
-        return;
-      }
       setSnapshot(data);
       setActiveRange(range);
       setStatus("idle");
@@ -170,13 +127,7 @@ export function useDashboardSnapshot({
       setStatus("error");
       setStatusMessage(parseError(error));
     }
-  }, [
-    page,
-    rangePreset,
-    selectedAccountId,
-    selectedPublicOnly,
-    selectedUpstreamId,
-  ]);
+  }, [page, rangePreset, selectedUpstreamId]);
 
   useEffect(() => {
     // 提交后一拍再启动请求，避免 effect 同步路径被误判为级联 setState。
@@ -204,18 +155,6 @@ export function useDashboardSnapshot({
     (nextUpstreamId: string | null) => {
       markLoading();
       setSelectedUpstreamId(nextUpstreamId);
-      setSelectedAccountId(null);
-      setSelectedPublicOnly(false);
-      resetPage();
-    },
-    [markLoading, resetPage],
-  );
-
-  const handleAccountChange = useCallback(
-    (nextAccountId: string | null, nextPublicOnly: boolean) => {
-      markLoading();
-      setSelectedAccountId(nextAccountId);
-      setSelectedPublicOnly(nextPublicOnly);
       resetPage();
     },
     [markLoading, resetPage],
@@ -254,16 +193,11 @@ export function useDashboardSnapshot({
     activeRange,
     rangePreset,
     selectedUpstreamId,
-    selectedAccountId,
-    selectedPublicOnly,
     upstreamOptions: snapshot?.upstreams ?? [],
-    accountOptions:
-      selectedUpstreamId === null ? [] : (snapshot?.accounts ?? []),
     pagination: { page, totalPages, totalRequests },
     refresh,
     onRangeChange: handleRangeChange,
     onUpstreamChange: handleUpstreamChange,
-    onAccountChange: handleAccountChange,
     onPrevPage: handlePrevPage,
     onNextPage: handleNextPage,
   };
@@ -277,40 +211,13 @@ function toUpstreamFilterValue(value: string) {
   return value === ALL_UPSTREAMS_VALUE ? null : value;
 }
 
-function resolveAccountSelectValue(
-  accountId: string | null,
-  publicOnly: boolean,
-) {
-  if (publicOnly) {
-    return PUBLIC_ACCOUNT_VALUE;
-  }
-  if (accountId === null) {
-    return ALL_ACCOUNTS_VALUE;
-  }
-  return `account:${accountId}`;
-}
-
-function toAccountFilterValue(value: string) {
-  if (value === ALL_ACCOUNTS_VALUE) {
-    return { accountId: null, publicOnly: false };
-  }
-  if (value === PUBLIC_ACCOUNT_VALUE) {
-    return { accountId: null, publicOnly: true };
-  }
-  return { accountId: value.replace(/^account:/, ""), publicOnly: false };
-}
-
 type DashboardFiltersProps = {
   range: DashboardTimeRange;
   upstreamId: string | null;
   upstreamOptions: DashboardUpstreamOption[];
-  accountId: string | null;
-  publicOnly: boolean;
-  accountOptions: DashboardAccountOption[];
   loading: boolean;
   onRangeChange: (range: DashboardTimeRange) => void;
   onUpstreamChange: (upstreamId: string | null) => void;
-  onAccountChange: (accountId: string | null, publicOnly: boolean) => void;
   onRefresh: () => void;
   /** 请求详情捕获相关，仅 LogsPanel 使用 */
   capture?: {
@@ -325,13 +232,9 @@ export function DashboardFilters({
   range,
   upstreamId,
   upstreamOptions,
-  accountId,
-  publicOnly,
-  accountOptions,
   loading,
   onRangeChange,
   onUpstreamChange,
-  onAccountChange,
   onRefresh,
   capture,
 }: DashboardFiltersProps) {
@@ -409,40 +312,6 @@ export function DashboardFilters({
                 ))}
               </ToggleGroup>
             </div>
-
-            <Label htmlFor="dashboard-account" className="hidden">
-              {m.dashboard_account_label()}
-            </Label>
-            <Select
-              value={resolveAccountSelectValue(accountId, publicOnly)}
-              disabled={upstreamId === null}
-              onValueChange={(value) => {
-                const next = toAccountFilterValue(value);
-                onAccountChange(next.accountId, next.publicOnly);
-              }}
-            >
-              <SelectTrigger id="dashboard-account" className="hidden">
-                <SelectValue placeholder={m.dashboard_account_placeholder()} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_ACCOUNTS_VALUE}>
-                  {m.dashboard_account_all()}
-                </SelectItem>
-                <SelectItem value={PUBLIC_ACCOUNT_VALUE}>
-                  {m.dashboard_account_public()}
-                </SelectItem>
-                {accountOptions
-                  .filter((option) => option.accountId !== null)
-                  .map((option) => (
-                    <SelectItem
-                      key={`${option.upstreamId}:${option.accountId}`}
-                      value={`account:${option.accountId}`}
-                    >
-                      {option.accountId}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="flex items-center gap-3">
             {capture ? (

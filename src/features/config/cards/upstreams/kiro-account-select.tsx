@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { KiroAccountSummary } from "@/features/kiro/types";
-import { getSectionRoute } from "@/features/config/sections";
 import { m } from "@/paraglide/messages.js";
 
 type KiroAccountSelectProps = {
@@ -80,14 +78,6 @@ export function KiroAccountSelect({
               aria-hidden="true"
             />
           </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <Link
-            className="text-primary hover:underline"
-            to={getSectionRoute("providers")}
-          >
-            {m.kiro_account_manage()}
-          </Link>
         </div>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>

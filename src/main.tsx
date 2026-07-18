@@ -1,4 +1,3 @@
-import { LanguageObserver } from "@/components/LanguageObserver";
 import { Toaster } from "@/components/ui/sonner";
 import { I18nProvider } from "@/lib/i18n";
 import { setLocale } from "@/paraglide/runtime.js";
@@ -46,8 +45,6 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       >
         <Toaster position="bottom-right" closeButton richColors />
         <RouterProvider router={router} />
-        {/* Isolated language subscription - prevents global re-renders when language changes */}
-        <LanguageObserver />
       </ThemeProvider>
     </I18nProvider>
   </React.StrictMode>,

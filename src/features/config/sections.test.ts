@@ -8,8 +8,6 @@ import {
 describe("config/sections", () => {
   it("parses section id from config pathname", () => {
     expect(getSectionIdFromPathname("/config/upstreams")).toBe("upstreams");
-    expect(getSectionIdFromPathname("/config/pricing")).toBe("pricing");
-    expect(getSectionIdFromPathname("/config/providers")).toBe("providers");
     expect(getSectionIdFromPathname("/config/settings/")).toBe("settings");
   });
 

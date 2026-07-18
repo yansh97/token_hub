@@ -498,15 +498,11 @@ export function LogsPanel() {
     statusMessage,
     rangePreset,
     selectedUpstreamId,
-    selectedAccountId,
-    selectedPublicOnly,
     upstreamOptions,
-    accountOptions,
     pagination,
     refresh,
     onRangeChange,
     onUpstreamChange,
-    onAccountChange,
     onPrevPage,
     onNextPage,
   } = useDashboardSnapshot();
@@ -691,13 +687,9 @@ export function LogsPanel() {
         range={rangePreset}
         upstreamId={selectedUpstreamId}
         upstreamOptions={upstreamOptions}
-        accountId={selectedAccountId}
-        publicOnly={selectedPublicOnly}
-        accountOptions={accountOptions}
         loading={isLoading}
         onRangeChange={onRangeChange}
         onUpstreamChange={onUpstreamChange}
-        onAccountChange={onAccountChange}
         onRefresh={refresh}
         capture={{
           enabled: captureEnabled,

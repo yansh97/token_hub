@@ -49,10 +49,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <SidebarGroup className="p-3 pt-4">
           <SidebarGroupContent>
             <SidebarMenu>
-              {CONFIG_SECTIONS.filter(
-                (section) =>
-                  section.id !== "providers" && section.id !== "agents",
-              ).map((section) => {
+              {CONFIG_SECTIONS.map((section) => {
                 const isActive = pathname === section.route;
                 const Icon = section.icon;
                 return (

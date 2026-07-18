@@ -88,41 +88,17 @@ function createSnapshot(
 }
 
 function HookHarness() {
-  const {
-    snapshot,
-    selectedUpstreamId,
-    selectedAccountId,
-    selectedPublicOnly,
-    accountOptions,
-    onUpstreamChange,
-    onAccountChange,
-    refresh,
-  } = useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true });
+  const { snapshot, selectedUpstreamId, onUpstreamChange, refresh } =
+    useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true });
 
   return (
     <div>
       <div data-testid="selected-upstream">{selectedUpstreamId ?? "all"}</div>
-      <div data-testid="selected-account">
-        {selectedPublicOnly ? "public" : (selectedAccountId ?? "all")}
-      </div>
       <div data-testid="upstream-options">
         {snapshot?.upstreams.map((item) => item.upstreamId).join(",") ?? ""}
       </div>
-      <div data-testid="account-options">
-        {accountOptions.map((item) => item.accountId ?? "public").join(",") ??
-          ""}
-      </div>
       <button type="button" onClick={() => onUpstreamChange("alpha")}>
         filter-alpha
-      </button>
-      <button
-        type="button"
-        onClick={() => onAccountChange("codex-a.json", false)}
-      >
-        filter-account
-      </button>
-      <button type="button" onClick={() => onAccountChange(null, true)}>
-        filter-public
       </button>
       <button type="button" onClick={refresh}>
         refresh-dashboard
@@ -225,11 +201,9 @@ describe("dashboard/useDashboardSnapshot", () => {
     });
 
     expect(screen.getByTestId("selected-upstream")).toHaveTextContent("all");
-    expect(screen.getByTestId("selected-account")).toHaveTextContent("all");
     expect(screen.getByTestId("upstream-options")).toHaveTextContent(
       "alpha,beta",
     );
-    expect(screen.getByTestId("account-options")).toHaveTextContent("");
 
     fireEvent.click(screen.getByRole("button", { name: "filter-alpha" }));
 
@@ -247,28 +221,6 @@ describe("dashboard/useDashboardSnapshot", () => {
     });
 
     expect(screen.getByTestId("selected-upstream")).toHaveTextContent("alpha");
-    expect(screen.getByTestId("account-options")).toHaveTextContent(
-      "codex-a.json,public",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "filter-account" }));
-
-    await waitFor(() => {
-      expect(readDashboardSnapshotMock).toHaveBeenNthCalledWith(3, {
-        range: {
-          fromTsMs: expect.any(Number),
-          toTsMs: expect.any(Number),
-        },
-        offset: 0,
-        upstreamId: "alpha",
-        accountId: "codex-a.json",
-        publicOnly: false,
-      });
-    });
-
-    expect(screen.getByTestId("selected-account")).toHaveTextContent(
-      "codex-a.json",
-    );
   });
 
   it("runs model discovery only from dashboard refresh", async () => {

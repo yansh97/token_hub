@@ -17,7 +17,6 @@ vi.mock("@/layouts/site-header", () => ({
 }));
 
 vi.mock("@/features/config/cards", () => ({
-  ClientSetupCard: () => <div data-testid="client-setup-card" />,
   ConfigFileCard: () => <div data-testid="config-file-card" />,
   StorageUsageCard: () => <div data-testid="storage-usage-card" />,
   AutoStartCard: () => <div data-testid="auto-start-card" />,
@@ -32,10 +31,6 @@ vi.mock("@/features/dashboard/DashboardPanel", () => ({
 
 vi.mock("@/features/logs/LogsPanel", () => ({
   LogsPanel: () => <div data-testid="logs-panel" />,
-}));
-
-vi.mock("@/features/providers/ProvidersPanel", () => ({
-  ProvidersPanel: () => <div data-testid="providers-panel" />,
 }));
 
 const IDLE_PROXY_STATUS: ProxyServiceStatus = {
@@ -181,22 +176,5 @@ describe("config/AppView", () => {
     expect(screen.getByTestId("config-file-card")).toBeInTheDocument();
     expect(screen.getByTestId("storage-usage-card")).toBeInTheDocument();
     expect(screen.queryByTestId("validation-card")).not.toBeInTheDocument();
-  });
-
-  it("keeps agent node out of the agents config section", () => {
-    render(
-      <AppView
-        activeSectionId="agents"
-        {...BASE_APP_VIEW_PROPS}
-        status="idle"
-        statusMessage=""
-        canSave
-        isDirty={false}
-        validation={{ valid: true, message: "" }}
-      />,
-    );
-
-    expect(screen.getByTestId("client-setup-card")).toBeInTheDocument();
-    expect(screen.queryByTestId("agent-node-card")).not.toBeInTheDocument();
   });
 });

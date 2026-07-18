@@ -1,10 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  CircleDollarSign,
   LayoutDashboard,
-  ShieldCheck,
   Server,
-  Shuffle,
   SlidersHorizontal,
   ScrollText,
   Settings,
@@ -17,14 +14,11 @@ export type ConfigSectionId =
   | "logs"
   | "core"
   | "upstreams"
-  | "pricing"
-  | "providers"
-  | "agents"
   | "settings";
 
 export type ConfigEditorSectionId = Extract<
   ConfigSectionId,
-  "core" | "upstreams" | "agents" | "settings"
+  "core" | "upstreams" | "settings"
 >;
 
 export type ConfigSectionRoute = `/config/${ConfigSectionId}`;
@@ -46,32 +40,11 @@ export const CONFIG_SECTIONS: readonly ConfigSection[] = [
     icon: LayoutDashboard,
   },
   {
-    id: "providers",
-    route: "/config/providers",
-    label: () => m.config_section_providers_label(),
-    description: () => m.config_section_providers_desc(),
-    icon: ShieldCheck,
-  },
-  {
     id: "upstreams",
     route: "/config/upstreams",
     label: () => m.config_section_upstreams_label(),
     description: () => m.config_section_upstreams_desc(),
     icon: Server,
-  },
-  {
-    id: "pricing",
-    route: "/config/pricing",
-    label: () => m.config_section_pricing_label(),
-    description: () => m.config_section_pricing_desc(),
-    icon: CircleDollarSign,
-  },
-  {
-    id: "agents",
-    route: "/config/agents",
-    label: () => m.config_section_agents_label(),
-    description: () => m.config_section_agents_desc(),
-    icon: Shuffle,
   },
   {
     id: "core",

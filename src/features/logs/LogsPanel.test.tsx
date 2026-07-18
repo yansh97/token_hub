@@ -1,4 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -428,10 +435,12 @@ describe("logs/LogsPanel", () => {
       );
     });
 
+    const upstreamFilter = screen.getByRole("group", {
+      name: m.dashboard_upstream_label(),
+    });
     await user.click(
-      screen.getByRole("combobox", { name: m.dashboard_upstream_label() }),
+      within(upstreamFilter).getByRole("radio", { name: "alpha" }),
     );
-    await user.click(await screen.findByRole("option", { name: "alpha" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("logs-items")).toHaveTextContent("alpha");
@@ -499,43 +508,6 @@ describe("logs/LogsPanel", () => {
       expect(setRequestDetailCaptureMock).toHaveBeenCalledWith(true);
     });
     expect(setRequestDetailCaptureMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("narrows logs again after selecting account under chosen upstream", async () => {
-    const user = userEvent.setup();
-
-    renderPanel();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("logs-items")).toHaveTextContent(
-        "alpha · openai · codex-a.json",
-      );
-    });
-
-    await user.click(
-      screen.getByRole("combobox", { name: m.dashboard_upstream_label() }),
-    );
-    await user.click(await screen.findByRole("option", { name: "alpha" }));
-
-    await user.click(
-      screen.getByRole("combobox", { name: m.dashboard_account_label() }),
-    );
-    await user.click(
-      await screen.findByRole("option", { name: "codex-a.json" }),
-    );
-
-    await waitFor(() => {
-      expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
-        range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
-        offset: 0,
-        upstreamId: "alpha",
-        accountId: "codex-a.json",
-        publicOnly: false,
-      });
-    });
-    expect(screen.getByTestId("logs-items")).not.toHaveTextContent(
-      "openai-response",
-    );
   });
 
   it("shows account id in the provider field inside request detail", async () => {

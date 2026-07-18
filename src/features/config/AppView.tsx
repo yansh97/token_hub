@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
-  ClientSetupCard,
   ConfigFileCard,
   AutoStartCard,
   ProxyCoreCard,
@@ -283,12 +282,6 @@ function ConfigSectionBody({
             onChange={props.onAutoStartChange}
           />
           <UpdateCard />
-        </div>
-      );
-    case "agents":
-      return (
-        <div className="flex flex-col gap-4">
-          <ClientSetupCard savedAt={props.savedAt} isDirty={props.isDirty} />
         </div>
       );
     default:

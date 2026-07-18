@@ -515,7 +515,7 @@ describe("dashboard/DashboardPanel", () => {
     );
   });
 
-  it("defaults to all upstream data and refetches when an upstream and account are selected", async () => {
+  it("defaults to all provider data and refetches with the selected provider", async () => {
     const user = userEvent.setup();
 
     renderPanel();
@@ -570,27 +570,6 @@ describe("dashboard/DashboardPanel", () => {
       offset: 0,
       upstreamId: "alpha",
       accountId: null,
-      publicOnly: false,
-    });
-
-    await user.click(
-      screen.getByRole("combobox", { name: m.dashboard_account_label() }),
-    );
-    await user.click(
-      await screen.findByRole("option", { name: "codex-a.json" }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
-        "1",
-      );
-    });
-    expect(screen.getByTestId("dashboard-chart-total")).toHaveTextContent("30");
-    expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
-      range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
-      offset: 0,
-      upstreamId: "alpha",
-      accountId: "codex-a.json",
       publicOnly: false,
     });
   });

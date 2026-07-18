@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/layouts/app-sidebar";
-import { m } from "@/paraglide/messages.js";
 import { setLocale } from "@/paraglide/runtime.js";
 
 const routerState = vi.hoisted(() => ({
@@ -44,9 +43,8 @@ describe("layouts/AppSidebar", () => {
     routerState.pathname = "/config/dashboard";
   });
 
-  it("hides the localized Agent Node menu item", () => {
+  it("renders the Token Hub title", () => {
     setLocale("zh", { reload: false });
-    routerState.pathname = "/agent-node";
 
     render(
       <SidebarProvider>
@@ -54,41 +52,6 @@ describe("layouts/AppSidebar", () => {
       </SidebarProvider>,
     );
 
-    expect(
-      screen.getByRole("link", { name: "Token Hub (dev)" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", {
-        name: m.agent_node_title({}, { locale: "zh" }),
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("Agent Node")).not.toBeInTheDocument();
-  });
-
-  it("hides the providers menu item", () => {
-    render(
-      <SidebarProvider>
-        <AppSidebar />
-      </SidebarProvider>,
-    );
-
-    expect(
-      screen.queryByRole("link", { name: m.config_section_providers_label() }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("hides the Agents and Agent Node menu items", () => {
-    render(
-      <SidebarProvider>
-        <AppSidebar />
-      </SidebarProvider>,
-    );
-
-    expect(
-      screen.queryByRole("link", { name: m.config_section_agents_label() }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: m.agent_node_title() }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Token Hub" })).toBeInTheDocument();
   });
 });
