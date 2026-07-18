@@ -26,12 +26,16 @@ function AccountDeleteDialog({
   onConfirm,
   accountLabel,
 }: AccountDeleteDialogProps) {
-  const description = open ? m.providers_account_delete_description({ label: accountLabel }) : "";
+  const description = open
+    ? m.providers_account_delete_description({ label: accountLabel })
+    : "";
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent data-slot="account-delete-dialog">
         <AlertDialogHeader>
-          <AlertDialogTitle>{m.providers_account_delete_title()}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {m.providers_account_delete_title()}
+          </AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -102,12 +106,16 @@ export function AccountsBatchDeleteDialog({
   onConfirm,
   count,
 }: AccountsBatchDeleteDialogProps) {
-  const description = open ? m.providers_accounts_delete_description({ count }) : "";
+  const description = open
+    ? m.providers_accounts_delete_description({ count })
+    : "";
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent data-slot="accounts-batch-delete-dialog">
         <AlertDialogHeader>
-          <AlertDialogTitle>{m.providers_accounts_delete_title()}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {m.providers_accounts_delete_title()}
+          </AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

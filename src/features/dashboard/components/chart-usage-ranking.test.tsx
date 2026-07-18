@@ -36,14 +36,36 @@ describe("dashboard/chart-usage-ranking", () => {
             cachedTokens: 0,
           },
         ]}
-      />
+      />,
     );
 
     const card = container.querySelector('[data-slot="card"]');
     expect(card).toBeTruthy();
-    expect(within(card as HTMLElement).getByText(m.dashboard_models_title())).toBeTruthy();
-    expect(within(card as HTMLElement).queryByText(m.dashboard_no_data())).toBeNull();
+    expect(
+      within(card as HTMLElement).getByText(m.dashboard_models_title()),
+    ).toBeTruthy();
+    expect(
+      within(card as HTMLElement).queryByText(m.dashboard_no_data()),
+    ).toBeNull();
     // recharts 挂载在 ChartContainer 上。
     expect(container.querySelector('[data-slot="chart"]')).toBeTruthy();
+  });
+
+  it("limits model usage to the top five models", () => {
+    const { container } = renderWithI18n(
+      <ChartModelUsage
+        models={Array.from({ length: 6 }, (_, index) => ({
+          model: `model-${index + 1}`,
+          requests: 1,
+          totalTokens: 600 - index,
+          inputTokens: 0,
+          outputTokens: 0,
+          costNanoUsd: 0,
+          cachedTokens: 0,
+        }))}
+      />,
+    );
+
+    expect(container.querySelector('[data-model-count="5"]')).toBeTruthy();
   });
 });

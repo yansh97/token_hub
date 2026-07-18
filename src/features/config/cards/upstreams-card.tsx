@@ -19,7 +19,10 @@ import {
 import { ColumnsDialog } from "@/features/config/cards/upstreams/columns-dialog";
 import { DeleteUpstreamDialog } from "@/features/config/cards/upstreams/delete-dialog";
 import { UpstreamEditorDialog } from "@/features/config/cards/upstreams/editor-dialog";
-import { UpstreamsTable, UpstreamsToolbar } from "@/features/config/cards/upstreams/table";
+import {
+  UpstreamsTable,
+  UpstreamsToolbar,
+} from "@/features/config/cards/upstreams/table";
 import type {
   ColumnVisibility,
   DeleteDialogState,
@@ -56,23 +59,28 @@ export function UpstreamsCard({
 }: UpstreamsCardProps) {
   const mergedProviderOptions = useMemo(
     () => mergeProviderOptions(providerOptions),
-    [providerOptions]
+    [providerOptions],
   );
-  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>(() =>
-    createDefaultColumnVisibility()
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>(
+    () => createDefaultColumnVisibility(),
   );
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [editor, setEditor] = useState<UpstreamEditorState>({ open: false });
-  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({ open: false });
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({
+    open: false,
+  });
   const columns = useMemo(
     () => UPSTREAM_COLUMNS.filter((column) => columnVisibility[column.id]),
-    [columnVisibility]
+    [columnVisibility],
   );
   const apiKeyVisible = columnVisibility.apiKeys;
-  const isSpecialAccountBackedUpstream = useCallback((upstream: UpstreamForm) => {
-    const providers = normalizeProviders(upstream.providers);
-    return isAccountBackedProviderSet(providers);
-  }, []);
+  const isSpecialAccountBackedUpstream = useCallback(
+    (upstream: UpstreamForm) => {
+      const providers = normalizeProviders(upstream.providers);
+      return isAccountBackedProviderSet(providers);
+    },
+    [],
+  );
 
   // 更新 draft，处理 provider 变化时的自动逻辑
   const updateDraft = useCallback(
@@ -95,20 +103,29 @@ export function UpstreamsCard({
         // - 编辑：保持现有 ID，避免统计/引用被拆分
         if (providersChanged) {
           // openai-response 专属开关：切换到其它 provider 时清零，避免把无效字段写进配置。
-          let filterPromptCacheRetention = prev.draft.filterPromptCacheRetention;
+          let filterPromptCacheRetention =
+            prev.draft.filterPromptCacheRetention;
           let filterSafetyIdentifier = prev.draft.filterSafetyIdentifier;
-          let useChatCompletionsForResponses = prev.draft.useChatCompletionsForResponses;
-          let rewriteDeveloperRoleToSystem = prev.draft.rewriteDeveloperRoleToSystem;
+          let useChatCompletionsForResponses =
+            prev.draft.useChatCompletionsForResponses;
+          let rewriteDeveloperRoleToSystem =
+            prev.draft.rewriteDeveloperRoleToSystem;
           let baseUrl = patch.baseUrl ?? prev.draft.baseUrl;
           let proxyUrl = patch.proxyUrl ?? prev.draft.proxyUrl;
-          let convertFromMap = patch.convertFromMap ?? prev.draft.convertFromMap;
+          let convertFromMap =
+            patch.convertFromMap ?? prev.draft.convertFromMap;
 
           if (!nextProviders.includes("openai-response")) {
             filterPromptCacheRetention = false;
             filterSafetyIdentifier = false;
             useChatCompletionsForResponses = false;
           }
-          if (!nextProviders.some((provider) => provider === "openai" || provider === "openai-response")) {
+          if (
+            !nextProviders.some(
+              (provider) =>
+                provider === "openai" || provider === "openai-response",
+            )
+          ) {
             rewriteDeveloperRoleToSystem = false;
           }
           if (isAccountBackedProviderSet(nextProviders)) {
@@ -123,7 +140,8 @@ export function UpstreamsCard({
             filterSafetyIdentifier = patch.filterSafetyIdentifier;
           }
           if (patch.useChatCompletionsForResponses !== undefined) {
-            useChatCompletionsForResponses = patch.useChatCompletionsForResponses;
+            useChatCompletionsForResponses =
+              patch.useChatCompletionsForResponses;
           }
           if (patch.rewriteDeveloperRoleToSystem !== undefined) {
             rewriteDeveloperRoleToSystem = patch.rewriteDeveloperRoleToSystem;
@@ -166,9 +184,17 @@ export function UpstreamsCard({
   const openCreateDialog = () => {
     const draft = createEmptyUpstream();
     const nextProviders = normalizeProviders(draft.providers);
-    const hasDuplicateId = upstreams.some((upstream) => upstream.id.trim() === draft.id.trim());
-    const nextId = hasDuplicateId ? createCopiedUpstreamId(draft.id, upstreams) : draft.id;
-    setEditor({ open: true, mode: "create", draft: { ...draft, id: nextId, providers: nextProviders } });
+    const hasDuplicateId = upstreams.some(
+      (upstream) => upstream.id.trim() === draft.id.trim(),
+    );
+    const nextId = hasDuplicateId
+      ? createCopiedUpstreamId(draft.id, upstreams)
+      : draft.id;
+    setEditor({
+      open: true,
+      mode: "create",
+      draft: { ...draft, id: nextId, providers: nextProviders },
+    });
   };
 
   const openEditDialog = (index: number) => {
@@ -176,7 +202,12 @@ export function UpstreamsCard({
     if (!upstream) {
       return;
     }
-    setEditor({ open: true, mode: "edit", index, draft: cloneUpstreamDraft(upstream) });
+    setEditor({
+      open: true,
+      mode: "edit",
+      index,
+      draft: cloneUpstreamDraft(upstream),
+    });
   };
 
   const openCopyDialog = (index: number) => {
@@ -255,7 +286,10 @@ export function UpstreamsCard({
         visibility={columnVisibility}
         onOpenChange={setColumnsOpen}
         onToggleColumn={(columnId) =>
-          setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }))
+          setColumnVisibility((prev) => ({
+            ...prev,
+            [columnId]: !prev[columnId],
+          }))
         }
       />
       <UpstreamEditorDialog

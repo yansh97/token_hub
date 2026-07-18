@@ -58,10 +58,14 @@ export function ConvertFromMapEditor({
 
   // “可转格式”只展示“非原生格式”的转换授权：
   // - 若该 upstream 已包含某入站格式的原生 provider，则该入站格式无需也不应再被其它 provider 转换兜底（避免误导）。
-  const nativeFormatsInUpstream = createNativeInboundFormatSet(normalizedProviders);
+  const nativeFormatsInUpstream =
+    createNativeInboundFormatSet(normalizedProviders);
   const providersKey = normalizedProviders.join("|");
   const selectedCount = normalizedProviders.reduce((count, provider) => {
-    const selected = removeInboundFormatsInSet(value[provider] ?? [], nativeFormatsInUpstream);
+    const selected = removeInboundFormatsInSet(
+      value[provider] ?? [],
+      nativeFormatsInUpstream,
+    );
     return count + selected.length;
   }, 0);
   const summaryLabel = selectedCount ? `已选 ${selectedCount} 项` : "未开启";
@@ -91,7 +95,9 @@ export function ConvertFromMapEditor({
               );
               return (
                 <div key={provider} className="space-y-2">
-                  <div className="text-sm font-medium text-foreground">{provider}</div>
+                  <div className="text-sm font-medium text-foreground">
+                    {provider}
+                  </div>
                   <div className="space-y-2">
                     {visibleOptions.length ? (
                       visibleOptions.map((option) => {
@@ -119,7 +125,9 @@ export function ConvertFromMapEditor({
                                 onChange(next);
                               }}
                             />
-                            <span className="text-muted-foreground">{option.label}</span>
+                            <span className="text-muted-foreground">
+                              {option.label}
+                            </span>
                           </Label>
                         );
                       })
@@ -129,7 +137,9 @@ export function ConvertFromMapEditor({
                       </div>
                     )}
                   </div>
-                  {index + 1 < normalizedProviders.length ? <Separator /> : null}
+                  {index + 1 < normalizedProviders.length ? (
+                    <Separator />
+                  ) : null}
                 </div>
               );
             })}

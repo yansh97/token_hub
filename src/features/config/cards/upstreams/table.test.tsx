@@ -48,7 +48,7 @@ describe("upstreams/table", () => {
         onCopy={() => undefined}
         onToggleEnabled={() => undefined}
         onDelete={() => undefined}
-      />
+      />,
     );
 
     const idCell = screen.getByText(LONG_ID);
@@ -67,7 +67,7 @@ describe("upstreams/table", () => {
         onCopy={() => undefined}
         onToggleEnabled={() => undefined}
         onDelete={() => undefined}
-      />
+      />,
     );
 
     const header = screen.getByRole("columnheader", { name: "Actions" });
@@ -95,11 +95,11 @@ describe("upstreams/table", () => {
         onCopy={() => undefined}
         onToggleEnabled={() => undefined}
         onDelete={() => undefined}
-      />
+      />,
     );
 
     expect(
-      screen.getByRole("button", { name: /delete upstream/i })
+      screen.getByRole("button", { name: /delete upstream/i }),
     ).toBeDisabled();
   });
 
@@ -117,11 +117,11 @@ describe("upstreams/table", () => {
         onCopy={() => undefined}
         onToggleEnabled={() => undefined}
         onDelete={() => undefined}
-      />
+      />,
     );
 
     expect(
-      screen.getByRole("button", { name: /copy upstream/i })
+      screen.getByRole("button", { name: /copy upstream/i }),
     ).toBeDisabled();
   });
 });

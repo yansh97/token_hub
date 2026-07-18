@@ -39,7 +39,10 @@ export type UpdateCheckSource = "auto" | "manual";
 
 type UpdaterCheckResult = Awaited<ReturnType<typeof check>>;
 
-async function closeUpdateHandle(updateHandle: UpdaterCheckResult, reason: string) {
+async function closeUpdateHandle(
+  updateHandle: UpdaterCheckResult,
+  reason: string,
+) {
   if (!updateHandle) {
     return;
   }
@@ -110,9 +113,9 @@ function toUpdateInfo(update: NonNullable<UpdaterCheckResult>): UpdateInfo {
 
 async function readAppProxyUrl() {
   try {
-    const response = await invoke<{ config?: { app_proxy_url?: string | null } }>(
-      "read_proxy_config"
-    );
+    const response = await invoke<{
+      config?: { app_proxy_url?: string | null };
+    }>("read_proxy_config");
     return response?.config?.app_proxy_url ?? "";
   } catch (error) {
     console.warn("[updater] failed to read app proxy url", { error });
@@ -188,14 +191,20 @@ export function UpdaterProvider({ children }: UpdaterProviderProps) {
       const source = args?.source ?? "manual";
       const status = statusRef.current;
       if (checkInFlightRef.current) {
-        console.info("[updater] skip update check while one is already running", { source });
+        console.info(
+          "[updater] skip update check while one is already running",
+          { source },
+        );
         return;
       }
       if (!canStartUpdateCheck(status)) {
-        console.info("[updater] skip update check while update workflow is busy", {
-          source,
-          status,
-        });
+        console.info(
+          "[updater] skip update check while update workflow is busy",
+          {
+            source,
+            status,
+          },
+        );
         return;
       }
       checkInFlightRef.current = true;
@@ -239,7 +248,7 @@ export function UpdaterProvider({ children }: UpdaterProviderProps) {
         checkInFlightRef.current = false;
       }
     },
-    [state.appProxyUrl]
+    [state.appProxyUrl],
   );
 
   const downloadAndInstall = useCallback(async () => {
@@ -271,7 +280,8 @@ export function UpdaterProvider({ children }: UpdaterProviderProps) {
         setState((prev) => ({
           ...prev,
           downloadState: {
-            downloaded: prev.downloadState.downloaded + (progress.data?.chunkLength ?? 0),
+            downloaded:
+              prev.downloadState.downloaded + (progress.data?.chunkLength ?? 0),
             total: prev.downloadState.total,
           },
         }));
@@ -287,7 +297,11 @@ export function UpdaterProvider({ children }: UpdaterProviderProps) {
       await updateHandle.downloadAndInstall(onProgress);
       statusRef.current = "installed";
       updateHandleRef.current = null;
-      setState((prev) => ({ ...prev, status: "installed", updateHandle: null }));
+      setState((prev) => ({
+        ...prev,
+        status: "installed",
+        updateHandle: null,
+      }));
     } catch (error) {
       statusRef.current = "error";
       updateHandleRef.current = null;
@@ -321,12 +335,19 @@ export function UpdaterProvider({ children }: UpdaterProviderProps) {
   const value = useMemo<UpdaterContextValue>(
     () => ({
       state,
-      actions: { setAppProxyUrl, checkForUpdate, downloadAndInstall, relaunchApp },
+      actions: {
+        setAppProxyUrl,
+        checkForUpdate,
+        downloadAndInstall,
+        relaunchApp,
+      },
     }),
-    [checkForUpdate, downloadAndInstall, relaunchApp, setAppProxyUrl, state]
+    [checkForUpdate, downloadAndInstall, relaunchApp, setAppProxyUrl, state],
   );
 
-  return <UpdaterContext.Provider value={value}>{children}</UpdaterContext.Provider>;
+  return (
+    <UpdaterContext.Provider value={value}>{children}</UpdaterContext.Provider>
+  );
 }
 
 export function useUpdater() {

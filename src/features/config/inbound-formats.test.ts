@@ -7,7 +7,12 @@ import {
 
 describe("inbound-formats", () => {
   it("creates native inbound format set (trims + unions)", () => {
-    const formats = createNativeInboundFormatSet([" openai ", "codex", "", "openai"]);
+    const formats = createNativeInboundFormatSet([
+      " openai ",
+      "codex",
+      "",
+      "openai",
+    ]);
 
     expect(formats.has("openai_chat")).toBe(true);
     expect(formats.has("openai_responses")).toBe(true);
@@ -16,9 +21,11 @@ describe("inbound-formats", () => {
 
   it("removes inbound formats already supported natively", () => {
     const native = createNativeInboundFormatSet(["openai"]);
-    const filtered = removeInboundFormatsInSet(["openai_chat", "gemini"], native);
+    const filtered = removeInboundFormatsInSet(
+      ["openai_chat", "gemini"],
+      native,
+    );
 
     expect(filtered).toEqual(["gemini"]);
   });
 });
-

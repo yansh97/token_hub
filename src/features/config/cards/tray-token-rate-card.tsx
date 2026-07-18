@@ -23,7 +23,7 @@ import {
 import { m } from "@/paraglide/messages.js";
 
 const TRAY_TOKEN_RATE_FORMAT_VALUES: ReadonlySet<string> = new Set(
-  TRAY_TOKEN_RATE_FORMATS.map((format) => format.value)
+  TRAY_TOKEN_RATE_FORMATS.map((format) => format.value),
 );
 
 function toTrayTokenRateFormat(value: string): TrayTokenRateFormat | null {
@@ -46,7 +46,9 @@ export function TrayTokenRateCard({ value, onChange }: TrayTokenRateCardProps) {
         <CardAction>
           <Switch
             checked={value.enabled}
-            onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
+            onCheckedChange={(checked) =>
+              onChange({ ...value, enabled: checked })
+            }
             aria-label={m.proxy_core_tray_token_rate_aria()}
           />
         </CardAction>
@@ -67,7 +69,9 @@ export function TrayTokenRateCard({ value, onChange }: TrayTokenRateCardProps) {
             disabled={!value.enabled}
           >
             <SelectTrigger id="tray-token-rate-format">
-              <SelectValue placeholder={m.proxy_core_tray_token_rate_format_placeholder()} />
+              <SelectValue
+                placeholder={m.proxy_core_tray_token_rate_format_placeholder()}
+              />
             </SelectTrigger>
             <SelectContent>
               {TRAY_TOKEN_RATE_FORMATS.map((option) => (

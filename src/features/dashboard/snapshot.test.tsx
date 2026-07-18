@@ -1,21 +1,28 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDashboardSnapshot } from "@/features/dashboard/snapshot"
-import type { DashboardSnapshot } from "@/features/dashboard/types"
+import { useDashboardSnapshot } from "@/features/dashboard/snapshot";
+import type { DashboardSnapshot } from "@/features/dashboard/types";
 
-const { readDashboardSnapshotMock, refreshDashboardModelDiscoveryMock } = vi.hoisted(() => ({
-  readDashboardSnapshotMock: vi.fn(),
-  refreshDashboardModelDiscoveryMock: vi.fn(),
-}))
+const { readDashboardSnapshotMock, refreshDashboardModelDiscoveryMock } =
+  vi.hoisted(() => ({
+    readDashboardSnapshotMock: vi.fn(),
+    refreshDashboardModelDiscoveryMock: vi.fn(),
+  }));
 
 vi.mock("@/features/dashboard/api", () => ({
   readDashboardSnapshot: readDashboardSnapshotMock,
   refreshDashboardModelDiscovery: refreshDashboardModelDiscoveryMock,
-}))
+}));
 
 function createSnapshot(
-  overrides: Partial<DashboardSnapshot> = {}
+  overrides: Partial<DashboardSnapshot> = {},
 ): DashboardSnapshot {
   return {
     summary: {
@@ -77,7 +84,7 @@ function createSnapshot(
     modelProbes: [],
     truncated: false,
     ...overrides,
-  }
+  };
 }
 
 function HookHarness() {
@@ -90,31 +97,28 @@ function HookHarness() {
     onUpstreamChange,
     onAccountChange,
     refresh,
-  } =
-    useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true })
+  } = useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true });
 
   return (
     <div>
-      <div data-testid="selected-upstream">
-        {selectedUpstreamId ?? "all"}
-      </div>
+      <div data-testid="selected-upstream">{selectedUpstreamId ?? "all"}</div>
       <div data-testid="selected-account">
-        {selectedPublicOnly ? "public" : selectedAccountId ?? "all"}
+        {selectedPublicOnly ? "public" : (selectedAccountId ?? "all")}
       </div>
       <div data-testid="upstream-options">
-        {snapshot?.upstreams
-          .map((item) => item.upstreamId)
-          .join(",") ?? ""}
+        {snapshot?.upstreams.map((item) => item.upstreamId).join(",") ?? ""}
       </div>
       <div data-testid="account-options">
-        {accountOptions
-          .map((item) => item.accountId ?? "public")
-          .join(",") ?? ""}
+        {accountOptions.map((item) => item.accountId ?? "public").join(",") ??
+          ""}
       </div>
       <button type="button" onClick={() => onUpstreamChange("alpha")}>
         filter-alpha
       </button>
-      <button type="button" onClick={() => onAccountChange("codex-a.json", false)}>
+      <button
+        type="button"
+        onClick={() => onAccountChange("codex-a.json", false)}
+      >
         filter-account
       </button>
       <button type="button" onClick={() => onAccountChange(null, true)}>
@@ -124,19 +128,19 @@ function HookHarness() {
         refresh-dashboard
       </button>
     </div>
-  )
+  );
 }
 
 describe("dashboard/useDashboardSnapshot", () => {
   beforeEach(() => {
-    readDashboardSnapshotMock.mockReset()
-    refreshDashboardModelDiscoveryMock.mockReset()
-  })
+    readDashboardSnapshotMock.mockReset();
+    refreshDashboardModelDiscoveryMock.mockReset();
+  });
 
   afterEach(() => {
-    cleanup()
-    vi.clearAllMocks()
-  })
+    cleanup();
+    vi.clearAllMocks();
+  });
 
   it("loads all upstreams by default and refetches with the selected upstream", async () => {
     readDashboardSnapshotMock
@@ -156,7 +160,12 @@ describe("dashboard/useDashboardSnapshot", () => {
             medianLatencyMs: 30,
           },
           providers: [
-            { provider: "openai", requests: 1, totalTokens: 30, cachedTokens: 5 },
+            {
+              provider: "openai",
+              requests: 1,
+              totalTokens: 30,
+              cachedTokens: 5,
+            },
           ],
           accounts: [
             {
@@ -197,10 +206,10 @@ describe("dashboard/useDashboardSnapshot", () => {
               upstreamRequestId: "req-alpha",
             },
           ],
-        })
-      )
+        }),
+      );
 
-    render(<HookHarness />)
+    render(<HookHarness />);
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenNthCalledWith(1, {
@@ -212,15 +221,17 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: null,
         accountId: null,
         publicOnly: false,
-      })
-    })
+      });
+    });
 
-    expect(screen.getByTestId("selected-upstream")).toHaveTextContent("all")
-    expect(screen.getByTestId("selected-account")).toHaveTextContent("all")
-    expect(screen.getByTestId("upstream-options")).toHaveTextContent("alpha,beta")
-    expect(screen.getByTestId("account-options")).toHaveTextContent("")
+    expect(screen.getByTestId("selected-upstream")).toHaveTextContent("all");
+    expect(screen.getByTestId("selected-account")).toHaveTextContent("all");
+    expect(screen.getByTestId("upstream-options")).toHaveTextContent(
+      "alpha,beta",
+    );
+    expect(screen.getByTestId("account-options")).toHaveTextContent("");
 
-    fireEvent.click(screen.getByRole("button", { name: "filter-alpha" }))
+    fireEvent.click(screen.getByRole("button", { name: "filter-alpha" }));
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenNthCalledWith(2, {
@@ -232,15 +243,15 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: "alpha",
         accountId: null,
         publicOnly: false,
-      })
-    })
+      });
+    });
 
-    expect(screen.getByTestId("selected-upstream")).toHaveTextContent("alpha")
+    expect(screen.getByTestId("selected-upstream")).toHaveTextContent("alpha");
     expect(screen.getByTestId("account-options")).toHaveTextContent(
-      "codex-a.json,public"
-    )
+      "codex-a.json,public",
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "filter-account" }))
+    fireEvent.click(screen.getByRole("button", { name: "filter-account" }));
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenNthCalledWith(3, {
@@ -252,30 +263,32 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: "alpha",
         accountId: "codex-a.json",
         publicOnly: false,
-      })
-    })
+      });
+    });
 
-    expect(screen.getByTestId("selected-account")).toHaveTextContent("codex-a.json")
-  })
+    expect(screen.getByTestId("selected-account")).toHaveTextContent(
+      "codex-a.json",
+    );
+  });
 
   it("runs model discovery only from dashboard refresh", async () => {
     readDashboardSnapshotMock
       .mockResolvedValueOnce(createSnapshot())
-      .mockResolvedValueOnce(createSnapshot())
-    refreshDashboardModelDiscoveryMock.mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(createSnapshot());
+    refreshDashboardModelDiscoveryMock.mockResolvedValueOnce(undefined);
 
-    render(<HookHarness />)
-
-    await waitFor(() => {
-      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1)
-    })
-    expect(refreshDashboardModelDiscoveryMock).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole("button", { name: "refresh-dashboard" }))
+    render(<HookHarness />);
 
     await waitFor(() => {
-      expect(refreshDashboardModelDiscoveryMock).toHaveBeenCalledTimes(1)
-      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2)
-    })
-  })
-})
+      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
+    });
+    expect(refreshDashboardModelDiscoveryMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "refresh-dashboard" }));
+
+    await waitFor(() => {
+      expect(refreshDashboardModelDiscoveryMock).toHaveBeenCalledTimes(1);
+      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
+    });
+  });
+});

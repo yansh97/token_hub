@@ -140,7 +140,9 @@ describe("pricing/form", () => {
 
   it("rejects invalid prices, multipliers, and service tier names", () => {
     const row = toPricingRows(settings)[0];
-    expect(toPricingSettingsInput([{ ...row, priceMultiplier: "0" }]).ok).toBe(false);
+    expect(toPricingSettingsInput([{ ...row, priceMultiplier: "0" }]).ok).toBe(
+      false,
+    );
     expect(
       toPricingSettingsInput([
         { ...row, standard: { ...row.standard, cacheWrite: "-1" } },

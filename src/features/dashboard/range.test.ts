@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { resolveDashboardRange, toDashboardTimeRange } from "@/features/dashboard/range";
+import {
+  resolveDashboardRange,
+  toDashboardTimeRange,
+} from "@/features/dashboard/range";
 
 describe("dashboard/range", () => {
   afterEach(() => {
@@ -35,4 +38,3 @@ describe("dashboard/range", () => {
     });
   });
 });
-

@@ -8,8 +8,12 @@ import {
 describe("upstreams/constants", () => {
   it("adjusts id, provider, and priority column widths", () => {
     const idColumn = UPSTREAM_COLUMNS.find((column) => column.id === "id");
-    const providerColumn = UPSTREAM_COLUMNS.find((column) => column.id === "provider");
-    const priorityColumn = UPSTREAM_COLUMNS.find((column) => column.id === "priority");
+    const providerColumn = UPSTREAM_COLUMNS.find(
+      (column) => column.id === "provider",
+    );
+    const priorityColumn = UPSTREAM_COLUMNS.find(
+      (column) => column.id === "priority",
+    );
 
     expect(idColumn?.headerClassName).toBe("w-[12rem]");
     expect(idColumn?.cellClassName).toBe("w-[12rem] max-w-[12rem]");

@@ -346,7 +346,9 @@ function ModelPricingRow({
           aria-label={m.model_pricing_column_model()}
           disabled={disabled}
           className="h-8"
-          onChange={(event) => onChange(row.id, { modelId: event.target.value })}
+          onChange={(event) =>
+            onChange(row.id, { modelId: event.target.value })
+          }
         />
       </TableCell>
       <TableCell className="min-w-[220px]">
@@ -356,7 +358,9 @@ function ModelPricingRow({
           disabled={disabled}
           placeholder={m.model_pricing_aliases_placeholder()}
           className="h-8"
-          onChange={(event) => onChange(row.id, { aliasesText: event.target.value })}
+          onChange={(event) =>
+            onChange(row.id, { aliasesText: event.target.value })
+          }
         />
       </TableCell>
       <TableCell>
@@ -430,9 +434,9 @@ export function ModelPricingPage() {
   const disabled = status !== "idle";
 
   const applySnapshot = useCallback((settings: ModelPricingSettings) => {
-      setRows(toPricingRows(settings));
-      setVersion(settings.version);
-      setSourceCommit(settings.source?.commit.slice(0, 8) ?? "");
+    setRows(toPricingRows(settings));
+    setVersion(settings.version);
+    setSourceCommit(settings.source?.commit.slice(0, 8) ?? "");
   }, []);
 
   const loadSettings = useCallback(async () => {
@@ -513,7 +517,9 @@ export function ModelPricingPage() {
                     {m.model_pricing_source_commit({ commit: sourceCommit })}
                   </Badge>
                 ) : null}
-                <Badge variant="secondary">{m.model_pricing_price_unit()}</Badge>
+                <Badge variant="secondary">
+                  {m.model_pricing_price_unit()}
+                </Badge>
               </div>
             </div>
             <CardAction className="flex flex-wrap justify-end gap-2">
@@ -563,12 +569,18 @@ export function ModelPricingPage() {
                 type="button"
                 variant="outline"
                 disabled={disabled}
-                onClick={() => setRows((current) => [...current, createEmptyPricingRow()])}
+                onClick={() =>
+                  setRows((current) => [...current, createEmptyPricingRow()])
+                }
               >
                 <Plus aria-hidden="true" />
                 {m.model_pricing_add_model()}
               </Button>
-              <Button type="button" disabled={disabled} onClick={() => void saveRows()}>
+              <Button
+                type="button"
+                disabled={disabled}
+                onClick={() => void saveRows()}
+              >
                 <Save aria-hidden="true" />
                 {m.model_pricing_save()}
               </Button>
@@ -612,7 +624,9 @@ export function ModelPricingPage() {
                       <TableHead className={`${STICKY_HEAD_CLASS} text-right`}>
                         {m.model_pricing_column_standard_output()}
                       </TableHead>
-                      <TableHead className={`${STICKY_HEAD_CLASS} right-0 text-right`}>
+                      <TableHead
+                        className={`${STICKY_HEAD_CLASS} right-0 text-right`}
+                      >
                         {m.model_pricing_column_actions()}
                       </TableHead>
                     </TableRow>
@@ -625,7 +639,9 @@ export function ModelPricingPage() {
                         disabled={disabled}
                         onChange={updateRow}
                         onRemove={(id) =>
-                          setRows((current) => current.filter((item) => item.id !== id))
+                          setRows((current) =>
+                            current.filter((item) => item.id !== id),
+                          )
                         }
                       />
                     ))}

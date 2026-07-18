@@ -1,4 +1,7 @@
-import type { ColumnVisibility, UpstreamColumnDefinition } from "@/features/config/cards/upstreams/types";
+import type {
+  ColumnVisibility,
+  UpstreamColumnDefinition,
+} from "@/features/config/cards/upstreams/types";
 import { m } from "@/paraglide/messages.js";
 
 export const UPSTREAM_COLUMNS: readonly UpstreamColumnDefinition[] = [
@@ -16,9 +19,24 @@ export const UPSTREAM_COLUMNS: readonly UpstreamColumnDefinition[] = [
     headerClassName: "w-[10rem]",
     cellClassName: "w-[10rem] max-w-[10rem]",
   },
-  { id: "baseUrl", label: () => m.upstreams_column_base_url(), defaultVisible: false, cellClassName: "min-w-[18rem]" },
-  { id: "apiKeys", label: () => m.upstreams_column_api_key(), defaultVisible: false, cellClassName: "min-w-[18rem]" },
-  { id: "proxyUrl", label: () => m.upstreams_column_proxy_url(), defaultVisible: false, cellClassName: "min-w-[18rem]" },
+  {
+    id: "baseUrl",
+    label: () => m.upstreams_column_base_url(),
+    defaultVisible: false,
+    cellClassName: "min-w-[18rem]",
+  },
+  {
+    id: "apiKeys",
+    label: () => m.upstreams_column_api_key(),
+    defaultVisible: false,
+    cellClassName: "min-w-[18rem]",
+  },
+  {
+    id: "proxyUrl",
+    label: () => m.upstreams_column_proxy_url(),
+    defaultVisible: false,
+    cellClassName: "min-w-[18rem]",
+  },
   {
     id: "priority",
     label: () => m.upstreams_column_priority(),

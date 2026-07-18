@@ -56,6 +56,8 @@ describe("dashboard/api", () => {
 
     await refreshDashboardModelDiscovery();
 
-    expect(invokeMock).toHaveBeenCalledWith("refresh_dashboard_model_discovery");
+    expect(invokeMock).toHaveBeenCalledWith(
+      "refresh_dashboard_model_discovery",
+    );
   });
 });

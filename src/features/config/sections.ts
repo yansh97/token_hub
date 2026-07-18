@@ -97,18 +97,19 @@ export const CONFIG_SECTIONS: readonly ConfigSection[] = [
 ] as const;
 
 const CONFIG_SECTION_IDS: ReadonlySet<string> = new Set(
-  CONFIG_SECTIONS.map((section) => section.id)
+  CONFIG_SECTIONS.map((section) => section.id),
 );
 
 export const DEFAULT_CONFIG_SECTION: ConfigSectionId = "dashboard";
 
-const CONFIG_SECTION_BY_ID: Record<ConfigSectionId, ConfigSection> = CONFIG_SECTIONS.reduce(
-  (acc, section) => {
-    acc[section.id] = section;
-    return acc;
-  },
-  {} as Record<ConfigSectionId, ConfigSection>
-);
+const CONFIG_SECTION_BY_ID: Record<ConfigSectionId, ConfigSection> =
+  CONFIG_SECTIONS.reduce(
+    (acc, section) => {
+      acc[section.id] = section;
+      return acc;
+    },
+    {} as Record<ConfigSectionId, ConfigSection>,
+  );
 
 export function isConfigSectionId(value: string): value is ConfigSectionId {
   return CONFIG_SECTION_IDS.has(value);

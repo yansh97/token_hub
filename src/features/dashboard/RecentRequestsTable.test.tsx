@@ -79,7 +79,10 @@ describe("dashboard/RecentRequestsTable", () => {
   it("shows only clock time in the time column and keeps the full timestamp in tooltip", async () => {
     const user = userEvent.setup();
     const tsMs = new Date(2026, 4, 2, 15, 28, 43).getTime();
-    const fullTimestamp = formatDashboardTimestamp(tsMs, createDashboardTimeFormatter("en"));
+    const fullTimestamp = formatDashboardTimestamp(
+      tsMs,
+      createDashboardTimeFormatter("en"),
+    );
 
     render(
       <I18nProvider>
@@ -176,8 +179,12 @@ describe("dashboard/RecentRequestsTable", () => {
     );
 
     const table = screen.getByTestId("recent-requests-table");
-    const header = table.querySelector('[data-slot="recent-requests-table-header"]');
-    expect(Array.from(header?.children ?? []).map((cell) => cell.textContent)).toEqual([
+    const header = table.querySelector(
+      '[data-slot="recent-requests-table-header"]',
+    );
+    expect(
+      Array.from(header?.children ?? []).map((cell) => cell.textContent),
+    ).toEqual([
       "Time",
       "IP",
       "Path",
@@ -189,7 +196,9 @@ describe("dashboard/RecentRequestsTable", () => {
       "Upstream response headers (ms)",
     ]);
 
-    const rows = table.querySelectorAll('[data-slot="recent-requests-table-row"]');
+    const rows = table.querySelectorAll(
+      '[data-slot="recent-requests-table-row"]',
+    );
     expect(rows[0]?.children.item(1)?.textContent).toBe("local");
     expect(rows[0]?.children.item(2)?.textContent).toBe("/responses");
     expect(rows[1]?.children.item(1)?.textContent).toBe("local");
@@ -230,10 +239,16 @@ describe("dashboard/RecentRequestsTable", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getAllByText("Status")[0]?.closest("div")).toHaveClass("text-left");
-    expect(screen.getAllByText("Tokens")[0]?.closest("div")).toHaveClass("text-left");
+    expect(screen.getAllByText("Status")[0]?.closest("div")).toHaveClass(
+      "text-left",
+    );
+    expect(screen.getAllByText("Tokens")[0]?.closest("div")).toHaveClass(
+      "text-left",
+    );
     expect(
-      screen.getAllByText((content) => content.includes("(ms)"))[0]?.closest("div")
+      screen
+        .getAllByText((content) => content.includes("(ms)"))[0]
+        ?.closest("div"),
     ).toHaveClass("text-left");
 
     expect(screen.getByText("12")).toHaveClass("text-left");
@@ -290,7 +305,9 @@ describe("dashboard/RecentRequestsTable", () => {
     expect(widthTrack?.style.minWidth).toBe("817px");
     expect(widthTrack?.parentElement).toBe(scrollArea);
 
-    const header = table.querySelector('[data-slot="recent-requests-table-header"]');
+    const header = table.querySelector(
+      '[data-slot="recent-requests-table-header"]',
+    );
     expect(header).toHaveClass("sticky", "top-0", "z-10");
     expect(header?.className).toContain("85px_79px_140px_99px");
 
@@ -306,7 +323,9 @@ describe("dashboard/RecentRequestsTable", () => {
     ) as HTMLElement | null;
     expect(firstRow?.style.transform).toBe("translateY(0px)");
 
-    expect(table.querySelector('[data-slot="recent-requests-table-body"]')).toBeNull();
+    expect(
+      table.querySelector('[data-slot="recent-requests-table-body"]'),
+    ).toBeNull();
   });
 
   it("shows upstream response-header latency as the default latency value", async () => {
@@ -349,15 +368,21 @@ describe("dashboard/RecentRequestsTable", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByText("Upstream response headers (ms)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Upstream response headers (ms)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
     expect(screen.queryByText("30")).toBeNull();
 
     await user.hover(screen.getByText("8"));
     const tooltip = await screen.findByRole("tooltip");
     expect(tooltip).toHaveTextContent(`${m.dashboard_table_latency_ms()}: 30`);
-    expect(tooltip).toHaveTextContent(`${m.logs_timing_upstream_response_headers_ms()}: 8`);
-    expect(tooltip).toHaveTextContent(`${m.logs_timing_upstream_first_body_chunk_ms()}: 12`);
+    expect(tooltip).toHaveTextContent(
+      `${m.logs_timing_upstream_response_headers_ms()}: 8`,
+    );
+    expect(tooltip).toHaveTextContent(
+      `${m.logs_timing_upstream_first_body_chunk_ms()}: 12`,
+    );
   });
 
   it("shows output tokens directly in the tokens column", async () => {
@@ -397,7 +422,11 @@ describe("dashboard/RecentRequestsTable", () => {
 
     expect(screen.getByText("45.5K")).toBeInTheDocument();
     expect(screen.getByText("1.6K · 43.4K")).toBeInTheDocument();
-    expect(screen.queryByText((content) => content.includes(m.dashboard_chart_output_tokens()))).toBeNull();
+    expect(
+      screen.queryByText((content) =>
+        content.includes(m.dashboard_chart_output_tokens()),
+      ),
+    ).toBeNull();
     await user.hover(screen.getByText("45.5K"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent("45.5K");
     expect(await screen.findByRole("tooltip")).toHaveTextContent("1.6K");
@@ -446,7 +475,9 @@ describe("dashboard/RecentRequestsTable", () => {
 
     await user.hover(screen.getByText("4.33"));
     const tooltip = await screen.findByRole("tooltip");
-    expect(tooltip).toHaveTextContent(`${m.logs_detail_pricing_model()}: gpt-5.4`);
+    expect(tooltip).toHaveTextContent(
+      `${m.logs_detail_pricing_model()}: gpt-5.4`,
+    );
     expect(tooltip).toHaveTextContent(
       `${m.logs_detail_pricing_context_tier()}: ${m.logs_detail_pricing_context_long()}`,
     );
@@ -496,6 +527,8 @@ describe("dashboard/RecentRequestsTable", () => {
     expect(screen.queryByText("local · proxy")).toBeNull();
 
     await user.hover(screen.getByText(localProxyLabel));
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(localProxyLabel);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      localProxyLabel,
+    );
   });
 });

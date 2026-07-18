@@ -2,7 +2,13 @@ import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogBody,
@@ -47,22 +53,38 @@ function toBadgeLabel(state: RequestState) {
   return m.client_setup_status_idle();
 }
 
-export function SummaryItem({ label, value }: { label: string; value: string }) {
+export function SummaryItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div
       data-slot="client-setup-summary-item"
       className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
     >
       <span className="shrink-0 uppercase tracking-[0.2em]">{label}</span>
-      <span className="min-w-0 truncate font-mono text-foreground/80">{value}</span>
+      <span className="min-w-0 truncate font-mono text-foreground/80">
+        {value}
+      </span>
     </div>
   );
 }
 
-export function DetailSection({ label, children }: { label: string; children: ReactNode }) {
+export function DetailSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <div data-slot="client-setup-detail-section" className="space-y-1">
-      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
+      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+        {label}
+      </p>
       {children}
     </div>
   );
@@ -70,7 +92,10 @@ export function DetailSection({ label, children }: { label: string; children: Re
 
 export function MonoBlock({ children }: { children: ReactNode }) {
   return (
-    <div data-slot="client-setup-mono-block" className="rounded-md border border-border/60 bg-background/60 p-3">
+    <div
+      data-slot="client-setup-mono-block"
+      className="rounded-md border border-border/60 bg-background/60 p-3"
+    >
       {children}
     </div>
   );
@@ -106,9 +131,17 @@ export function CodeBlock({ lines }: { lines: readonly string[] }) {
   );
 }
 
-type ToolSetupCardProps = Pick<ToolSetupDialogProps, "title" | "description" | "summary" | "action">;
+type ToolSetupCardProps = Pick<
+  ToolSetupDialogProps,
+  "title" | "description" | "summary" | "action"
+>;
 
-function ToolSetupCard({ title, description, summary, action }: ToolSetupCardProps) {
+function ToolSetupCard({
+  title,
+  description,
+  summary,
+  action,
+}: ToolSetupCardProps) {
   return (
     <Card data-slot="client-setup-tool-card">
       <CardHeader>
@@ -118,7 +151,9 @@ function ToolSetupCard({ title, description, summary, action }: ToolSetupCardPro
             <CardDescription>{description}</CardDescription>
           </div>
           {shouldShowBadge(action.state) ? (
-            <Badge variant={toBadgeVariant(action.state)}>{toBadgeLabel(action.state)}</Badge>
+            <Badge variant={toBadgeVariant(action.state)}>
+              {toBadgeLabel(action.state)}
+            </Badge>
           ) : null}
         </div>
       </CardHeader>
@@ -154,7 +189,9 @@ function ToolSetupModal({
             <DialogDescription>{description}</DialogDescription>
           </div>
           {shouldShowBadge(action.state) ? (
-            <Badge variant={toBadgeVariant(action.state)}>{toBadgeLabel(action.state)}</Badge>
+            <Badge variant={toBadgeVariant(action.state)}>
+              {toBadgeLabel(action.state)}
+            </Badge>
           ) : null}
         </div>
       </DialogHeader>
@@ -168,7 +205,9 @@ function ToolSetupModal({
           </div>
         ) : null}
 
-        <p className="text-xs text-muted-foreground">{m.client_setup_backup_hint()}</p>
+        <p className="text-xs text-muted-foreground">
+          {m.client_setup_backup_hint()}
+        </p>
       </DialogBody>
 
       <DialogFooter>
@@ -177,7 +216,11 @@ function ToolSetupModal({
             {m.common_close()}
           </Button>
         </DialogClose>
-        <Button type="button" onClick={onApply} disabled={!canApply || isWorking}>
+        <Button
+          type="button"
+          onClick={onApply}
+          disabled={!canApply || isWorking}
+        >
           {m.client_setup_apply()}
         </Button>
       </DialogFooter>

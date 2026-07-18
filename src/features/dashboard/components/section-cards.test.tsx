@@ -25,7 +25,7 @@ function renderCards() {
   return render(
     <I18nProvider>
       <SectionCards summary={summary} />
-    </I18nProvider>
+    </I18nProvider>,
   );
 }
 
@@ -38,15 +38,19 @@ describe("dashboard/SectionCards", () => {
     renderCards();
 
     expect(screen.getByText(m.dashboard_stat_requests())).toBeInTheDocument();
-    expect(screen.queryByText(m.dashboard_stat_errors())).not.toBeInTheDocument();
     expect(
-      screen.getByText(m.dashboard_requests_footer({
-        success: "8",
-        errors: "2",
-      }))
+      screen.queryByText(m.dashboard_stat_errors()),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        m.dashboard_requests_footer({
+          success: "8",
+          errors: "2",
+        }),
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(m.dashboard_hint_success_rate({ rate: "80%" }))
+      screen.getByText(m.dashboard_hint_success_rate({ rate: "80%" })),
     ).toBeInTheDocument();
     expect(screen.queryByText("20%")).not.toBeInTheDocument();
   });
@@ -55,7 +59,10 @@ describe("dashboard/SectionCards", () => {
     renderCards();
 
     const labels = screen
-      .getAllByText((_, element) => element?.getAttribute("data-slot") === "card-description")
+      .getAllByText(
+        (_, element) =>
+          element?.getAttribute("data-slot") === "card-description",
+      )
       .map((node) => node.textContent);
 
     expect(labels).toEqual([
@@ -74,16 +81,20 @@ describe("dashboard/SectionCards", () => {
     renderCards();
 
     expect(
-      screen.getByText(m.dashboard_tokens_hint_with_cache({
-        input: "200K",
-        cached: "20K",
-        output: "10K",
-      }))
+      screen.getByText(
+        m.dashboard_tokens_hint_with_cache({
+          input: "200K",
+          cached: "20K",
+          output: "10K",
+        }),
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(m.dashboard_cache_hit_rate({
-        rate: "7.5%",
-      }))
+      screen.getByText(
+        m.dashboard_cache_hit_rate({
+          rate: "7.5%",
+        }),
+      ),
     ).toBeInTheDocument();
   });
 });

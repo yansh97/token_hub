@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,10 +49,11 @@ vi.mock("@/features/dashboard/components/chart-usage-ranking", () => ({
   ),
 }));
 
-const { readDashboardSnapshotMock, refreshDashboardModelDiscoveryMock } = vi.hoisted(() => ({
-  readDashboardSnapshotMock: vi.fn(),
-  refreshDashboardModelDiscoveryMock: vi.fn(),
-}));
+const { readDashboardSnapshotMock, refreshDashboardModelDiscoveryMock } =
+  vi.hoisted(() => ({
+    readDashboardSnapshotMock: vi.fn(),
+    refreshDashboardModelDiscoveryMock: vi.fn(),
+  }));
 
 vi.mock("@/features/dashboard/api", () => ({
   readDashboardSnapshot: readDashboardSnapshotMock,
@@ -57,7 +64,7 @@ function renderPanel() {
   return render(
     <I18nProvider>
       <DashboardPanel />
-    </I18nProvider>
+    </I18nProvider>,
   );
 }
 
@@ -504,7 +511,7 @@ describe("dashboard/DashboardPanel", () => {
           ],
           truncated: false,
         };
-      }
+      },
     );
   });
 
@@ -515,80 +522,77 @@ describe("dashboard/DashboardPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
-        "3"
+        "3",
       );
     });
     const chart = await screen.findByTestId("dashboard-chart-total");
     const modelUsage = await screen.findByTestId("dashboard-model-usage");
-    const upstreamModelsTitle = await screen.findByText(m.dashboard_upstream_models_title());
+    const upstreamModelsTitle = await screen.findByText(
+      m.dashboard_upstream_models_title(),
+    );
     expect(chart).toHaveTextContent("42");
     expect(modelUsage).toHaveTextContent("gpt-5.4,claude-4");
     expect(upstreamModelsTitle).toBeInTheDocument();
     expect(
-      chart.compareDocumentPosition(modelUsage) & Node.DOCUMENT_POSITION_FOLLOWING
+      chart.compareDocumentPosition(modelUsage) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       modelUsage.compareDocumentPosition(upstreamModelsTitle) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.getByText("gpt-5.5")).toBeInTheDocument();
     expect(screen.getByText("gemini-3.0-pro-preview")).toBeInTheDocument();
     expect(screen.getByText(/quota scope denied/)).toBeInTheDocument();
-    expect(readDashboardSnapshotMock).toHaveBeenCalledWith(
-      {
-        range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
-        offset: 0,
-        upstreamId: null,
-        accountId: null,
-        publicOnly: false,
-      }
-    );
+    expect(readDashboardSnapshotMock).toHaveBeenCalledWith({
+      range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
+      offset: 0,
+      upstreamId: null,
+      accountId: null,
+      publicOnly: false,
+    });
 
     const upstreamFilter = screen.getByRole("group", {
       name: m.dashboard_upstream_label(),
     });
     await user.click(
-      within(upstreamFilter).getByRole("radio", { name: "alpha" })
+      within(upstreamFilter).getByRole("radio", { name: "alpha" }),
     );
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
-        "2"
+        "2",
       );
     });
     expect(screen.getByTestId("dashboard-chart-total")).toHaveTextContent("35");
-    expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith(
-      {
-        range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
-        offset: 0,
-        upstreamId: "alpha",
-        accountId: null,
-        publicOnly: false,
-      }
-    );
+    expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
+      range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
+      offset: 0,
+      upstreamId: "alpha",
+      accountId: null,
+      publicOnly: false,
+    });
 
     await user.click(
-      screen.getByRole("combobox", { name: m.dashboard_account_label() })
+      screen.getByRole("combobox", { name: m.dashboard_account_label() }),
     );
     await user.click(
-      await screen.findByRole("option", { name: "codex-a.json" })
+      await screen.findByRole("option", { name: "codex-a.json" }),
     );
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
-        "1"
+        "1",
       );
     });
     expect(screen.getByTestId("dashboard-chart-total")).toHaveTextContent("30");
-    expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith(
-      {
-        range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
-        offset: 0,
-        upstreamId: "alpha",
-        accountId: "codex-a.json",
-        publicOnly: false,
-      }
-    );
+    expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
+      range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
+      offset: 0,
+      upstreamId: "alpha",
+      accountId: "codex-a.json",
+      publicOnly: false,
+    });
   });
 
   it("refreshes upstream model discovery before reloading the dashboard", async () => {
@@ -598,7 +602,7 @@ describe("dashboard/DashboardPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
-        "3"
+        "3",
       );
     });
     expect(refreshDashboardModelDiscoveryMock).not.toHaveBeenCalled();
@@ -610,7 +614,7 @@ describe("dashboard/DashboardPanel", () => {
       expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
     });
     expect(
-      refreshDashboardModelDiscoveryMock.mock.invocationCallOrder[0]
+      refreshDashboardModelDiscoveryMock.mock.invocationCallOrder[0],
     ).toBeLessThan(readDashboardSnapshotMock.mock.invocationCallOrder[1]);
   });
 });

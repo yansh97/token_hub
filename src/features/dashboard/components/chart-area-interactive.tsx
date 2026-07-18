@@ -1,14 +1,9 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
+import * as React from "react";
+import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
   ChartLegend,
@@ -16,23 +11,26 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@/components/ui/chart"
+} from "@/components/ui/chart";
 import {
   createDashboardMinuteFormatter,
   formatDashboardTimestamp,
   formatInteger,
-} from "@/features/dashboard/format"
-import type { DashboardRange, DashboardSeriesPoint } from "@/features/dashboard/types"
-import { useI18n } from "@/lib/i18n"
-import { m } from "@/paraglide/messages.js"
+} from "@/features/dashboard/format";
+import type {
+  DashboardRange,
+  DashboardSeriesPoint,
+} from "@/features/dashboard/types";
+import { useI18n } from "@/lib/i18n";
+import { m } from "@/paraglide/messages.js";
 
 type ChartPoint = {
-  tsMs: number
-  inputTokens: number
-  outputTokens: number
-  cachedTokens: number
-  totalTokens: number
-}
+  tsMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  totalTokens: number;
+};
 
 const chartConfig = {
   inputTokens: {
@@ -51,86 +49,98 @@ const chartConfig = {
     label: m.dashboard_chart_total_tokens(),
     color: "var(--chart-4)",
   },
-} satisfies ChartConfig
+} satisfies ChartConfig;
 
 type ChartAreaInteractiveProps = {
-  series: DashboardSeriesPoint[]
-  range: DashboardRange
-}
+  series: DashboardSeriesPoint[];
+  range: DashboardRange;
+};
 
 type ChartBodyProps = {
-  data: ChartPoint[]
-  timeFormatter: Intl.DateTimeFormat
-}
+  data: ChartPoint[];
+  timeFormatter: Intl.DateTimeFormat;
+};
 
-const FALLBACK_RANGE_DAYS = 7
-const DAY_MS = 24 * 60 * 60 * 1000
+const FALLBACK_RANGE_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null
+  return typeof value === "object" && value !== null;
 }
 
 function resolveTimestampMs(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
-    return value
+    return value;
   }
   if (typeof value === "string") {
-    const numeric = Number(value)
+    const numeric = Number(value);
     if (Number.isFinite(numeric)) {
-      return numeric
+      return numeric;
     }
-    const parsed = Date.parse(value)
+    const parsed = Date.parse(value);
     if (!Number.isNaN(parsed)) {
-      return parsed
+      return parsed;
     }
   }
-  return null
+  return null;
 }
 
 function resolveTooltipTimestamp(payload: unknown) {
   if (!Array.isArray(payload) || payload.length === 0) {
-    return null
+    return null;
   }
-  const first = payload[0]
+  const first = payload[0];
   if (!isRecord(first)) {
-    return null
+    return null;
   }
-  const inner = first.payload
+  const inner = first.payload;
   if (!isRecord(inner)) {
-    return null
+    return null;
   }
   // Recharts tooltip label 可能缺失或被格式化，优先使用原始 payload 的时间戳。
-  return resolveTimestampMs(inner.tsMs)
+  return resolveTimestampMs(inner.tsMs);
 }
 
 function formatTick(value: unknown, formatter: Intl.DateTimeFormat) {
-  const tsMs = resolveTimestampMs(value)
+  const tsMs = resolveTimestampMs(value);
   if (tsMs === null) {
-    return "—"
+    return "—";
   }
-  return formatDashboardTimestamp(tsMs, formatter)
+  return formatDashboardTimestamp(tsMs, formatter);
 }
 
 function resolveRangeBounds(range: DashboardRange) {
-  const now = Date.now()
+  const now = Date.now();
   // range=all 时用最近 7 天生成 0 线的时间范围
-  const resolvedEnd = range.toTsMs ?? now
+  const resolvedEnd = range.toTsMs ?? now;
   const resolvedStart =
-    range.fromTsMs ?? resolvedEnd - FALLBACK_RANGE_DAYS * DAY_MS
-  const start = Math.min(resolvedStart, resolvedEnd)
-  const end = Math.max(resolvedStart, resolvedEnd)
+    range.fromTsMs ?? resolvedEnd - FALLBACK_RANGE_DAYS * DAY_MS;
+  const start = Math.min(resolvedStart, resolvedEnd);
+  const end = Math.max(resolvedStart, resolvedEnd);
   if (end <= start) {
-    return { start, end: start + 60 * 1000 }
+    return { start, end: start + 60 * 1000 };
   }
-  return { start, end }
+  return { start, end };
 }
 
 function buildZeroSeries(range: DashboardRange) {
-  const { start, end } = resolveRangeBounds(range)
+  const { start, end } = resolveRangeBounds(range);
   return [
-    { tsMs: start, inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0 },
-    { tsMs: end, inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0 },
-  ]
+    {
+      tsMs: start,
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      totalTokens: 0,
+    },
+    {
+      tsMs: end,
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      totalTokens: 0,
+    },
+  ];
 }
 
 function ChartHeader() {
@@ -140,12 +150,15 @@ function ChartHeader() {
         {m.dashboard_chart_title_usage_trend()}
       </CardTitle>
     </CardHeader>
-  )
+  );
 }
 
 function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
   return (
-    <ChartContainer config={chartConfig} className="aspect-auto h-[196px] w-full">
+    <ChartContainer
+      config={chartConfig}
+      className="aspect-auto h-[196px] w-full"
+    >
       <LineChart data={data}>
         <CartesianGrid vertical={false} />
         <XAxis
@@ -163,22 +176,30 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
             <ChartTooltipContent
               {...props}
               labelFormatter={(value, payload) =>
-                formatTick(resolveTooltipTimestamp(payload) ?? value, timeFormatter)
+                formatTick(
+                  resolveTooltipTimestamp(payload) ?? value,
+                  timeFormatter,
+                )
               }
               formatter={(value, name) => {
-                const label = chartConfig[name as keyof typeof chartConfig]?.label ?? name
+                const label =
+                  chartConfig[name as keyof typeof chartConfig]?.label ?? name;
                 return (
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="ml-auto font-medium">{formatInteger(Number(value))}</span>
+                    <span className="ml-auto font-medium">
+                      {formatInteger(Number(value))}
+                    </span>
                   </div>
-                )
+                );
               }}
               indicator="dot"
             />
           )}
         />
-        <ChartLegend content={<ChartLegendContent className="gap-3 pt-2 text-[12px]" />} />
+        <ChartLegend
+          content={<ChartLegendContent className="gap-3 pt-2 text-[12px]" />}
+        />
         <Line
           dataKey="inputTokens"
           type="monotone"
@@ -210,7 +231,7 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
         />
       </LineChart>
     </ChartContainer>
-  )
+  );
 }
 
 function ChartBody({ data, timeFormatter }: ChartBodyProps) {
@@ -218,35 +239,35 @@ function ChartBody({ data, timeFormatter }: ChartBodyProps) {
     <CardContent className="px-2 pb-3 pt-1 sm:px-4">
       <ChartCanvas data={data} timeFormatter={timeFormatter} />
     </CardContent>
-  )
+  );
 }
 
-export function ChartAreaInteractive({ series, range }: ChartAreaInteractiveProps) {
-  const { locale } = useI18n()
+export function ChartAreaInteractive({
+  series,
+  range,
+}: ChartAreaInteractiveProps) {
+  const { locale } = useI18n();
   const timeFormatter = React.useMemo(
     () => createDashboardMinuteFormatter(locale),
-    [locale]
-  )
-  const chartData = React.useMemo(
-    () => {
-      if (!series.length) {
-        return buildZeroSeries(range)
-      }
-      return series.map((item) => ({
-        tsMs: item.tsMs,
-        inputTokens: item.inputTokens,
-        outputTokens: item.outputTokens,
-        cachedTokens: item.cachedTokens,
-        totalTokens: item.totalTokens,
-      }))
-    },
-    [range, series]
-  )
+    [locale],
+  );
+  const chartData = React.useMemo(() => {
+    if (!series.length) {
+      return buildZeroSeries(range);
+    }
+    return series.map((item) => ({
+      tsMs: item.tsMs,
+      inputTokens: item.inputTokens,
+      outputTokens: item.outputTokens,
+      cachedTokens: item.cachedTokens,
+      totalTokens: item.totalTokens,
+    }));
+  }, [range, series]);
 
   return (
     <Card className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
       <ChartHeader />
       <ChartBody data={chartData} timeFormatter={timeFormatter} />
     </Card>
-  )
+  );
 }

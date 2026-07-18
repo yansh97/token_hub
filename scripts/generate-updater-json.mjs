@@ -35,7 +35,9 @@ async function githubRequestJson(url, token) {
     },
   });
   if (!response.ok) {
-    throw new Error(`GitHub API ${response.status} ${response.statusText}: ${url}`);
+    throw new Error(
+      `GitHub API ${response.status} ${response.statusText}: ${url}`,
+    );
   }
   return response.json();
 }
@@ -50,7 +52,9 @@ async function githubRequestText(url, token, accept) {
     },
   });
   if (!response.ok) {
-    throw new Error(`GitHub API ${response.status} ${response.statusText}: ${url}`);
+    throw new Error(
+      `GitHub API ${response.status} ${response.statusText}: ${url}`,
+    );
   }
   const buffer = Buffer.from(await response.arrayBuffer());
   return buffer.toString("utf8");
@@ -185,11 +189,11 @@ async function main() {
     releaseId !== ""
       ? await githubRequestJson(
           `${apiBase}/repos/${owner}/${repo}/releases/${encodeURIComponent(releaseId)}`,
-          token
+          token,
         )
       : await githubRequestJson(
           `${apiBase}/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tagName)}`,
-          token
+          token,
         );
 
   const version = stripTagPrefix(release.tag_name || tagName);
@@ -201,7 +205,7 @@ async function main() {
 
   const assets = await githubRequestJson(
     `${apiBase}/repos/${owner}/${repo}/releases/${release.id}/assets?per_page=100`,
-    token
+    token,
   );
   const assetsByName = new Map(assets.map((asset) => [asset.name, asset]));
 
@@ -213,14 +217,17 @@ async function main() {
 
   for (const rule of rules) {
     const updaterAsset = findSingleAsset(assets, rule.assetPattern, rule.label);
-    const signatureAsset = resolveSignatureAsset(assetsByName, updaterAsset.name);
+    const signatureAsset = resolveSignatureAsset(
+      assetsByName,
+      updaterAsset.name,
+    );
 
     // 使用 API 下载 .sig（避免 browser_download_url 的重定向/权限差异）。
     const signature = (
       await githubRequestText(
         `${apiBase}/repos/${owner}/${repo}/releases/assets/${signatureAsset.id}`,
         token,
-        "application/octet-stream"
+        "application/octet-stream",
       )
     ).trimEnd();
 
@@ -264,20 +271,23 @@ async function main() {
   // 删除旧 latest.json（如果存在），再上传新版本，避免同名冲突。
   const existing = assets.find((asset) => asset.name === "latest.json");
   if (existing) {
-    await fetch(`${apiBase}/repos/${owner}/${repo}/releases/assets/${existing.id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "User-Agent": "token-proxy-updater-json",
-        "X-GitHub-Api-Version": "2022-11-28",
+    await fetch(
+      `${apiBase}/repos/${owner}/${repo}/releases/assets/${existing.id}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "User-Agent": "token-proxy-updater-json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
       },
-    });
+    );
   }
 
   const uploadUrl = String(release.upload_url || "").replace(
     "{?name,label}",
-    `?name=${encodeURIComponent("latest.json")}`
+    `?name=${encodeURIComponent("latest.json")}`,
   );
   if (!uploadUrl.startsWith("http")) {
     throw new Error("Invalid release.upload_url");
@@ -298,7 +308,7 @@ async function main() {
   });
   if (!uploadResponse.ok) {
     throw new Error(
-      `Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`
+      `Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`,
     );
   }
 

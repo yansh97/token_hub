@@ -51,7 +51,9 @@ describe("codex/use-codex-accounts", () => {
         status: "active",
       },
     ]);
-    apiMocks.refreshCodexAccount.mockRejectedValue(new Error("Codex 登录已失效，请重新登录该账户。"));
+    apiMocks.refreshCodexAccount.mockRejectedValue(
+      new Error("Codex 登录已失效，请重新登录该账户。"),
+    );
 
     const { result } = renderHook(() => useCodexAccounts());
 
@@ -61,7 +63,7 @@ describe("codex/use-codex-accounts", () => {
 
     await act(async () => {
       await expect(result.current.refreshAccount("codex-1")).rejects.toThrow(
-        "Codex 登录已失效，请重新登录该账户。"
+        "Codex 登录已失效，请重新登录该账户。",
       );
     });
 
@@ -81,7 +83,9 @@ describe("codex/use-codex-accounts", () => {
     const { result } = renderHook(() => useCodexAccounts({ autoLoad: false }));
 
     await act(async () => {
-      await expect(result.current.importFile("/tmp/codex-account.json")).resolves.toEqual([
+      await expect(
+        result.current.importFile("/tmp/codex-account.json"),
+      ).resolves.toEqual([
         {
           account_id: "codex-1",
           email: "bob@example.com",
@@ -91,7 +95,9 @@ describe("codex/use-codex-accounts", () => {
       ]);
     });
 
-    expect(apiMocks.importCodexFile).toHaveBeenCalledWith("/tmp/codex-account.json");
+    expect(apiMocks.importCodexFile).toHaveBeenCalledWith(
+      "/tmp/codex-account.json",
+    );
     expect(apiMocks.listCodexAccounts).not.toHaveBeenCalled();
   });
 
@@ -108,7 +114,9 @@ describe("codex/use-codex-accounts", () => {
     const { result } = renderHook(() => useCodexAccounts({ autoLoad: false }));
 
     await act(async () => {
-      await expect(result.current.importText("{\"access_token\":\"token\"}")).resolves.toEqual([
+      await expect(
+        result.current.importText('{"access_token":"token"}'),
+      ).resolves.toEqual([
         {
           account_id: "codex-1",
           email: "bob@example.com",
@@ -118,7 +126,9 @@ describe("codex/use-codex-accounts", () => {
       ]);
     });
 
-    expect(apiMocks.importCodexText).toHaveBeenCalledWith("{\"access_token\":\"token\"}");
+    expect(apiMocks.importCodexText).toHaveBeenCalledWith(
+      '{"access_token":"token"}',
+    );
     expect(apiMocks.listCodexAccounts).not.toHaveBeenCalled();
   });
 
@@ -138,6 +148,9 @@ describe("codex/use-codex-accounts", () => {
       await result.current.importRefreshTokens("rt-one", "mobile");
     });
 
-    expect(apiMocks.importCodexRefreshTokens).toHaveBeenCalledWith("rt-one", "mobile");
+    expect(apiMocks.importCodexRefreshTokens).toHaveBeenCalledWith(
+      "rt-one",
+      "mobile",
+    );
   });
 });

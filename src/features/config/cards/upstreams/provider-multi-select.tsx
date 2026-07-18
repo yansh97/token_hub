@@ -33,7 +33,10 @@ function normalizeProviders(values: readonly string[]) {
   return output;
 }
 
-function orderProviders(values: readonly string[], providerOptions: readonly string[]) {
+function orderProviders(
+  values: readonly string[],
+  providerOptions: readonly string[],
+) {
   const index = new Map<string, number>();
   providerOptions.forEach((value, idx) => index.set(value, idx));
   return [...values].sort((left, right) => {
@@ -89,10 +92,16 @@ export function ProviderMultiSelect({
           disabled={disabled}
         >
           <span className="truncate">{label}</span>
-          <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
+          <ChevronDown
+            className="size-4 text-muted-foreground"
+            aria-hidden="true"
+          />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+      <DropdownMenuContent
+        align="start"
+        className="w-[var(--radix-dropdown-menu-trigger-width)]"
+      >
         {providerOptions.map((option) => {
           const checked = selected.includes(option);
           return (
@@ -102,7 +111,14 @@ export function ProviderMultiSelect({
               onCheckedChange={(nextChecked) =>
                 disabled
                   ? undefined
-                  : onChange(toggleProvider(selected, providerOptions, option, nextChecked === true))
+                  : onChange(
+                      toggleProvider(
+                        selected,
+                        providerOptions,
+                        option,
+                        nextChecked === true,
+                      ),
+                    )
               }
             >
               {option}

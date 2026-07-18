@@ -577,14 +577,7 @@ async fn apply_same_upstream_retries(
     let mut used = 0u32;
     loop {
         let is_retryable = matches!(current, AttemptOutcome::Retryable { .. });
-        if apply_group_attempt_outcome(
-            state,
-            provider,
-            upstream,
-            result,
-            current,
-            cooldown_scope,
-        ) {
+        if apply_group_attempt_outcome(state, provider, upstream, result, current, cooldown_scope) {
             return true;
         }
         if !is_retryable || used >= max_retries {

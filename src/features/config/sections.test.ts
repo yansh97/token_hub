@@ -15,7 +15,9 @@ describe("config/sections", () => {
 
   it("falls back to default section for invalid pathname", () => {
     expect(getSectionIdFromPathname("/config")).toBe(DEFAULT_CONFIG_SECTION);
-    expect(getSectionIdFromPathname("/config/unknown")).toBe(DEFAULT_CONFIG_SECTION);
+    expect(getSectionIdFromPathname("/config/unknown")).toBe(
+      DEFAULT_CONFIG_SECTION,
+    );
     expect(getSectionIdFromPathname("/other")).toBe(DEFAULT_CONFIG_SECTION);
   });
 });

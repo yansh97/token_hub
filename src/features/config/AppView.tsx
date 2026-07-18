@@ -68,7 +68,7 @@ type AppViewProps = {
   onRemoveUpstream: (index: number) => void;
   onChangeUpstream: (
     index: number,
-    patch: Partial<ConfigForm["upstreams"][number]>
+    patch: Partial<ConfigForm["upstreams"][number]>,
   ) => void;
   onSave: () => void;
   onReload: () => void;
@@ -113,7 +113,12 @@ function ConfigToolbar({
         {isDirty ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button type="button" variant="outline" size="icon" disabled={!canReload}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!canReload}
+              >
                 <RefreshCw
                   className={isLoading ? "animate-spin" : undefined}
                   aria-hidden="true"
@@ -123,7 +128,9 @@ function ConfigToolbar({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{m.config_file_discard_title()}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {m.config_file_discard_title()}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   {m.config_file_discard_description()}
                 </AlertDialogDescription>
@@ -337,7 +344,7 @@ export function AppView(props: AppViewProps) {
   const { activeSectionId, ...viewProps } = props;
   const sectionMeta = useMemo(
     () => findSection(activeSectionId),
-    [activeSectionId]
+    [activeSectionId],
   );
   const proxyService = toProxyServiceViewProps(props);
 

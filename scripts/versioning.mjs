@@ -59,8 +59,9 @@ function getCurrentVersion() {
 }
 
 function getTags(pattern) {
-  const output = execSync(`git tag --list "${pattern}"`, { encoding: "utf8" })
-    .trim();
+  const output = execSync(`git tag --list "${pattern}"`, {
+    encoding: "utf8",
+  }).trim();
   if (!output) return [];
   return output.split(/\r?\n/).filter(Boolean);
 }
@@ -80,7 +81,7 @@ function computeNextPrerelease(nextPatch) {
   const next = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
   if (next > 65535) {
     throw new Error(
-      "Prerelease identifier must be numeric-only and <= 65535 for MSI targets."
+      "Prerelease identifier must be numeric-only and <= 65535 for MSI targets.",
     );
   }
   const version = `${nextPatch}-${next}`;
@@ -185,7 +186,7 @@ function assertValidReleaseVersion(version) {
   const nextCore = parseCoreVersion(version);
   if (compareCore(nextCore, currentCore) <= 0) {
     throw new Error(
-      `Release version must be greater than ${currentCore.major}.${currentCore.minor}.${currentCore.patch}`
+      `Release version must be greater than ${currentCore.major}.${currentCore.minor}.${currentCore.patch}`,
     );
   }
   const existingTags = getTags(`v${version}`);

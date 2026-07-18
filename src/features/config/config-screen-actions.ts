@@ -106,10 +106,13 @@ async function applyAutoStartChange({
   }
 }
 
-
 type LoadConfigArgs = Pick<
   ConfigActionsArgs,
-  "setConfigPath" | "setForm" | "setLastConfig" | "setStatus" | "setStatusMessage"
+  | "setConfigPath"
+  | "setForm"
+  | "setLastConfig"
+  | "setStatus"
+  | "setStatusMessage"
 > & {
   setConfigExtras: (extras: Record<string, unknown>) => void;
   setSavedAt: (value: string) => void;
@@ -312,7 +315,7 @@ function useLoadConfigAction({
       setAutoStartBaseline,
       setAutoStartStatus,
       setAutoStartMessage,
-    ]
+    ],
   );
 }
 
@@ -387,7 +390,7 @@ function useSaveConfigAction({
       setAutoStartMessage,
       setProxyServiceStatus,
       setProxyServiceMessage,
-    ]
+    ],
   );
 }
 

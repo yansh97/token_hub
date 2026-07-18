@@ -21,10 +21,21 @@ type MetricCardProps = {
   className?: string;
 };
 
-function MetricCard({ label, value, badge, detail, className }: MetricCardProps) {
+function MetricCard({
+  label,
+  value,
+  badge,
+  detail,
+  className,
+}: MetricCardProps) {
   return (
-    <article className={`flex min-h-[112px] min-w-0 flex-col gap-2 px-4 py-4 ${className ?? ""}`}>
-      <div data-slot="card-description" className="text-xs font-medium text-muted-foreground">
+    <article
+      className={`flex min-h-[112px] min-w-0 flex-col gap-2 px-4 py-4 ${className ?? ""}`}
+    >
+      <div
+        data-slot="card-description"
+        className="text-xs font-medium text-muted-foreground"
+      >
         {label}
       </div>
       <div className="flex min-w-0 items-center gap-2.5">
@@ -81,7 +92,10 @@ export function SectionCards({ summary }: SectionCardsProps) {
         label={m.dashboard_stat_requests()}
         value={formatCompact(totalRequests)}
         badge={
-          <Badge variant="outline" className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium">
+          <Badge
+            variant="outline"
+            className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium"
+          >
             {m.dashboard_hint_success_rate({
               rate: PERCENT_FORMAT.format(successRate),
             })}
@@ -103,7 +117,10 @@ export function SectionCards({ summary }: SectionCardsProps) {
         value={formatCompact(totalTokens)}
         badge={
           cacheReadTokens ? (
-            <Badge variant="outline" className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium">
+            <Badge
+              variant="outline"
+              className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium"
+            >
               {m.dashboard_cache_hit_rate({
                 rate: PERCENT_FORMAT.format(cacheHitRate),
               })}

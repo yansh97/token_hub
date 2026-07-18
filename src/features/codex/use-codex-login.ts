@@ -78,8 +78,14 @@ function startLoginPolling(
   };
 }
 
-function normalizeIntervalSeconds(intervalSeconds: number | null | undefined, fallback: number) {
-  if (typeof intervalSeconds !== "number" || !Number.isFinite(intervalSeconds)) {
+function normalizeIntervalSeconds(
+  intervalSeconds: number | null | undefined,
+  fallback: number,
+) {
+  if (
+    typeof intervalSeconds !== "number" ||
+    !Number.isFinite(intervalSeconds)
+  ) {
     return fallback;
   }
   return Math.max(1, intervalSeconds);
@@ -102,7 +108,10 @@ export function useCodexLogin({ onRefresh, onSelect }: UseCodexLoginOptions) {
     clearPoller();
   }, [clearPoller]);
 
-  const isCurrentLoginRun = useCallback((loginRun: number) => loginRunSeq.current === loginRun, []);
+  const isCurrentLoginRun = useCallback(
+    (loginRun: number) => loginRunSeq.current === loginRun,
+    [],
+  );
 
   const resetLogin = useCallback(() => {
     // 关闭添加账户弹窗时丢弃旧授权轮次，防止晚到回调恢复“正在授权”状态。
@@ -170,7 +179,10 @@ export function useCodexLogin({ onRefresh, onSelect }: UseCodexLoginOptions) {
       if (start.login_url) {
         void openUrl(start.login_url);
       }
-      const intervalSeconds = normalizeIntervalSeconds(start.interval_seconds, 2);
+      const intervalSeconds = normalizeIntervalSeconds(
+        start.interval_seconds,
+        2,
+      );
       startPolling(start.state, intervalSeconds, loginRun);
     } catch (err) {
       if (!isCurrentLoginRun(loginRun)) {

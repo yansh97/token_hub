@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -109,7 +115,7 @@ const PROXY_STATUS: ProxyServiceStatus = {
 
 function createSaveResult(
   status: ProxyServiceStatus = PROXY_STATUS,
-  applyError: string | null = null
+  applyError: string | null = null,
 ): SaveProxyConfigResult {
   return {
     status,
@@ -153,7 +159,7 @@ describe("config/ConfigScreen auto save", () => {
     render(
       <I18nProvider>
         <ConfigScreen activeSectionId="core" />
-      </I18nProvider>
+      </I18nProvider>,
     );
 
     const hostInput = screen.getByLabelText("host");
@@ -165,13 +171,17 @@ describe("config/ConfigScreen auto save", () => {
     fireEvent.change(hostInput, { target: { value: "10.0.0.3" } });
 
     expect(
-      invokeMock.mock.calls.filter(([command]) => command === "save_proxy_config")
+      invokeMock.mock.calls.filter(
+        ([command]) => command === "save_proxy_config",
+      ),
     ).toHaveLength(0);
 
     await waitForAutoSaveWindow();
 
     await waitFor(() => {
-      const writeCalls = invokeMock.mock.calls.filter(([command]) => command === "save_proxy_config");
+      const writeCalls = invokeMock.mock.calls.filter(
+        ([command]) => command === "save_proxy_config",
+      );
       expect(writeCalls).toHaveLength(1);
       expect(writeCalls[0]?.[1]).toMatchObject({
         config: expect.objectContaining({ host: "10.0.0.3" }),
@@ -199,7 +209,7 @@ describe("config/ConfigScreen auto save", () => {
     render(
       <I18nProvider>
         <ConfigScreen activeSectionId="core" />
-      </I18nProvider>
+      </I18nProvider>,
     );
 
     const hostInput = screen.getByLabelText("host");
@@ -212,14 +222,18 @@ describe("config/ConfigScreen auto save", () => {
 
     await waitFor(() => {
       expect(
-        invokeMock.mock.calls.filter(([command]) => command === "save_proxy_config")
+        invokeMock.mock.calls.filter(
+          ([command]) => command === "save_proxy_config",
+        ),
       ).toHaveLength(1);
     });
 
     await waitForAutoSaveWindow();
 
     expect(
-      invokeMock.mock.calls.filter(([command]) => command === "save_proxy_config")
+      invokeMock.mock.calls.filter(
+        ([command]) => command === "save_proxy_config",
+      ),
     ).toHaveLength(1);
     expect(screen.getByTestId("status-message")).toHaveTextContent("disk full");
   });
@@ -231,13 +245,17 @@ describe("config/ConfigScreen auto save", () => {
       app_proxy_url: "socks5h://127.0.0.1:7891",
     };
 
-    let resolveReadConfig: ((value: { path: string; config: typeof config }) => void) | null = null;
+    let resolveReadConfig:
+      | ((value: { path: string; config: typeof config }) => void)
+      | null = null;
 
     invokeMock.mockImplementation(async (command) => {
       if (command === "read_proxy_config") {
-        return await new Promise<{ path: string; config: typeof config }>((resolve) => {
-          resolveReadConfig = resolve;
-        });
+        return await new Promise<{ path: string; config: typeof config }>(
+          (resolve) => {
+            resolveReadConfig = resolve;
+          },
+        );
       }
       if (command === "proxy_status") {
         return PROXY_STATUS;
@@ -248,12 +266,14 @@ describe("config/ConfigScreen auto save", () => {
     render(
       <I18nProvider>
         <ConfigScreen activeSectionId="core" />
-      </I18nProvider>
+      </I18nProvider>,
     );
 
     await waitFor(() => {
       expect(
-        invokeMock.mock.calls.filter(([command]) => command === "read_proxy_config")
+        invokeMock.mock.calls.filter(
+          ([command]) => command === "read_proxy_config",
+        ),
       ).toHaveLength(1);
     });
 
@@ -263,7 +283,9 @@ describe("config/ConfigScreen auto save", () => {
     resolveReadConfig!({ path: "/tmp/config.json", config });
 
     await waitFor(() => {
-      expect(setAppProxyUrlMock).toHaveBeenCalledWith("socks5h://127.0.0.1:7891");
+      expect(setAppProxyUrlMock).toHaveBeenCalledWith(
+        "socks5h://127.0.0.1:7891",
+      );
     });
   });
 
@@ -287,7 +309,7 @@ describe("config/ConfigScreen auto save", () => {
     render(
       <I18nProvider>
         <ConfigScreen activeSectionId="core" />
-      </I18nProvider>
+      </I18nProvider>,
     );
 
     const hostInput = screen.getByLabelText("host");
@@ -300,7 +322,9 @@ describe("config/ConfigScreen auto save", () => {
 
     await waitFor(() => {
       expect(
-        invokeMock.mock.calls.filter(([command]) => command === "save_proxy_config")
+        invokeMock.mock.calls.filter(
+          ([command]) => command === "save_proxy_config",
+        ),
       ).toHaveLength(1);
     });
 
@@ -308,7 +332,9 @@ describe("config/ConfigScreen auto save", () => {
 
     await waitFor(() => {
       expect(
-        invokeMock.mock.calls.filter(([command]) => command === "save_proxy_config")
+        invokeMock.mock.calls.filter(
+          ([command]) => command === "save_proxy_config",
+        ),
       ).toHaveLength(2);
     });
   });
@@ -337,7 +363,7 @@ describe("config/ConfigScreen auto save", () => {
     render(
       <I18nProvider>
         <ConfigScreen activeSectionId="core" />
-      </I18nProvider>
+      </I18nProvider>,
     );
 
     const hostInput = screen.getByLabelText("host");
@@ -371,7 +397,7 @@ describe("config/ConfigScreen auto save", () => {
             addr: null,
             last_error: "Failed to bind 127.0.0.1:9300",
           },
-          "Failed to bind 127.0.0.1:9300"
+          "Failed to bind 127.0.0.1:9300",
         );
       }
       throw new Error(`unexpected command: ${command}`);
@@ -380,7 +406,7 @@ describe("config/ConfigScreen auto save", () => {
     render(
       <I18nProvider>
         <ConfigScreen activeSectionId="core" />
-      </I18nProvider>
+      </I18nProvider>,
     );
 
     const hostInput = screen.getByLabelText("host");
@@ -393,7 +419,7 @@ describe("config/ConfigScreen auto save", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("status-message")).toHaveTextContent(
-        "Failed to bind 127.0.0.1:9300"
+        "Failed to bind 127.0.0.1:9300",
       );
     });
     expect(screen.getByTestId("dirty")).toHaveTextContent("false");

@@ -88,7 +88,9 @@ export function createEmptyProfileForm() {
   return emptyProfile();
 }
 
-export function toPricingRows(settings: ModelPricingSettings): ModelPricingFormRow[] {
+export function toPricingRows(
+  settings: ModelPricingSettings,
+): ModelPricingFormRow[] {
   return settings.models.map((model) => ({
     id: createRowId(),
     modelId: model.modelId,
@@ -157,7 +159,9 @@ export function toPricingSettingsInput(
       return standard;
     }
     const serviceTierProfiles: Record<string, ModelPricingProfile> = {};
-    for (const [rawTier, profileForm] of Object.entries(row.serviceTierProfiles)) {
+    for (const [rawTier, profileForm] of Object.entries(
+      row.serviceTierProfiles,
+    )) {
       const tier = rawTier.trim().toLowerCase();
       if (!tier || serviceTierProfiles[tier]) {
         return { ok: false, message: m.model_pricing_error_service_tier() };
@@ -223,14 +227,20 @@ function parseProfile(
 
 function parseLongContext(
   form: LongContextPricingForm,
-): { ok: true; value: LongContextPricing | null } | { ok: false; message: string } {
+):
+  | { ok: true; value: LongContextPricing | null }
+  | { ok: false; message: string } {
   if (!form.enabled) {
     return { ok: true, value: null };
   }
   const threshold = parsePositiveInteger(form.threshold);
   const inputMultiplierScaled = parseScaled(form.inputMultiplier);
   const outputMultiplierScaled = parseScaled(form.outputMultiplier);
-  if (threshold === null || inputMultiplierScaled === null || outputMultiplierScaled === null) {
+  if (
+    threshold === null ||
+    inputMultiplierScaled === null ||
+    outputMultiplierScaled === null
+  ) {
     return { ok: false, message: m.model_pricing_error_threshold() };
   }
   return {
@@ -281,7 +291,9 @@ function parseScaled(value: string) {
     if (parsed.lte(0)) {
       return null;
     }
-    const scaled = parsed.times(PRICE_MULTIPLIER_SCALE_BIG).round(0, Big.roundHalfUp);
+    const scaled = parsed
+      .times(PRICE_MULTIPLIER_SCALE_BIG)
+      .round(0, Big.roundHalfUp);
     return scaled.gt(Number.MAX_SAFE_INTEGER) ? null : scaled.toNumber();
   } catch {
     return null;

@@ -42,10 +42,13 @@ export function useCodexAccounts(options?: UseCodexAccountsOptions) {
     }
   }, []);
 
-  const logout = useCallback(async (accountId: string) => {
-    await logoutCodexAccount(accountId);
-    await refresh();
-  }, [refresh]);
+  const logout = useCallback(
+    async (accountId: string) => {
+      await logoutCodexAccount(accountId);
+      await refresh();
+    },
+    [refresh],
+  );
 
   const refreshAccount = useCallback(async (accountId: string) => {
     setLoading(true);
@@ -59,77 +62,97 @@ export function useCodexAccounts(options?: UseCodexAccountsOptions) {
     }
   }, []);
 
-  const setAutoRefresh = useCallback(async (accountId: string, enabled: boolean) => {
-    setLoading(true);
-    try {
-      const updated = await setCodexAutoRefresh(accountId, enabled);
-      setAccounts((prev) =>
-        prev.map((item) => (item.account_id === accountId ? { ...item, ...updated } : item))
-      );
-      setError("");
-      return updated;
-    } catch (err) {
-      const message = parseError(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setAutoRefresh = useCallback(
+    async (accountId: string, enabled: boolean) => {
+      setLoading(true);
+      try {
+        const updated = await setCodexAutoRefresh(accountId, enabled);
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.account_id === accountId ? { ...item, ...updated } : item,
+          ),
+        );
+        setError("");
+        return updated;
+      } catch (err) {
+        const message = parseError(err);
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
-  const setProxyUrl = useCallback(async (accountId: string, proxyUrl: string | null) => {
-    setLoading(true);
-    try {
-      const updated = await setCodexProxyUrl(accountId, proxyUrl);
-      setAccounts((prev) =>
-        prev.map((item) => (item.account_id === accountId ? { ...item, ...updated } : item))
-      );
-      setError("");
-      return updated;
-    } catch (err) {
-      const message = parseError(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setProxyUrl = useCallback(
+    async (accountId: string, proxyUrl: string | null) => {
+      setLoading(true);
+      try {
+        const updated = await setCodexProxyUrl(accountId, proxyUrl);
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.account_id === accountId ? { ...item, ...updated } : item,
+          ),
+        );
+        setError("");
+        return updated;
+      } catch (err) {
+        const message = parseError(err);
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
-  const setPriority = useCallback(async (accountId: string, priority: number) => {
-    setLoading(true);
-    try {
-      const updated = await setCodexPriority(accountId, priority);
-      setAccounts((prev) =>
-        prev.map((item) => (item.account_id === accountId ? { ...item, ...updated } : item))
-      );
-      setError("");
-      return updated;
-    } catch (err) {
-      const message = parseError(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setPriority = useCallback(
+    async (accountId: string, priority: number) => {
+      setLoading(true);
+      try {
+        const updated = await setCodexPriority(accountId, priority);
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.account_id === accountId ? { ...item, ...updated } : item,
+          ),
+        );
+        setError("");
+        return updated;
+      } catch (err) {
+        const message = parseError(err);
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
-  const setStatus = useCallback(async (accountId: string, status: "active" | "disabled") => {
-    setLoading(true);
-    try {
-      const updated = await setCodexStatus(accountId, status);
-      setAccounts((prev) =>
-        prev.map((item) => (item.account_id === accountId ? { ...item, ...updated } : item))
-      );
-      setError("");
-      return updated;
-    } catch (err) {
-      const message = parseError(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setStatus = useCallback(
+    async (accountId: string, status: "active" | "disabled") => {
+      setLoading(true);
+      try {
+        const updated = await setCodexStatus(accountId, status);
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.account_id === accountId ? { ...item, ...updated } : item,
+          ),
+        );
+        setError("");
+        return updated;
+      } catch (err) {
+        const message = parseError(err);
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   const importFile = useCallback(async (path: string) => {
     setLoading(true);
@@ -176,7 +199,7 @@ export function useCodexAccounts(options?: UseCodexAccountsOptions) {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   const refreshQuotaCache = useCallback(async (accountIds?: string[]) => {

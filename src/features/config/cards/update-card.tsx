@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { AlertCircle } from "lucide-react";
 
@@ -96,11 +91,17 @@ type UpdateStatusRowProps = {
   lastCheckedAt: string;
 };
 
-function UpdateStatusRow({ currentVersion, badge, lastCheckedAt }: UpdateStatusRowProps) {
+function UpdateStatusRow({
+  currentVersion,
+  badge,
+  lastCheckedAt,
+}: UpdateStatusRowProps) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-muted-foreground">{m.update_current_version_label()}</span>
+        <span className="text-muted-foreground">
+          {m.update_current_version_label()}
+        </span>
         <span className="font-mono text-xs text-foreground/80">
           {currentVersion || "--"}
         </span>
@@ -129,8 +130,12 @@ function UpdateDetails({ status, updateInfo }: UpdateDetailsProps) {
   return (
     <div className="space-y-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground">{m.update_latest_version_label()}</span>
-        <span className="font-mono text-xs text-foreground/80">{updateInfo.version}</span>
+        <span className="text-muted-foreground">
+          {m.update_latest_version_label()}
+        </span>
+        <span className="font-mono text-xs text-foreground/80">
+          {updateInfo.version}
+        </span>
       </div>
       {updateInfo.date ? (
         <div className="text-xs text-muted-foreground">
@@ -197,7 +202,12 @@ function UpdateActions({
 }: UpdateActionsProps) {
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" onClick={onCheck} disabled={!canCheck}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onCheck}
+        disabled={!canCheck}
+      >
         {m.update_check()}
       </Button>
       <Button type="button" onClick={onInstall} disabled={!canInstall}>
@@ -212,7 +222,10 @@ function UpdateActions({
   );
 }
 
-function resolveProgressLabel(status: UpdateStatus, downloadState: DownloadState) {
+function resolveProgressLabel(
+  status: UpdateStatus,
+  downloadState: DownloadState,
+) {
   if (status !== "downloading") {
     return "";
   }
@@ -230,10 +243,13 @@ function resolveProgressLabel(status: UpdateStatus, downloadState: DownloadState
 export function UpdateCard() {
   const currentVersion = useAppVersion();
   const { state, actions } = useUpdater();
-  const statusBadge = useMemo(() => resolveStatusBadge(state.status), [state.status]);
+  const statusBadge = useMemo(
+    () => resolveStatusBadge(state.status),
+    [state.status],
+  );
   const progressLabel = useMemo(
     () => resolveProgressLabel(state.status, state.downloadState),
-    [state.downloadState, state.status]
+    [state.downloadState, state.status],
   );
   const canCheck = canStartUpdateCheck(state.status);
   const canInstall = state.status === "available" && !!state.updateHandle;

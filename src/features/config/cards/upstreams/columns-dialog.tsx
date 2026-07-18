@@ -9,7 +9,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { UPSTREAM_COLUMNS } from "@/features/config/cards/upstreams/constants";
-import type { ColumnVisibility, UpstreamColumnId } from "@/features/config/cards/upstreams/types";
+import type {
+  ColumnVisibility,
+  UpstreamColumnId,
+} from "@/features/config/cards/upstreams/types";
 import { m } from "@/paraglide/messages.js";
 
 type ColumnsDialogProps = {
@@ -19,13 +22,20 @@ type ColumnsDialogProps = {
   onToggleColumn: (columnId: UpstreamColumnId) => void;
 };
 
-export function ColumnsDialog({ open, visibility, onOpenChange, onToggleColumn }: ColumnsDialogProps) {
+export function ColumnsDialog({
+  open,
+  visibility,
+  onOpenChange,
+  onToggleColumn,
+}: ColumnsDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{m.upstreams_columns_title()}</AlertDialogTitle>
-          <AlertDialogDescription>{m.upstreams_columns_description()}</AlertDialogDescription>
+          <AlertDialogDescription>
+            {m.upstreams_columns_description()}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="grid gap-3">
           {UPSTREAM_COLUMNS.map((column) => {

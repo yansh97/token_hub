@@ -12,7 +12,11 @@ import {
 } from "@tanstack/react-table";
 
 import { Badge } from "@/components/ui/badge";
-import { TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   createDashboardTimeFormatter,
   formatCompact,
@@ -77,7 +81,9 @@ function CellTooltip({ content, disabled, children }: CellTooltipProps) {
   );
 }
 
-function timeColumn(formatter: Intl.DateTimeFormat): ColumnDef<DashboardRequestItem> {
+function timeColumn(
+  formatter: Intl.DateTimeFormat,
+): ColumnDef<DashboardRequestItem> {
   return {
     id: "time",
     header: m.dashboard_table_time(),
@@ -86,7 +92,9 @@ function timeColumn(formatter: Intl.DateTimeFormat): ColumnDef<DashboardRequestI
       const clockTime = formatDashboardClockTime(row.original.tsMs);
       return (
         <CellTooltip content={timestamp}>
-          <span className="block truncate text-xs text-muted-foreground">{clockTime}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {clockTime}
+          </span>
         </CellTooltip>
       );
     },
@@ -99,7 +107,9 @@ function pathColumn(): ColumnDef<DashboardRequestItem> {
     header: m.dashboard_table_path(),
     cell: ({ row }) => (
       <CellTooltip content={row.original.path}>
-        <span className="block truncate font-medium text-foreground">{row.original.path}</span>
+        <span className="block truncate font-medium text-foreground">
+          {row.original.path}
+        </span>
       </CellTooltip>
     ),
   };
@@ -113,7 +123,9 @@ function ipColumn(): ColumnDef<DashboardRequestItem> {
       const clientIp = formatDashboardClientIp(row.original.clientIp);
       return (
         <CellTooltip content={clientIp}>
-          <span className="block truncate text-xs font-medium text-foreground">{clientIp}</span>
+          <span className="block truncate text-xs font-medium text-foreground">
+            {clientIp}
+          </span>
         </CellTooltip>
       );
     },
@@ -132,7 +144,9 @@ function providerColumn(): ColumnDef<DashboardRequestItem> {
       );
       return (
         <CellTooltip content={full}>
-          <span className="block truncate text-xs text-muted-foreground">{full}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {full}
+          </span>
         </CellTooltip>
       );
     },
@@ -144,14 +158,23 @@ function modelColumn(): ColumnDef<DashboardRequestItem> {
     id: "model",
     header: m.dashboard_table_model(),
     cell: ({ row }) => {
-      const primary = row.original.model?.trim() ? row.original.model : CELL_PLACEHOLDER;
-      const mapped = row.original.mappedModel?.trim() ? row.original.mappedModel : null;
+      const primary = row.original.model?.trim()
+        ? row.original.model
+        : CELL_PLACEHOLDER;
+      const mapped = row.original.mappedModel?.trim()
+        ? row.original.mappedModel
+        : null;
       const tooltipText = mapped ? `${primary}\n${mapped}` : primary;
 
       return (
-        <CellTooltip content={tooltipText} disabled={primary === CELL_PLACEHOLDER && !mapped}>
+        <CellTooltip
+          content={tooltipText}
+          disabled={primary === CELL_PLACEHOLDER && !mapped}
+        >
           <div className="flex min-w-0 flex-col items-start gap-0.5">
-            <span className="block w-full truncate font-medium text-foreground">{primary}</span>
+            <span className="block w-full truncate font-medium text-foreground">
+              {primary}
+            </span>
             {mapped ? (
               <span className="block w-full truncate text-xs font-normal text-muted-foreground">
                 {mapped}
@@ -168,7 +191,11 @@ function statusColumn(): ColumnDef<DashboardRequestItem> {
   return {
     id: "status",
     header: m.dashboard_table_status(),
-    cell: ({ row }) => <Badge variant={statusToVariant(row.original.status)}>{row.original.status}</Badge>,
+    cell: ({ row }) => (
+      <Badge variant={statusToVariant(row.original.status)}>
+        {row.original.status}
+      </Badge>
+    ),
   };
 }
 
@@ -178,19 +205,31 @@ function tokensColumn(): ColumnDef<DashboardRequestItem> {
     header: m.dashboard_table_tokens(),
     cell: ({ row }) => {
       const totalText =
-        row.original.totalTokens === null ? CELL_PLACEHOLDER : formatCompact(row.original.totalTokens);
+        row.original.totalTokens === null
+          ? CELL_PLACEHOLDER
+          : formatCompact(row.original.totalTokens);
       const outputText =
-        row.original.outputTokens === null ? CELL_PLACEHOLDER : formatCompact(row.original.outputTokens);
-      const cachedText =
-        row.original.cachedTokens ? formatCompact(row.original.cachedTokens) : null;
+        row.original.outputTokens === null
+          ? CELL_PLACEHOLDER
+          : formatCompact(row.original.outputTokens);
+      const cachedText = row.original.cachedTokens
+        ? formatCompact(row.original.cachedTokens)
+        : null;
       const tooltipParts = [
         `${m.dashboard_chart_total_tokens()} ${totalText}`,
         `${m.dashboard_chart_output_tokens()} ${outputText}`,
-        cachedText ? `${m.dashboard_chart_cached_tokens()} ${cachedText}` : null,
+        cachedText
+          ? `${m.dashboard_chart_cached_tokens()} ${cachedText}`
+          : null,
       ].filter((part): part is string => Boolean(part));
       const tooltipText = tooltipParts.join(" · ");
-      const secondaryParts = [outputText, cachedText].filter((part): part is string => Boolean(part));
-      const secondaryText = secondaryParts.length > 0 ? secondaryParts.join(" · ") : CELL_PLACEHOLDER;
+      const secondaryParts = [outputText, cachedText].filter(
+        (part): part is string => Boolean(part),
+      );
+      const secondaryText =
+        secondaryParts.length > 0
+          ? secondaryParts.join(" · ")
+          : CELL_PLACEHOLDER;
 
       return (
         <CellTooltip
@@ -254,7 +293,9 @@ function latencyColumn(): ColumnDef<DashboardRequestItem> {
     cell: ({ row }) => {
       const item = row.original;
       const latencyText = formatInteger(item.latencyMs);
-      const responseHeadersLatencyText = formatOptionalLatency(item.upstreamResponseHeadersMs);
+      const responseHeadersLatencyText = formatOptionalLatency(
+        item.upstreamResponseHeadersMs,
+      );
       const firstBodyChunkLatencyText = formatOptionalLatency(
         item.upstreamFirstBodyChunkMs ?? item.upstreamFirstByteMs,
       );
@@ -326,7 +367,11 @@ type RecentRequestsTableProps = {
   onSelectItem?: (item: DashboardRequestItem) => void;
 };
 
-function RecentRequestsHeader({ table }: { table: Table<DashboardRequestItem> }) {
+function RecentRequestsHeader({
+  table,
+}: {
+  table: Table<DashboardRequestItem>;
+}) {
   return (
     <div
       data-slot="recent-requests-table-header"
@@ -338,8 +383,13 @@ function RecentRequestsHeader({ table }: { table: Table<DashboardRequestItem> })
     >
       {table.getHeaderGroups().map((group) =>
         group.headers.map((header) => (
-          <div key={header.id} className={cn("px-3 py-2 font-medium", headerCellClass())}>
-            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+          <div
+            key={header.id}
+            className={cn("px-3 py-2 font-medium", headerCellClass())}
+          >
+            {header.isPlaceholder
+              ? null
+              : flexRender(header.column.columnDef.header, header.getContext())}
           </div>
         )),
       )}
@@ -347,7 +397,10 @@ function RecentRequestsHeader({ table }: { table: Table<DashboardRequestItem> })
   );
 }
 
-function useRecentRowVirtualizer(rows: Row<DashboardRequestItem>[], scrollKey: string) {
+function useRecentRowVirtualizer(
+  rows: Row<DashboardRequestItem>[],
+  scrollKey: string,
+) {
   "use no memo";
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -364,7 +417,11 @@ function useRecentRowVirtualizer(rows: Row<DashboardRequestItem>[], scrollKey: s
     scrollRef.current?.scrollTo({ top: 0 });
   }, [rowVirtualizer, scrollKey]);
 
-  return { scrollRef, rowVirtualizer, virtualRows: rowVirtualizer.getVirtualItems() };
+  return {
+    scrollRef,
+    rowVirtualizer,
+    virtualRows: rowVirtualizer.getVirtualItems(),
+  };
 }
 
 function RecentRequestsRows({
@@ -390,7 +447,7 @@ function RecentRequestsRows({
         className={cn(
           "absolute inset-x-0 grid justify-start items-center border-t border-border/60 bg-background/70 text-sm hover:bg-accent/30",
           GRID_COLS,
-          isInteractive && "cursor-pointer"
+          isInteractive && "cursor-pointer",
         )}
         style={{
           transform: `translateY(${virtualRow.start}px)`,
@@ -430,7 +487,10 @@ function RecentRequestsScrollArea({
   scrollKey: string;
   onSelectItem?: (item: DashboardRequestItem) => void;
 }) {
-  const { scrollRef, rowVirtualizer, virtualRows } = useRecentRowVirtualizer(rows, scrollKey);
+  const { scrollRef, rowVirtualizer, virtualRows } = useRecentRowVirtualizer(
+    rows,
+    scrollKey,
+  );
   const rowsHeight = rowVirtualizer.getTotalSize();
 
   return (
@@ -464,7 +524,11 @@ function RecentRequestsScrollArea({
   );
 }
 
-export function RecentRequestsTable({ items, scrollKey, onSelectItem }: RecentRequestsTableProps) {
+export function RecentRequestsTable({
+  items,
+  scrollKey,
+  onSelectItem,
+}: RecentRequestsTableProps) {
   "use no memo";
 
   const { locale } = useI18n();

@@ -1,7 +1,14 @@
-import { createNativeInboundFormatSet, removeInboundFormatsInSet } from "@/features/config/inbound-formats";
+import {
+  createNativeInboundFormatSet,
+  removeInboundFormatsInSet,
+} from "@/features/config/inbound-formats";
 import type { UpstreamForm } from "@/features/config/types";
 
-export const ACCOUNT_BACKED_PROVIDERS = ["kiro", "codex", "antigravity"] as const;
+export const ACCOUNT_BACKED_PROVIDERS = [
+  "kiro",
+  "codex",
+  "antigravity",
+] as const;
 
 export function isAccountBackedProvider(provider: string) {
   return ACCOUNT_BACKED_PROVIDERS.some((value) => value === provider);
@@ -11,12 +18,13 @@ export function isAccountBackedProviderSet(providers: readonly string[]) {
   return providers.length === 1 && providers.some(isAccountBackedProvider);
 }
 
-export function createCopiedUpstreamId(sourceId: string, upstreams: readonly UpstreamForm[]) {
+export function createCopiedUpstreamId(
+  sourceId: string,
+  upstreams: readonly UpstreamForm[],
+) {
   const base = sourceId.trim() || "upstream";
   const taken = new Set(
-    upstreams
-      .map((upstream) => upstream.id.trim())
-      .filter((id) => id),
+    upstreams.map((upstream) => upstream.id.trim()).filter((id) => id),
   );
 
   const prefix = `${base}-copy`;
@@ -74,7 +82,10 @@ export function normalizeProviders(values: readonly string[]) {
   return output;
 }
 
-export function providersEqual(left: readonly string[], right: readonly string[]) {
+export function providersEqual(
+  left: readonly string[],
+  right: readonly string[],
+) {
   if (left.length !== right.length) {
     return false;
   }
@@ -113,7 +124,10 @@ export function pruneConvertFromMap(
     if (!providerSet.has(provider)) {
       continue;
     }
-    const filtered = removeInboundFormatsInSet(formats, nativeFormatsInUpstream);
+    const filtered = removeInboundFormatsInSet(
+      formats,
+      nativeFormatsInUpstream,
+    );
     if (!filtered.length) {
       continue;
     }
@@ -147,7 +161,11 @@ export function resolveUpstreamIdForProviderChange(args: {
   if (!shouldAutoId) {
     return args.currentId;
   }
-  return createAutoUpstreamId(args.nextProviders, args.upstreams, args.editingIndex);
+  return createAutoUpstreamId(
+    args.nextProviders,
+    args.upstreams,
+    args.editingIndex,
+  );
 }
 
 export function cloneUpstreamDraft(upstream: UpstreamForm) {

@@ -48,10 +48,15 @@ export function LanguageSwitcher({ triggerClassName }: LanguageSwitcherProps) {
                   setLocale(option.value);
                 }
               }}
-              className={cn("flex items-center justify-between", isActive && "bg-accent")}
+              className={cn(
+                "flex items-center justify-between",
+                isActive && "bg-accent",
+              )}
             >
               <span>{option.label}</span>
-              {isActive ? <Check className="size-4" aria-hidden="true" /> : null}
+              {isActive ? (
+                <Check className="size-4" aria-hidden="true" />
+              ) : null}
             </DropdownMenuItem>
           );
         })}

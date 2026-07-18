@@ -4,7 +4,11 @@ import { CircleX, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type {
   HeaderOverrideForm,
   ModelMappingForm,
@@ -21,7 +25,12 @@ type EditorFieldProps = {
 };
 
 /** 单个字段：label 左侧（可带 tooltip），input 右侧 */
-export function EditorField({ label, htmlFor, tooltip, children }: EditorFieldProps) {
+export function EditorField({
+  label,
+  htmlFor,
+  tooltip,
+  children,
+}: EditorFieldProps) {
   const labelContent = (
     <span className="inline-flex items-center gap-1">
       {label}
@@ -55,12 +64,15 @@ type ModelMappingsEditorProps = {
   onChange: (next: ModelMappingForm[]) => void;
 };
 
-export function ModelMappingsEditor({ mappings, onChange }: ModelMappingsEditorProps) {
+export function ModelMappingsEditor({
+  mappings,
+  onChange,
+}: ModelMappingsEditorProps) {
   const handleUpdate = (index: number, patch: Partial<ModelMappingForm>) => {
     onChange(
       mappings.map((mapping, current) =>
-        current === index ? { ...mapping, ...patch } : mapping
-      )
+        current === index ? { ...mapping, ...patch } : mapping,
+      ),
     );
   };
 
@@ -107,10 +119,15 @@ type HeaderOverridesEditorProps = {
   onChange: (next: UpstreamForm["overrides"]["header"]) => void;
 };
 
-export function HeaderOverridesEditor({ overrides, onChange }: HeaderOverridesEditorProps) {
+export function HeaderOverridesEditor({
+  overrides,
+  onChange,
+}: HeaderOverridesEditorProps) {
   const handleUpdate = (index: number, patch: Partial<HeaderOverrideForm>) => {
     onChange(
-      overrides.map((item, current) => (current === index ? { ...item, ...patch } : item)),
+      overrides.map((item, current) =>
+        current === index ? { ...item, ...patch } : item,
+      ),
     );
   };
 
@@ -138,7 +155,9 @@ export function HeaderOverridesEditor({ overrides, onChange }: HeaderOverridesEd
           />
           <Input
             value={item.isNull ? "" : item.value}
-            onChange={(e) => handleUpdate(index, { value: e.target.value, isNull: false })}
+            onChange={(e) =>
+              handleUpdate(index, { value: e.target.value, isNull: false })
+            }
             placeholder={m.header_overrides_placeholder_value()}
             disabled={item.isNull}
           />

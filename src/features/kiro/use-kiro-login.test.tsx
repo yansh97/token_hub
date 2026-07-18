@@ -11,7 +11,8 @@ import type {
 
 const apiMocks = vi.hoisted(() => {
   const startKiroLogin = vi.fn<() => Promise<KiroLoginStartResponse>>();
-  const pollKiroLogin = vi.fn<(state: string) => Promise<KiroLoginPollResponse>>();
+  const pollKiroLogin =
+    vi.fn<(state: string) => Promise<KiroLoginPollResponse>>();
 
   return {
     startKiroLogin,
@@ -98,7 +99,7 @@ describe("kiro/use-kiro-login", () => {
     apiMocks.startKiroLogin.mockReturnValueOnce(
       new Promise<KiroLoginStartResponse>((resolve) => {
         resolveStart = resolve;
-      })
+      }),
     );
 
     const onRefresh = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -159,7 +160,7 @@ describe("kiro/use-kiro-login", () => {
     apiMocks.pollKiroLogin.mockReturnValueOnce(
       new Promise<KiroLoginPollResponse>((resolve) => {
         resolvePoll = resolve;
-      })
+      }),
     );
 
     const onRefresh = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -191,13 +192,15 @@ describe("kiro/use-kiro-login", () => {
 
   it("waits for the current poll before scheduling the next poll", async () => {
     vi.useFakeTimers();
-    let resolveFirstPoll: ((response: KiroLoginPollResponse) => void) | undefined;
+    let resolveFirstPoll:
+      | ((response: KiroLoginPollResponse) => void)
+      | undefined;
     apiMocks.startKiroLogin.mockResolvedValueOnce(LOGIN_START);
     apiMocks.pollKiroLogin
       .mockReturnValueOnce(
         new Promise<KiroLoginPollResponse>((resolve) => {
           resolveFirstPoll = resolve;
-        })
+        }),
       )
       .mockResolvedValue(LOGIN_PENDING);
 
@@ -236,18 +239,22 @@ describe("kiro/use-kiro-login", () => {
   });
 
   it("ignores an older start response after a newer login starts", async () => {
-    let resolveFirstStart: ((response: KiroLoginStartResponse) => void) | undefined;
-    let resolveSecondStart: ((response: KiroLoginStartResponse) => void) | undefined;
+    let resolveFirstStart:
+      | ((response: KiroLoginStartResponse) => void)
+      | undefined;
+    let resolveSecondStart:
+      | ((response: KiroLoginStartResponse) => void)
+      | undefined;
     apiMocks.startKiroLogin
       .mockReturnValueOnce(
         new Promise<KiroLoginStartResponse>((resolve) => {
           resolveFirstStart = resolve;
-        })
+        }),
       )
       .mockReturnValueOnce(
         new Promise<KiroLoginStartResponse>((resolve) => {
           resolveSecondStart = resolve;
-        })
+        }),
       );
 
     const onRefresh = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);

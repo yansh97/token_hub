@@ -55,28 +55,38 @@ describe("dashboard/format", () => {
   });
 
   it("keeps provider when it adds new information", () => {
-    expect(formatDashboardProviderLabel("primary", "openai", "team-account.json")).toBe(
-      "primary · openai · team-account.json"
-    );
+    expect(
+      formatDashboardProviderLabel("primary", "openai", "team-account.json"),
+    ).toBe("primary · openai · team-account.json");
   });
 
   it("omits provider when upstream or account already includes it", () => {
-    expect(formatDashboardProviderLabel("codex-default", "codex", "codex-joane.json")).toBe(
-      "codex-default · codex-joane.json"
-    );
-    expect(formatDashboardProviderLabel("fallback", "anthropic", "anthropic-main.json")).toBe(
-      "fallback · anthropic-main.json"
-    );
+    expect(
+      formatDashboardProviderLabel(
+        "codex-default",
+        "codex",
+        "codex-joane.json",
+      ),
+    ).toBe("codex-default · codex-joane.json");
+    expect(
+      formatDashboardProviderLabel(
+        "fallback",
+        "anthropic",
+        "anthropic-main.json",
+      ),
+    ).toBe("fallback · anthropic-main.json");
   });
 
   it("keeps provider when no account label is available", () => {
     expect(formatDashboardProviderLabel("fallback", "anthropic", null)).toBe(
-      "fallback · anthropic"
+      "fallback · anthropic",
     );
   });
 
   it("uses a dedicated label for local proxy request failures", () => {
     setLocale("en", { reload: false });
-    expect(formatDashboardProviderLabel("local", "proxy", null)).toBe("Local proxy");
+    expect(formatDashboardProviderLabel("local", "proxy", null)).toBe(
+      "Local proxy",
+    );
   });
 });

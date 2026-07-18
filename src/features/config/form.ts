@@ -15,7 +15,10 @@ import {
   isAccountBackedProvider,
   isAccountBackedProviderSet,
 } from "@/features/config/cards/upstreams/upstream-editor-helpers";
-import { createNativeInboundFormatSet, removeInboundFormatsInSet } from "@/features/config/inbound-formats";
+import {
+  createNativeInboundFormatSet,
+  removeInboundFormatsInSet,
+} from "@/features/config/inbound-formats";
 import { m } from "@/paraglide/messages.js";
 
 const DEFAULT_TRAY_TOKEN_RATE: TrayTokenRateConfig = {
@@ -50,7 +53,9 @@ const NON_NEGATIVE_INTEGER_PATTERN = /^\d+$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 let modelMappingCounter = 0;
 
-function isKiroPreferredEndpoint(value: string): value is KiroPreferredEndpoint {
+function isKiroPreferredEndpoint(
+  value: string,
+): value is KiroPreferredEndpoint {
   return value === "ide" || value === "cli";
 }
 
@@ -128,7 +133,9 @@ export const EMPTY_FORM: ConfigForm = {
   retryableFailureCooldownSecs: "15",
   sameUpstreamRetryCount: "1",
   codexSessionScopedCooldownEnabled: false,
-  streamFirstOutputTimeoutSecs: String(DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS),
+  streamFirstOutputTimeoutSecs: String(
+    DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS,
+  ),
   syncResponseTimeoutSecs: String(DEFAULT_SYNC_RESPONSE_TIMEOUT_SECS),
   trayTokenRate: { ...DEFAULT_TRAY_TOKEN_RATE },
   upstreamStrategy: {
@@ -198,7 +205,7 @@ export function extractConfigExtras(config: ProxyConfigFile) {
 
 export function mergeConfigExtras(
   config: ProxyConfigFileBase,
-  extras: Record<string, unknown>
+  extras: Record<string, unknown>,
 ) {
   return {
     ...extras,
@@ -216,12 +223,15 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
     modelListPrefix: config.model_list_prefix ?? false,
     kiroPreferredEndpoint: config.kiro_preferred_endpoint ?? "ide",
     logLevel: config.log_level ?? "silent",
-    retryableFailureCooldownSecs: String(config.retryable_failure_cooldown_secs ?? 15),
+    retryableFailureCooldownSecs: String(
+      config.retryable_failure_cooldown_secs ?? 15,
+    ),
     sameUpstreamRetryCount: String(config.same_upstream_retry_count ?? 1),
     codexSessionScopedCooldownEnabled:
       config.codex_session_scoped_cooldown_enabled ?? false,
     streamFirstOutputTimeoutSecs: String(
-      config.stream_first_output_timeout_secs ?? DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS,
+      config.stream_first_output_timeout_secs ??
+        DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS,
     ),
     syncResponseTimeoutSecs: String(
       config.sync_response_timeout_secs ?? DEFAULT_SYNC_RESPONSE_TIMEOUT_SECS,
@@ -232,18 +242,23 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
     upstreams: config.upstreams.map((upstream) => {
       const providers = upstream.providers ?? [];
       const omitNetworkFields = isAccountBackedProviderSet(providers);
-      const availableModels = normalizeAvailableModels(upstream.available_models ?? []);
+      const availableModels = normalizeAvailableModels(
+        upstream.available_models ?? [],
+      );
       return {
         id: upstream.id,
         providers,
         baseUrl: omitNetworkFields ? "" : upstream.base_url,
         apiKeys: joinListInput(upstream.api_keys),
-        filterPromptCacheRetention: upstream.filter_prompt_cache_retention ?? false,
+        filterPromptCacheRetention:
+          upstream.filter_prompt_cache_retention ?? false,
         filterSafetyIdentifier: upstream.filter_safety_identifier ?? false,
-        useChatCompletionsForResponses: upstream.use_chat_completions_for_responses ?? false,
-        rewriteDeveloperRoleToSystem: upstream.rewrite_developer_role_to_system ?? false,
+        useChatCompletionsForResponses:
+          upstream.use_chat_completions_for_responses ?? false,
+        rewriteDeveloperRoleToSystem:
+          upstream.rewrite_developer_role_to_system ?? false,
         preferredEndpoint: upstream.preferred_endpoint ?? "",
-        proxyUrl: omitNetworkFields ? "" : upstream.proxy_url ?? "",
+        proxyUrl: omitNetworkFields ? "" : (upstream.proxy_url ?? ""),
         priority: upstream.priority === null ? "" : String(upstream.priority),
         enabled: upstream.enabled,
         availableModelsMode: availableModels.length ? "selected" : "all",
@@ -265,13 +280,18 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
     app_proxy_url: form.appProxyUrl.trim() ? form.appProxyUrl.trim() : null,
     cors_enabled: form.corsEnabled,
     model_list_prefix: form.modelListPrefix,
-    kiro_preferred_endpoint: normalizeKiroPreferredEndpoint(form.kiroPreferredEndpoint),
+    kiro_preferred_endpoint: normalizeKiroPreferredEndpoint(
+      form.kiroPreferredEndpoint,
+    ),
     log_level: form.logLevel,
     retryable_failure_cooldown_secs: parseRetryableFailureCooldownSecs(
       form.retryableFailureCooldownSecs,
     ),
-    same_upstream_retry_count: parseSameUpstreamRetryCount(form.sameUpstreamRetryCount),
-    codex_session_scoped_cooldown_enabled: form.codexSessionScopedCooldownEnabled,
+    same_upstream_retry_count: parseSameUpstreamRetryCount(
+      form.sameUpstreamRetryCount,
+    ),
+    codex_session_scoped_cooldown_enabled:
+      form.codexSessionScopedCooldownEnabled,
     stream_first_output_timeout_secs: parseTimeoutSecs(
       form.streamFirstOutputTimeoutSecs,
       DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS,
@@ -296,9 +316,12 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
         codex_account_id: null,
         filter_prompt_cache_retention: upstream.filterPromptCacheRetention,
         filter_safety_identifier: upstream.filterSafetyIdentifier,
-        use_chat_completions_for_responses: upstream.useChatCompletionsForResponses,
+        use_chat_completions_for_responses:
+          upstream.useChatCompletionsForResponses,
         rewrite_developer_role_to_system: upstream.rewriteDeveloperRoleToSystem,
-        preferred_endpoint: normalizeKiroPreferredEndpoint(upstream.preferredEndpoint),
+        preferred_endpoint: normalizeKiroPreferredEndpoint(
+          upstream.preferredEndpoint,
+        ),
         proxy_url: omitNetworkFields
           ? null
           : upstream.proxyUrl.trim()
@@ -311,7 +334,10 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
             ? normalizeAvailableModels(upstream.availableModels)
             : undefined,
         model_mappings: toModelMappingPayload(upstream.modelMappings),
-        convert_from_map: normalizeConvertFromMap(upstream.convertFromMap, providers),
+        convert_from_map: normalizeConvertFromMap(
+          upstream.convertFromMap,
+          providers,
+        ),
         overrides: toOverridesPayload(upstream.overrides),
       };
     }),
@@ -338,10 +364,16 @@ export function syncAccountBackedUpstreams(
   });
 
   const next = [...filtered];
-  if (accountState.hasKiroAccount && !next.some((upstream) => isSingleProvider(upstream, "kiro"))) {
+  if (
+    accountState.hasKiroAccount &&
+    !next.some((upstream) => isSingleProvider(upstream, "kiro"))
+  ) {
     next.push(createAccountBackedUpstream("kiro"));
   }
-  if (accountState.hasCodexAccount && !next.some((upstream) => isSingleProvider(upstream, "codex"))) {
+  if (
+    accountState.hasCodexAccount &&
+    !next.some((upstream) => isSingleProvider(upstream, "codex"))
+  ) {
     next.push(createAccountBackedUpstream("codex"));
   }
   if (
@@ -420,12 +452,18 @@ export function validate(form: ConfigForm) {
       upstream.availableModelsMode === "selected" &&
       normalizeAvailableModels(upstream.availableModels).length === 0
     ) {
-      return { valid: false, message: m.error_upstream_available_models_required({ id }) };
+      return {
+        valid: false,
+        message: m.error_upstream_available_models_required({ id }),
+      };
     }
 
     const providers = normalizeProviders(upstream.providers);
     if (!providers.length) {
-      return { valid: false, message: m.error_upstream_provider_required({ id }) };
+      return {
+        valid: false,
+        message: m.error_upstream_provider_required({ id }),
+      };
     }
     const specialProviders = providers.filter(isAccountBackedProvider);
     if (specialProviders.length && providers.length > 1) {
@@ -434,25 +472,37 @@ export function validate(form: ConfigForm) {
         message: m.error_upstream_provider_required({ id }),
       };
     }
-    if (specialProviders.length && parseApiKeysInput(upstream.apiKeys).length > 1) {
+    if (
+      specialProviders.length &&
+      parseApiKeysInput(upstream.apiKeys).length > 1
+    ) {
       return {
         valid: false,
         message: m.error_upstream_multiple_api_keys_unsupported({ id }),
       };
     }
     if (providers.some((provider) => !SUPPORTED_PROVIDERS.has(provider))) {
-      return { valid: false, message: m.error_upstream_provider_required({ id }) };
+      return {
+        valid: false,
+        message: m.error_upstream_provider_required({ id }),
+      };
     }
 
     const canOmitBaseUrl = isAccountBackedProviderSet(providers);
     if (!canOmitBaseUrl && !upstream.baseUrl.trim()) {
-      return { valid: false, message: m.error_upstream_base_url_required({ id }) };
+      return {
+        valid: false,
+        message: m.error_upstream_base_url_required({ id }),
+      };
     }
 
     const convertFromMapProviders = Object.keys(upstream.convertFromMap);
     for (const provider of convertFromMapProviders) {
       if (!providers.includes(provider)) {
-        return { valid: false, message: m.error_upstream_provider_required({ id }) };
+        return {
+          valid: false,
+          message: m.error_upstream_provider_required({ id }),
+        };
       }
     }
 
@@ -460,20 +510,32 @@ export function validate(form: ConfigForm) {
     if (upstreamProxyUrl) {
       if (upstreamProxyUrl === APP_PROXY_URL_PLACEHOLDER) {
         if (!form.appProxyUrl.trim()) {
-          return { valid: false, message: m.error_upstream_proxy_url_requires_app({ id }) };
+          return {
+            valid: false,
+            message: m.error_upstream_proxy_url_requires_app({ id }),
+          };
         }
       } else if (!isValidProxyUrl(upstreamProxyUrl)) {
-        return { valid: false, message: m.error_upstream_proxy_url_invalid({ id }) };
+        return {
+          valid: false,
+          message: m.error_upstream_proxy_url_invalid({ id }),
+        };
       }
     }
     if (!isValidOptionalInt(upstream.priority)) {
-      return { valid: false, message: m.error_upstream_priority_integer({ id }) };
+      return {
+        valid: false,
+        message: m.error_upstream_priority_integer({ id }),
+      };
     }
     const mappingError = validateModelMappings(upstream.modelMappings, id);
     if (mappingError) {
       return { valid: false, message: mappingError };
     }
-    const headerOverrideError = validateHeaderOverrides(upstream.overrides.header, id);
+    const headerOverrideError = validateHeaderOverrides(
+      upstream.overrides.header,
+      id,
+    );
     if (headerOverrideError) {
       return { valid: false, message: headerOverrideError };
     }
@@ -500,13 +562,16 @@ function isValidProxyUrl(value: string) {
   }
 }
 
-function toModelMappingForm(mappings: Record<string, string>): ModelMappingForm[] {
+function toModelMappingForm(
+  mappings: Record<string, string>,
+): ModelMappingForm[] {
   return Object.entries(mappings).map(([pattern, target]) =>
     createModelMapping(pattern, target),
   );
 }
 
-type HeaderOverrideForm = ConfigForm["upstreams"][number]["overrides"]["header"][number];
+type HeaderOverrideForm =
+  ConfigForm["upstreams"][number]["overrides"]["header"][number];
 
 function normalizeOverrides(
   overrides?: ProxyConfigFile["upstreams"][number]["overrides"],
@@ -523,9 +588,10 @@ function normalizeOverrides(
 }
 
 function toModelMappingPayload(mappings: ModelMappingForm[]) {
-  const entries = mappings.map(
-    (mapping): [string, string] => [mapping.pattern.trim(), mapping.target.trim()],
-  );
+  const entries = mappings.map((mapping): [string, string] => [
+    mapping.pattern.trim(),
+    mapping.target.trim(),
+  ]);
   return Object.fromEntries(entries);
 }
 
@@ -533,7 +599,10 @@ function toOverridesPayload(
   overrides: ConfigForm["upstreams"][number]["overrides"],
 ) {
   const headerEntries = overrides.header
-    .map(({ name, value, isNull }) => [name.trim(), isNull ? null : value.trim()] as const)
+    .map(
+      ({ name, value, isNull }) =>
+        [name.trim(), isNull ? null : value.trim()] as const,
+    )
     .filter(([name]) => name);
   if (!headerEntries.length) {
     return undefined;
@@ -543,7 +612,9 @@ function toOverridesPayload(
   };
 }
 
-function toUpstreamStrategyForm(strategy: UpstreamStrategy): ConfigForm["upstreamStrategy"] {
+function toUpstreamStrategyForm(
+  strategy: UpstreamStrategy,
+): ConfigForm["upstreamStrategy"] {
   switch (strategy.dispatch.type) {
     case "serial":
       return {
@@ -587,13 +658,22 @@ function toUpstreamDispatchPayload(
     case "hedged":
       return {
         type: "hedged",
-        delay_ms: parsePositiveInteger(strategy.hedgeDelayMs, DEFAULT_HEDGE_DELAY_MS),
-        max_parallel: parseMinParallel(strategy.maxParallel, DEFAULT_MAX_PARALLEL),
+        delay_ms: parsePositiveInteger(
+          strategy.hedgeDelayMs,
+          DEFAULT_HEDGE_DELAY_MS,
+        ),
+        max_parallel: parseMinParallel(
+          strategy.maxParallel,
+          DEFAULT_MAX_PARALLEL,
+        ),
       };
     case "race":
       return {
         type: "race",
-        max_parallel: parseMinParallel(strategy.maxParallel, DEFAULT_MAX_PARALLEL),
+        max_parallel: parseMinParallel(
+          strategy.maxParallel,
+          DEFAULT_MAX_PARALLEL,
+        ),
       };
   }
 }
@@ -602,7 +682,10 @@ function validateUpstreamStrategy(strategy: ConfigForm["upstreamStrategy"]) {
   if (strategy.dispatchType === "serial") {
     return "";
   }
-  if (strategy.dispatchType === "hedged" && !isPositiveInteger(strategy.hedgeDelayMs)) {
+  if (
+    strategy.dispatchType === "hedged" &&
+    !isPositiveInteger(strategy.hedgeDelayMs)
+  ) {
     return m.error_upstream_strategy_delay_ms_positive_integer();
   }
   if (!isValidMinParallel(strategy.maxParallel)) {
@@ -647,7 +730,10 @@ function normalizeConvertFromMap(
       continue;
     }
     // UI 会隐藏该 upstream 已原生支持的入站格式；这里也做一次清理，避免历史冗余配置被保存回去。
-    const filtered = removeInboundFormatsInSet(formats, nativeFormatsInUpstream);
+    const filtered = removeInboundFormatsInSet(
+      formats,
+      nativeFormatsInUpstream,
+    );
     const unique: InboundApiFormat[] = [];
     const seen = new Set<InboundApiFormat>();
     for (const format of filtered) {
@@ -668,7 +754,10 @@ function normalizeConvertFromMap(
   return Object.fromEntries(outputEntries);
 }
 
-function validateModelMappings(mappings: ModelMappingForm[], upstreamId: string) {
+function validateModelMappings(
+  mappings: ModelMappingForm[],
+  upstreamId: string,
+) {
   const seen = new Set<string>();
   let wildcardSeen = false;
   for (let index = 0; index < mappings.length; index += 1) {
@@ -682,7 +771,10 @@ function validateModelMappings(mappings: ModelMappingForm[], upstreamId: string)
       return m.error_model_mapping_target_required({ id: upstreamId, row });
     }
     if (seen.has(pattern)) {
-      return m.error_model_mapping_pattern_duplicate({ id: upstreamId, pattern });
+      return m.error_model_mapping_pattern_duplicate({
+        id: upstreamId,
+        pattern,
+      });
     }
     seen.add(pattern);
 
@@ -704,7 +796,10 @@ function validateModelMappings(mappings: ModelMappingForm[], upstreamId: string)
         return m.error_model_mapping_prefix_required({ id: upstreamId, row });
       }
       if (prefix.includes("*")) {
-        return m.error_model_mapping_pattern_invalid({ id: upstreamId, pattern });
+        return m.error_model_mapping_pattern_invalid({
+          id: upstreamId,
+          pattern,
+        });
       }
     }
   }
@@ -713,7 +808,7 @@ function validateModelMappings(mappings: ModelMappingForm[], upstreamId: string)
 
 function validateHeaderOverrides(
   overrides: ConfigForm["upstreams"][number]["overrides"]["header"],
-  upstreamId: string
+  upstreamId: string,
 ) {
   for (let index = 0; index < overrides.length; index += 1) {
     const row = String(index + 1);

@@ -9,7 +9,10 @@ import {
   useProxyServiceState,
 } from "@/features/config/config-screen-state";
 import { useConfigActions } from "@/features/config/config-screen-actions";
-import { createModelMapping, syncAccountBackedUpstreams } from "@/features/config/form";
+import {
+  createModelMapping,
+  syncAccountBackedUpstreams,
+} from "@/features/config/form";
 import { useConfigListActions } from "@/features/config/list-actions";
 import type { ConfigEditorSectionId } from "@/features/config/sections";
 import type { ConfigForm } from "@/features/config/types";
@@ -102,7 +105,7 @@ export function ConfigScreen({ activeSectionId }: ConfigScreenProps) {
     state.status,
     state.autoStartEnabled,
     state.autoStartBaseline,
-    state.autoStartStatus
+    state.autoStartStatus,
   );
   const proxyService = useProxyServiceState();
   const proxyActions = useProxyServiceActions({
@@ -110,17 +113,14 @@ export function ConfigScreen({ activeSectionId }: ConfigScreenProps) {
     setProxyServiceRequestState: proxyService.setProxyServiceRequestState,
     setProxyServiceMessage: proxyService.setProxyServiceMessage,
   });
-  const {
-    setForm,
-    setStatus,
-    setStatusMessage,
-    updateForm,
-  } = state;
+  const { setForm, setStatus, setStatusMessage, updateForm } = state;
   const resetHotModelMappings = useCallback(async () => {
     setStatus("loading");
     setStatusMessage("");
     try {
-      const mappings = await invoke<Record<string, string>>("read_default_hot_model_mappings");
+      const mappings = await invoke<Record<string, string>>(
+        "read_default_hot_model_mappings",
+      );
       const hotModelMappings = Object.entries(mappings)
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([pattern, target]) => createModelMapping(pattern, target));

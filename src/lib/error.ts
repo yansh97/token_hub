@@ -4,4 +4,3 @@ export function parseError(error: unknown) {
   }
   return String(error);
 }
-

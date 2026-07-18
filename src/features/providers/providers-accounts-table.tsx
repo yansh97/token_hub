@@ -36,8 +36,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { AccountDeleteAction, AccountsBatchDeleteAction } from "@/features/providers/account-delete-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  AccountDeleteAction,
+  AccountsBatchDeleteAction,
+} from "@/features/providers/account-delete-dialog";
 import { m } from "@/paraglide/messages.js";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
@@ -46,7 +53,8 @@ const ACCOUNT_COLUMN_WIDTH_CLASS = "w-[10rem]";
 const ACCOUNT_TEXT_WIDTH_CLASS = "max-w-[10rem]";
 const ACCOUNT_ID_COLUMN_WIDTH_CLASS = "w-[4.5rem]";
 const PRIORITY_COLUMN_WIDTH_CLASS = "w-[6rem]";
-const TABLE_TOOLTIP_CONTENT_CLASS = "max-w-[560px] whitespace-pre-wrap break-words";
+const TABLE_TOOLTIP_CONTENT_CLASS =
+  "max-w-[560px] whitespace-pre-wrap break-words";
 
 export type ProviderAccountQuotaDetailItem = {
   name: string;
@@ -89,10 +97,22 @@ type ProviderAccountDialogProps = {
   onRefresh: (row: ProviderAccountTableRow) => Promise<void>;
   onRefreshQuota: (row: ProviderAccountTableRow) => Promise<void>;
   onLogout: (row: ProviderAccountTableRow) => Promise<void>;
-  onSaveProxyUrl: (row: ProviderAccountTableRow, proxyUrl: string) => Promise<void>;
-  onSavePriority: (row: ProviderAccountTableRow, priority: number) => Promise<void>;
-  onToggleStatus: (row: ProviderAccountTableRow, status: "active" | "disabled") => Promise<void>;
-  onToggleAutoRefresh: (row: ProviderAccountTableRow, enabled: boolean) => Promise<void>;
+  onSaveProxyUrl: (
+    row: ProviderAccountTableRow,
+    proxyUrl: string,
+  ) => Promise<void>;
+  onSavePriority: (
+    row: ProviderAccountTableRow,
+    priority: number,
+  ) => Promise<void>;
+  onToggleStatus: (
+    row: ProviderAccountTableRow,
+    status: "active" | "disabled",
+  ) => Promise<void>;
+  onToggleAutoRefresh: (
+    row: ProviderAccountTableRow,
+    enabled: boolean,
+  ) => Promise<void>;
 };
 
 type AccountDialogDraft = {
@@ -105,13 +125,19 @@ function AccountSummaryBand({ row }: { row: ProviderAccountTableRow }) {
   if (row.displayName.trim() !== row.accountId.trim()) {
     metaItems.push(row.accountId);
   }
-  if (row.sourceOrMethodLabel.trim() && row.sourceOrMethodLabel.trim() !== DIALOG_PLACEHOLDER) {
+  if (
+    row.sourceOrMethodLabel.trim() &&
+    row.sourceOrMethodLabel.trim() !== DIALOG_PLACEHOLDER
+  ) {
     metaItems.push(row.sourceOrMethodLabel);
   }
   if (row.planType.trim() && row.planType.trim() !== DIALOG_PLACEHOLDER) {
     metaItems.push(`${m.providers_table_plan()}: ${row.planType}`);
   }
-  if (row.expiresAtLabel.trim() && row.expiresAtLabel.trim() !== DIALOG_PLACEHOLDER) {
+  if (
+    row.expiresAtLabel.trim() &&
+    row.expiresAtLabel.trim() !== DIALOG_PLACEHOLDER
+  ) {
     metaItems.push(`${m.providers_table_expires()}: ${row.expiresAtLabel}`);
   }
 
@@ -126,13 +152,20 @@ function AccountSummaryBand({ row }: { row: ProviderAccountTableRow }) {
             <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
               {row.providerLabel}
             </p>
-            <Badge variant={row.statusVariant} className="h-5 px-1.5 text-[11px]">
+            <Badge
+              variant={row.statusVariant}
+              className="h-5 px-1.5 text-[11px]"
+            >
               {row.statusLabel}
             </Badge>
           </div>
-          <p className="text-base font-semibold text-foreground break-all">{row.displayName}</p>
+          <p className="text-base font-semibold text-foreground break-all">
+            {row.displayName}
+          </p>
           {metaItems.length ? (
-            <p className="text-xs text-muted-foreground">{metaItems.join(" · ")}</p>
+            <p className="text-xs text-muted-foreground">
+              {metaItems.join(" · ")}
+            </p>
           ) : null}
         </div>
       </div>
@@ -140,7 +173,11 @@ function AccountSummaryBand({ row }: { row: ProviderAccountTableRow }) {
   );
 }
 
-function AccountDetailList({ fields }: { fields: ProviderAccountTableRow["detailFields"] }) {
+function AccountDetailList({
+  fields,
+}: {
+  fields: ProviderAccountTableRow["detailFields"];
+}) {
   if (!fields.length) {
     return (
       <div
@@ -165,7 +202,9 @@ function AccountDetailList({ fields }: { fields: ProviderAccountTableRow["detail
           <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
             {field.label}
           </p>
-          <p className="text-sm font-medium text-foreground break-all">{field.value}</p>
+          <p className="text-sm font-medium text-foreground break-all">
+            {field.value}
+          </p>
         </div>
       ))}
     </div>
@@ -203,10 +242,14 @@ function QuotaDetailList({
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground">{item.name}</p>
               {item.secondary ? (
-                <p className="text-[11px] text-muted-foreground">{item.secondary}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {item.secondary}
+                </p>
               ) : null}
             </div>
-            <p className="text-sm text-muted-foreground sm:text-right">{item.summary}</p>
+            <p className="text-sm text-muted-foreground sm:text-right">
+              {item.summary}
+            </p>
           </div>
         ))
       ) : (
@@ -232,12 +275,20 @@ function ProviderAccountDialog({
   onToggleAutoRefresh,
 }: ProviderAccountDialogProps) {
   const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
-  const [proxyUrlDraft, setProxyUrlDraft] = useState<AccountDialogDraft | null>(null);
-  const [priorityDraft, setPriorityDraft] = useState<AccountDialogDraft | null>(null);
+  const [proxyUrlDraft, setProxyUrlDraft] = useState<AccountDialogDraft | null>(
+    null,
+  );
+  const [priorityDraft, setPriorityDraft] = useState<AccountDialogDraft | null>(
+    null,
+  );
   const proxyUrlDraftValue =
-    proxyUrlDraft && proxyUrlDraft.rowId === row?.id ? proxyUrlDraft.value : null;
+    proxyUrlDraft && proxyUrlDraft.rowId === row?.id
+      ? proxyUrlDraft.value
+      : null;
   const priorityDraftValue =
-    priorityDraft && priorityDraft.rowId === row?.id ? priorityDraft.value : null;
+    priorityDraft && priorityDraft.rowId === row?.id
+      ? priorityDraft.value
+      : null;
 
   const handleRefresh = () => {
     if (!row) {
@@ -297,27 +348,31 @@ function ProviderAccountDialog({
 
   const proxyUrlValue = proxyUrlDraftValue ?? row?.proxyUrlValue ?? "";
   const priorityValue = priorityDraftValue ?? String(row?.priority ?? 0);
-  const detailFields = row?.detailFields.filter((field) => {
-    const label = field.label.trim();
-    const value = field.value.trim();
-    if (!value || value === DIALOG_PLACEHOLDER) {
-      return false;
-    }
-    if (
-      label === m.providers_table_provider() ||
-      label === m.providers_table_account() ||
-      label === m.providers_table_status() ||
-      label === m.providers_table_expires() ||
-      label === m.providers_table_plan() ||
-      label === m.providers_table_source()
-    ) {
-      return false;
-    }
-    if (label === m.providers_table_account_id() && value === row?.accountId) {
-      return false;
-    }
-    return true;
-  }) ?? [];
+  const detailFields =
+    row?.detailFields.filter((field) => {
+      const label = field.label.trim();
+      const value = field.value.trim();
+      if (!value || value === DIALOG_PLACEHOLDER) {
+        return false;
+      }
+      if (
+        label === m.providers_table_provider() ||
+        label === m.providers_table_account() ||
+        label === m.providers_table_status() ||
+        label === m.providers_table_expires() ||
+        label === m.providers_table_plan() ||
+        label === m.providers_table_source()
+      ) {
+        return false;
+      }
+      if (
+        label === m.providers_table_account_id() &&
+        value === row?.accountId
+      ) {
+        return false;
+      }
+      return true;
+    }) ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -344,7 +399,9 @@ function ProviderAccountDialog({
                 >
                   {m.field_priority()}
                 </Label>
-                <p className="text-xs text-muted-foreground">{m.account_priority_tip()}</p>
+                <p className="text-xs text-muted-foreground">
+                  {m.account_priority_tip()}
+                </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     id="provider-account-priority"
@@ -354,7 +411,10 @@ function ProviderAccountDialog({
                     value={priorityValue}
                     onChange={(event) => {
                       if (row) {
-                        setPriorityDraft({ rowId: row.id, value: event.target.value });
+                        setPriorityDraft({
+                          rowId: row.id,
+                          value: event.target.value,
+                        });
                       }
                     }}
                     disabled={busy}
@@ -383,14 +443,22 @@ function ProviderAccountDialog({
                     value={proxyUrlValue}
                     onChange={(event) => {
                       if (row) {
-                        setProxyUrlDraft({ rowId: row.id, value: event.target.value });
+                        setProxyUrlDraft({
+                          rowId: row.id,
+                          value: event.target.value,
+                        });
                       }
                     }}
                     placeholder="http://127.0.0.1:7890"
                     disabled={busy}
                     className="flex-1"
                   />
-                  <Button type="button" size="sm" onClick={handleSaveProxyUrl} disabled={busy}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveProxyUrl}
+                    disabled={busy}
+                  >
                     {m.providers_save_proxy_url()}
                   </Button>
                 </div>
@@ -399,7 +467,10 @@ function ProviderAccountDialog({
                 <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                   {m.providers_table_quota()}
                 </p>
-                <QuotaDetailList quotaError={row.quotaError} quotaItems={row.quotaItems} />
+                <QuotaDetailList
+                  quotaError={row.quotaError}
+                  quotaItems={row.quotaItems}
+                />
               </div>
               <div
                 data-slot="provider-account-action-bar"
@@ -413,7 +484,9 @@ function ProviderAccountDialog({
                       disabled={busy}
                       aria-label="Codex 自动置换 Token"
                     />
-                    <p className="text-[11px] text-muted-foreground">Codex 自动置换 Token</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Codex 自动置换 Token
+                    </p>
                   </div>
                 ) : null}
                 {row.canRefresh ? (
@@ -427,7 +500,10 @@ function ProviderAccountDialog({
                     >
                       {m.common_refresh()}
                     </Button>
-                    <AlertDialog open={refreshConfirmOpen} onOpenChange={setRefreshConfirmOpen}>
+                    <AlertDialog
+                      open={refreshConfirmOpen}
+                      onOpenChange={setRefreshConfirmOpen}
+                    >
                       <AlertDialogContent data-slot="codex-refresh-confirm-dialog">
                         <AlertDialogHeader>
                           <AlertDialogTitle>确认刷新 Token？</AlertDialogTitle>
@@ -436,7 +512,9 @@ function ProviderAccountDialog({
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
+                          <AlertDialogCancel>
+                            {m.common_cancel()}
+                          </AlertDialogCancel>
                           <AlertDialogAction onClick={handleRefresh}>
                             {m.common_refresh()}
                           </AlertDialogAction>
@@ -461,7 +539,9 @@ function ProviderAccountDialog({
                   onClick={handleToggleStatus}
                   disabled={busy}
                 >
-                  {row.status === "disabled" ? m.common_enable() : m.common_disable()}
+                  {row.status === "disabled"
+                    ? m.common_enable()
+                    : m.common_disable()}
                 </Button>
                 <AccountDeleteAction
                   accountLabel={row.displayName}
@@ -491,10 +571,22 @@ type ProvidersAccountsTableSectionProps = {
   onRefreshQuota: (row: ProviderAccountTableRow) => Promise<void>;
   onLogout: (row: ProviderAccountTableRow) => Promise<void>;
   onBatchDelete: (rows: ProviderAccountTableRow[]) => Promise<void>;
-  onSaveProxyUrl: (row: ProviderAccountTableRow, proxyUrl: string) => Promise<void>;
-  onSavePriority: (row: ProviderAccountTableRow, priority: number) => Promise<void>;
-  onToggleStatus: (row: ProviderAccountTableRow, status: "active" | "disabled") => Promise<void>;
-  onToggleAutoRefresh: (row: ProviderAccountTableRow, enabled: boolean) => Promise<void>;
+  onSaveProxyUrl: (
+    row: ProviderAccountTableRow,
+    proxyUrl: string,
+  ) => Promise<void>;
+  onSavePriority: (
+    row: ProviderAccountTableRow,
+    priority: number,
+  ) => Promise<void>;
+  onToggleStatus: (
+    row: ProviderAccountTableRow,
+    status: "active" | "disabled",
+  ) => Promise<void>;
+  onToggleAutoRefresh: (
+    row: ProviderAccountTableRow,
+    enabled: boolean,
+  ) => Promise<void>;
 };
 
 function ProviderAccountRowActions({
@@ -520,7 +612,9 @@ function ProviderAccountRowActions({
               <Eye className="size-4" aria-hidden="true" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top">{m.providers_account_dialog_title()}</TooltipContent>
+          <TooltipContent side="top">
+            {m.providers_account_dialog_title()}
+          </TooltipContent>
         </Tooltip>
       </div>
     </TableCell>
@@ -531,9 +625,7 @@ function AccountIdCell({ value }: { value: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
-          className="block max-w-[4.5rem] truncate font-mono text-xs text-muted-foreground"
-        >
+        <span className="block max-w-[4.5rem] truncate font-mono text-xs text-muted-foreground">
           {value}
         </span>
       </TooltipTrigger>
@@ -548,7 +640,9 @@ function AccountDisplayNameCell({ value }: { value: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={`block ${ACCOUNT_TEXT_WIDTH_CLASS} truncate font-medium text-foreground`}>
+        <span
+          className={`block ${ACCOUNT_TEXT_WIDTH_CLASS} truncate font-medium text-foreground`}
+        >
           {value}
         </span>
       </TooltipTrigger>
@@ -581,14 +675,18 @@ export function ProvidersAccountsTableSection({
   onToggleStatus,
   onToggleAutoRefresh,
 }: ProvidersAccountsTableSectionProps) {
-  const [selectedRow, setSelectedRow] = useState<ProviderAccountTableRow | null>(null);
+  const [selectedRow, setSelectedRow] =
+    useState<ProviderAccountTableRow | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedIds.has(row.id)),
-    [rows, selectedIds]
+    [rows, selectedIds],
   );
-  const visibleRowIds = useMemo(() => new Set(rows.map((row) => row.id)), [rows]);
+  const visibleRowIds = useMemo(
+    () => new Set(rows.map((row) => row.id)),
+    [rows],
+  );
   const selectedCount = selectedRows.length;
 
   useEffect(() => {
@@ -642,7 +740,7 @@ export function ProvidersAccountsTableSection({
         setSelectedIds(new Set());
       }
     },
-    [rows]
+    [rows],
   );
 
   const isAllSelected = selectedCount === rows.length && rows.length > 0;
@@ -679,7 +777,9 @@ export function ProvidersAccountsTableSection({
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2"
             >
               <p className="text-sm text-foreground">
-                {m.providers_accounts_delete_description({ count: selectedCount })}
+                {m.providers_accounts_delete_description({
+                  count: selectedCount,
+                })}
               </p>
               <div className="flex items-center gap-2">
                 <AccountsBatchDeleteAction
@@ -687,7 +787,12 @@ export function ProvidersAccountsTableSection({
                   disabled={loading}
                   onConfirm={handleBatchDelete}
                 />
-                <Button type="button" size="sm" variant="ghost" onClick={clearSelection}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={clearSelection}
+                >
                   {m.common_cancel()}
                 </Button>
               </div>
@@ -702,7 +807,9 @@ export function ProvidersAccountsTableSection({
                 <TableRow>
                   <TableHead className="w-[2.5rem]">
                     <Checkbox
-                      checked={isIndeterminate ? "indeterminate" : isAllSelected}
+                      checked={
+                        isIndeterminate ? "indeterminate" : isAllSelected
+                      }
                       onCheckedChange={toggleSelectAll}
                       aria-label="Select all"
                     />
@@ -711,7 +818,9 @@ export function ProvidersAccountsTableSection({
                   <TableHead className={ACCOUNT_COLUMN_WIDTH_CLASS}>
                     {m.providers_table_account()}
                   </TableHead>
-                  <TableHead className={ACCOUNT_ID_COLUMN_WIDTH_CLASS}>ID</TableHead>
+                  <TableHead className={ACCOUNT_ID_COLUMN_WIDTH_CLASS}>
+                    ID
+                  </TableHead>
                   <TableHead className={PRIORITY_COLUMN_WIDTH_CLASS}>
                     {m.field_priority()}
                   </TableHead>
@@ -747,14 +856,19 @@ export function ProvidersAccountsTableSection({
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
-                        <Badge variant={row.statusVariant}>{row.statusLabel}</Badge>
+                        <Badge variant={row.statusVariant}>
+                          {row.statusLabel}
+                        </Badge>
                       </div>
                     </TableCell>
                     <TableCell>{row.expiresAtLabel}</TableCell>
                     <TableCell>{row.planType}</TableCell>
                     <TableCell>{row.quotaSummary}</TableCell>
                     <TableCell>{row.sourceOrMethodLabel}</TableCell>
-                    <ProviderAccountRowActions row={row} onOpenDetails={setSelectedRow} />
+                    <ProviderAccountRowActions
+                      row={row}
+                      onOpenDetails={setSelectedRow}
+                    />
                   </TableRow>
                 ))}
               </TableBody>
@@ -797,9 +911,13 @@ export function ProvidersAccountsTableSection({
           </div>
         </>
       ) : loading ? (
-        <p className="text-sm text-muted-foreground">{m.providers_accounts_loading()}</p>
+        <p className="text-sm text-muted-foreground">
+          {m.providers_accounts_loading()}
+        </p>
       ) : (
-        <p className="text-sm text-muted-foreground">{m.providers_accounts_empty_filtered()}</p>
+        <p className="text-sm text-muted-foreground">
+          {m.providers_accounts_empty_filtered()}
+        </p>
       )}
       <ProviderAccountDialog
         open={selectedRow !== null}

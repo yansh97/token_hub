@@ -53,7 +53,10 @@ export function CodexAccountSelect({
       <Label>{m.field_codex_account()}</Label>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Select value={accountId.trim() ? accountId : undefined} onValueChange={onSelect}>
+          <Select
+            value={accountId.trim() ? accountId : undefined}
+            onValueChange={onSelect}
+          >
             <SelectTrigger className="flex-1">
               <SelectValue placeholder={m.codex_account_placeholder()} />
             </SelectTrigger>
@@ -74,13 +77,18 @@ export function CodexAccountSelect({
             aria-label={m.common_refresh()}
           >
             <RefreshCw
-              className={["size-4", loading ? "animate-spin" : ""].filter(Boolean).join(" ")}
+              className={["size-4", loading ? "animate-spin" : ""]
+                .filter(Boolean)
+                .join(" ")}
               aria-hidden="true"
             />
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <Link className="text-primary hover:underline" to={getSectionRoute("providers")}>
+          <Link
+            className="text-primary hover:underline"
+            to={getSectionRoute("providers")}
+          >
             {m.codex_account_manage()}
           </Link>
         </div>

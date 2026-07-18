@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -249,9 +256,13 @@ const providerMocks = vi.hoisted(() => {
         if (!keyword) {
           return true;
         }
-        return `${row.email ?? ""} ${row.account_id}`.toLowerCase().includes(keyword);
+        return `${row.email ?? ""} ${row.account_id}`
+          .toLowerCase()
+          .includes(keyword);
       });
-      const filtered = status ? scopedRows.filter((row) => row.status === status) : scopedRows;
+      const filtered = status
+        ? scopedRows.filter((row) => row.status === status)
+        : scopedRows;
       const offset = (page - 1) * pageSize;
       return {
         items: filtered.slice(offset, offset + pageSize),
@@ -260,7 +271,7 @@ const providerMocks = vi.hoisted(() => {
         page_size: pageSize,
         status_counts: buildCounts(scopedRows),
       };
-    }
+    },
   );
   const toastError = vi.fn();
   const toastSuccess = vi.fn();
@@ -482,7 +493,9 @@ function getToolbar() {
 }
 
 function getAccountsTable() {
-  const table = document.querySelector('[data-slot="providers-accounts-table"]');
+  const table = document.querySelector(
+    '[data-slot="providers-accounts-table"]',
+  );
   if (!(table instanceof HTMLElement)) {
     throw new Error("Missing providers accounts table");
   }
@@ -494,23 +507,34 @@ function getAddLabel() {
 }
 
 async function openAddAccountDialog(user: ReturnType<typeof userEvent.setup>) {
-  const addButton = document.querySelector('[data-slot="providers-toolbar-add"]');
+  const addButton = document.querySelector(
+    '[data-slot="providers-toolbar-add"]',
+  );
   if (!(addButton instanceof HTMLButtonElement)) {
     throw new Error("Missing providers add button");
   }
   await user.click(addButton);
 }
 
-async function switchAddProviderToCodex(user: ReturnType<typeof userEvent.setup>) {
-  const switchButton = document.querySelector('[data-slot="providers-add-provider-codex"]');
+async function switchAddProviderToCodex(
+  user: ReturnType<typeof userEvent.setup>,
+) {
+  const switchButton = document.querySelector(
+    '[data-slot="providers-add-provider-codex"]',
+  );
   if (!(switchButton instanceof HTMLButtonElement)) {
     throw new Error("Missing providers add codex switch button");
   }
   await user.click(switchButton);
 }
 
-async function switchCodexMode(user: ReturnType<typeof userEvent.setup>, mode: string) {
-  const modeButton = document.querySelector(`[data-slot="providers-add-codex-mode-${mode}"]`);
+async function switchCodexMode(
+  user: ReturnType<typeof userEvent.setup>,
+  mode: string,
+) {
+  const modeButton = document.querySelector(
+    `[data-slot="providers-add-codex-mode-${mode}"]`,
+  );
   if (!(modeButton instanceof HTMLButtonElement)) {
     throw new Error(`Missing codex mode button: ${mode}`);
   }
@@ -518,7 +542,9 @@ async function switchCodexMode(user: ReturnType<typeof userEvent.setup>, mode: s
 }
 
 function getAddProviderPanel(provider: "kiro" | "codex") {
-  const panel = document.querySelector(`[data-slot="providers-add-panel-${provider}"]`);
+  const panel = document.querySelector(
+    `[data-slot="providers-add-panel-${provider}"]`,
+  );
   if (!(panel instanceof HTMLElement)) {
     throw new Error(`Missing providers add ${provider} panel`);
   }
@@ -541,14 +567,28 @@ describe("providers/ProvidersPanel", () => {
     render(<ProvidersPanel />);
 
     expect(
-      await screen.findByRole("columnheader", { name: m.providers_table_provider() })
+      await screen.findByRole("columnheader", {
+        name: m.providers_table_provider(),
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: m.providers_table_account() })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: m.field_priority() })).toBeInTheDocument();
-    expect(within(getAccountsTable()).getByText("alice@example.com")).toBeInTheDocument();
-    expect(within(getAccountsTable()).getByText("bob@example.com")).toBeInTheDocument();
-    expect(within(getAccountsTable()).getByText("Kiro Cached Plan")).toBeInTheDocument();
-    expect(within(getAccountsTable()).getByText("Codex Cached Plan")).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: m.providers_table_account() }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: m.field_priority() }),
+    ).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("alice@example.com"),
+    ).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("bob@example.com"),
+    ).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("Kiro Cached Plan"),
+    ).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("Codex Cached Plan"),
+    ).toBeInTheDocument();
   });
 
   it("keeps API order so higher priority accounts render first across providers", async () => {
@@ -605,10 +645,16 @@ describe("providers/ProvidersPanel", () => {
 
     render(<ProvidersPanel />);
 
-    await screen.findByRole("columnheader", { name: m.providers_table_provider() });
+    await screen.findByRole("columnheader", {
+      name: m.providers_table_provider(),
+    });
     const tableRows = await within(getAccountsTable()).findAllByRole("row");
-    expect(within(tableRows[1]!).getByText("bob@example.com")).toBeInTheDocument();
-    expect(within(tableRows[2]!).getByText("alice@example.com")).toBeInTheDocument();
+    expect(
+      within(tableRows[1]!).getByText("bob@example.com"),
+    ).toBeInTheDocument();
+    expect(
+      within(tableRows[2]!).getByText("alice@example.com"),
+    ).toBeInTheDocument();
   });
 
   it("does not render extra provider group panels below the accounts table", () => {
@@ -622,14 +668,20 @@ describe("providers/ProvidersPanel", () => {
     render(<ProvidersPanel />);
 
     await user.type(
-      within(getToolbar()).getByRole("textbox", { name: m.providers_toolbar_search_placeholder() }),
-      "alice"
+      within(getToolbar()).getByRole("textbox", {
+        name: m.providers_toolbar_search_placeholder(),
+      }),
+      "alice",
     );
 
     await waitFor(() => {
-      expect(within(getAccountsTable()).queryByText("bob@example.com")).not.toBeInTheDocument();
+      expect(
+        within(getAccountsTable()).queryByText("bob@example.com"),
+      ).not.toBeInTheDocument();
     });
-    expect(within(getAccountsTable()).getByText("alice@example.com")).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("alice@example.com"),
+    ).toBeInTheDocument();
   });
 
   it("debounces search requests while typing", async () => {
@@ -665,23 +717,43 @@ describe("providers/ProvidersPanel", () => {
     const user = userEvent.setup();
     render(<ProvidersPanel />);
 
-    await user.click(within(getToolbar()).getByLabelText(m.providers_filter_provider_label()));
-    await user.click(screen.getByRole("option", { name: m.providers_codex_title() }));
+    await user.click(
+      within(getToolbar()).getByLabelText(m.providers_filter_provider_label()),
+    );
+    await user.click(
+      screen.getByRole("option", { name: m.providers_codex_title() }),
+    );
 
-    expect(within(getAccountsTable()).queryByText("alice@example.com")).not.toBeInTheDocument();
-    expect(within(getAccountsTable()).getByText("bob@example.com")).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).queryByText("alice@example.com"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("bob@example.com"),
+    ).toBeInTheDocument();
 
-    await user.click(within(getToolbar()).getByLabelText(m.providers_filter_status_label()));
-    await user.click(screen.getByRole("option", { name: m.codex_account_status_expired() }));
+    await user.click(
+      within(getToolbar()).getByLabelText(m.providers_filter_status_label()),
+    );
+    await user.click(
+      screen.getByRole("option", { name: m.codex_account_status_expired() }),
+    );
 
-    expect(within(getAccountsTable()).getByText("bob@example.com")).toBeInTheDocument();
-    expect(within(getAccountsTable()).queryByText("alice@example.com")).not.toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("bob@example.com"),
+    ).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).queryByText("alice@example.com"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows invalid account counts and filters invalid accounts from summary", async () => {
     const user = userEvent.setup();
     providerMocks.listProviderAccountsPage.mockImplementation(
-      async ({ status }: { status?: "active" | "disabled" | "expired" | "invalid" | "cooling_down" }) => {
+      async ({
+        status,
+      }: {
+        status?: "active" | "disabled" | "expired" | "invalid" | "cooling_down";
+      }) => {
         const rows: ProviderAccountPageItem[] = [
           {
             provider_kind: "codex",
@@ -694,7 +766,12 @@ describe("providers/ProvidersPanel", () => {
             auto_refresh_enabled: true,
             priority: 1,
             proxy_url: "",
-            quota: { plan_type: null, error: null, checked_at: null, items: [] },
+            quota: {
+              plan_type: null,
+              error: null,
+              checked_at: null,
+              items: [],
+            },
           },
           {
             provider_kind: "codex",
@@ -715,7 +792,9 @@ describe("providers/ProvidersPanel", () => {
             },
           },
         ];
-        const filtered = status ? rows.filter((row) => row.status === status) : rows;
+        const filtered = status
+          ? rows.filter((row) => row.status === status)
+          : rows;
         return {
           items: filtered,
           total: filtered.length,
@@ -730,22 +809,30 @@ describe("providers/ProvidersPanel", () => {
             cooling_down: 0,
           },
         };
-      }
+      },
     );
 
     render(<ProvidersPanel />);
 
-    const summary = document.querySelector('[data-slot="providers-status-summary"]');
+    const summary = document.querySelector(
+      '[data-slot="providers-status-summary"]',
+    );
     if (!(summary instanceof HTMLElement)) {
       throw new Error("Missing providers status summary");
     }
-    expect(await within(summary).findByText(m.codex_account_status_invalid())).toBeInTheDocument();
-    const invalidSummaryButton = summary.querySelector('[data-slot="providers-status-summary-invalid"]');
+    expect(
+      await within(summary).findByText(m.codex_account_status_invalid()),
+    ).toBeInTheDocument();
+    const invalidSummaryButton = summary.querySelector(
+      '[data-slot="providers-status-summary-invalid"]',
+    );
     if (!(invalidSummaryButton instanceof HTMLButtonElement)) {
       throw new Error("Missing invalid status summary button");
     }
     await waitFor(() => {
-      expect(invalidSummaryButton).toHaveTextContent(`${m.codex_account_status_invalid()}1`);
+      expect(invalidSummaryButton).toHaveTextContent(
+        `${m.codex_account_status_invalid()}1`,
+      );
     });
 
     await user.click(invalidSummaryButton);
@@ -759,8 +846,12 @@ describe("providers/ProvidersPanel", () => {
         search: "",
       });
     });
-    expect(within(getAccountsTable()).getByText("invalid@example.com")).toBeInTheDocument();
-    expect(within(getAccountsTable()).queryByText("valid@example.com")).not.toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).getByText("invalid@example.com"),
+    ).toBeInTheDocument();
+    expect(
+      within(getAccountsTable()).queryByText("valid@example.com"),
+    ).not.toBeInTheDocument();
   });
 
   it("refreshes all auto-refresh Codex tokens from toolbar action", async () => {
@@ -800,7 +891,7 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(getToolbar()).getByRole("button", {
         name: m.providers_refresh_all_codex_tokens(),
-      })
+      }),
     );
 
     await waitFor(() => {
@@ -808,7 +899,7 @@ describe("providers/ProvidersPanel", () => {
       expect(providerMocks.refreshCodexAccount).toHaveBeenCalledWith("codex-2");
     });
     expect(providerMocks.toastSuccess).toHaveBeenCalledWith(
-      m.providers_refresh_all_codex_tokens_success({ count: 2 })
+      m.providers_refresh_all_codex_tokens_success({ count: 2 }),
     );
   });
 
@@ -819,11 +910,13 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("alice@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText(m.providers_account_dialog_title())).toBeInTheDocument();
+    expect(
+      screen.getByText(m.providers_account_dialog_title()),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("alice@example.com").length).toBeGreaterThan(0);
     expect(screen.getAllByText("kiro-1").length).toBeGreaterThan(0);
   });
@@ -835,19 +928,23 @@ describe("providers/ProvidersPanel", () => {
     await user.hover(
       within(await findAccountRow("alice@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
 
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      m.providers_account_dialog_title()
+      m.providers_account_dialog_title(),
     );
   });
 
   it("keeps the actions column pinned to the right", async () => {
     render(<ProvidersPanel />);
 
-    const header = await screen.findByRole("columnheader", { name: m.providers_table_actions() });
-    const actionButton = within(await findAccountRow("alice@example.com")).getByRole("button", {
+    const header = await screen.findByRole("columnheader", {
+      name: m.providers_table_actions(),
+    });
+    const actionButton = within(
+      await findAccountRow("alice@example.com"),
+    ).getByRole("button", {
       name: m.providers_account_dialog_title(),
     });
     const actionCell = actionButton.closest('[data-slot="table-cell"]');
@@ -864,24 +961,36 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("bob@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: m.common_refresh() }));
-    const refreshConfirmDialog = document.querySelector("[data-slot='codex-refresh-confirm-dialog']");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: m.common_refresh(),
+      }),
+    );
+    const refreshConfirmDialog = document.querySelector(
+      "[data-slot='codex-refresh-confirm-dialog']",
+    );
     if (!(refreshConfirmDialog instanceof HTMLElement)) {
       throw new Error("Missing codex refresh confirm dialog");
     }
-    await user.click(within(refreshConfirmDialog).getByRole("button", { name: m.common_refresh() }));
+    await user.click(
+      within(refreshConfirmDialog).getByRole("button", {
+        name: m.common_refresh(),
+      }),
+    );
 
     expect(providerMocks.refreshCodexAccount).toHaveBeenCalledWith("codex-1");
-    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
+    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith([
+      "codex-1",
+    ]);
     expect(providerMocks.refreshCodexQuotas).not.toHaveBeenCalled();
   });
 
   it("shows toast when codex account refresh fails", async () => {
     const user = userEvent.setup();
     providerMocks.refreshCodexAccount.mockRejectedValueOnce(
-      new Error("Codex 登录已失效，请重新登录该账户。")
+      new Error("Codex 登录已失效，请重新登录该账户。"),
     );
 
     render(<ProvidersPanel />);
@@ -889,16 +998,28 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("bob@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: m.common_refresh() }));
-    const refreshConfirmDialog = document.querySelector("[data-slot='codex-refresh-confirm-dialog']");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: m.common_refresh(),
+      }),
+    );
+    const refreshConfirmDialog = document.querySelector(
+      "[data-slot='codex-refresh-confirm-dialog']",
+    );
     if (!(refreshConfirmDialog instanceof HTMLElement)) {
       throw new Error("Missing codex refresh confirm dialog");
     }
-    await user.click(within(refreshConfirmDialog).getByRole("button", { name: m.common_refresh() }));
+    await user.click(
+      within(refreshConfirmDialog).getByRole("button", {
+        name: m.common_refresh(),
+      }),
+    );
 
-    expect(providerMocks.toastError).toHaveBeenCalledWith("Codex 登录已失效，请重新登录该账户。");
+    expect(providerMocks.toastError).toHaveBeenCalledWith(
+      "Codex 登录已失效，请重新登录该账户。",
+    );
   });
 
   it("toggles codex auto refresh in account dialog", async () => {
@@ -908,14 +1029,17 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("bob@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
     const toggle = within(screen.getByRole("dialog")).getByRole("switch", {
       name: "Codex 自动置换 Token",
     });
     await user.click(toggle);
 
-    expect(providerMocks.setCodexAutoRefresh).toHaveBeenCalledWith("codex-1", false);
+    expect(providerMocks.setCodexAutoRefresh).toHaveBeenCalledWith(
+      "codex-1",
+      false,
+    );
   });
 
   it("manually refreshes kiro quota from account dialog", async () => {
@@ -925,9 +1049,13 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("alice@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Refresh Quota" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Refresh Quota",
+      }),
+    );
 
     expect(providerMocks.refreshKiroQuotaNow).toHaveBeenCalledWith("kiro-1");
   });
@@ -939,9 +1067,13 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("bob@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Refresh Quota" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Refresh Quota",
+      }),
+    );
 
     expect(providerMocks.refreshCodexQuotaNow).toHaveBeenCalledWith("codex-1");
   });
@@ -953,11 +1085,18 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("alice@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Disable" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Disable",
+      }),
+    );
 
-    expect(providerMocks.setKiroStatus).toHaveBeenCalledWith("kiro-1", "disabled");
+    expect(providerMocks.setKiroStatus).toHaveBeenCalledWith(
+      "kiro-1",
+      "disabled",
+    );
   });
 
   it("disables codex account from account dialog", async () => {
@@ -967,11 +1106,18 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("bob@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Disable" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Disable",
+      }),
+    );
 
-    expect(providerMocks.setCodexStatus).toHaveBeenCalledWith("codex-1", "disabled");
+    expect(providerMocks.setCodexStatus).toHaveBeenCalledWith(
+      "codex-1",
+      "disabled",
+    );
   });
 
   it("saves kiro account priority from account dialog", async () => {
@@ -981,13 +1127,15 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("alice@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
 
     const input = await screen.findByLabelText(m.field_priority());
     await user.clear(input);
     await user.type(input, "12");
-    await user.click(screen.getByRole("button", { name: m.providers_save_priority() }));
+    await user.click(
+      screen.getByRole("button", { name: m.providers_save_priority() }),
+    );
 
     expect(providerMocks.setKiroPriority).toHaveBeenCalledWith("kiro-1", 12);
   });
@@ -999,13 +1147,15 @@ describe("providers/ProvidersPanel", () => {
     await user.click(
       within(await findAccountRow("bob@example.com")).getByRole("button", {
         name: m.providers_account_dialog_title(),
-      })
+      }),
     );
 
     const input = await screen.findByLabelText(m.field_priority());
     await user.clear(input);
     await user.type(input, "21");
-    await user.click(screen.getByRole("button", { name: m.providers_save_priority() }));
+    await user.click(
+      screen.getByRole("button", { name: m.providers_save_priority() }),
+    );
 
     expect(providerMocks.setCodexPriority).toHaveBeenCalledWith("codex-1", 21);
   });
@@ -1014,7 +1164,9 @@ describe("providers/ProvidersPanel", () => {
     const user = userEvent.setup();
     render(<ProvidersPanel />);
 
-    await user.click(within(getToolbar()).getByRole("button", { name: m.common_refresh() }));
+    await user.click(
+      within(getToolbar()).getByRole("button", { name: m.common_refresh() }),
+    );
 
     expect(providerMocks.refreshKiroAccounts).toHaveBeenCalledTimes(1);
     expect(providerMocks.refreshCodexAccounts).toHaveBeenCalledTimes(1);
@@ -1026,16 +1178,26 @@ describe("providers/ProvidersPanel", () => {
     const user = userEvent.setup();
     render(<ProvidersPanel />);
 
-    expect(within(getToolbar()).getByRole("button", { name: m.providers_add_account() })).toBeInTheDocument();
+    expect(
+      within(getToolbar()).getByRole("button", {
+        name: m.providers_add_account(),
+      }),
+    ).toBeInTheDocument();
 
     await openAddAccountDialog(user);
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText(getAddLabel())).toBeInTheDocument();
-    expect(within(dialog).queryByText(m.config_section_providers_desc())).not.toBeInTheDocument();
-    expect(within(dialog).getByText(m.providers_kiro_title())).toBeInTheDocument();
-    expect(within(dialog).getByText(m.providers_codex_title())).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(m.config_section_providers_desc()),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText(m.providers_kiro_title()),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(m.providers_codex_title()),
+    ).toBeInTheDocument();
   });
 
   it("resets login state when closing the add account dialog", async () => {
@@ -1083,7 +1245,9 @@ describe("providers/ProvidersPanel", () => {
     render(<ProvidersPanel />);
     await openAddAccountDialog(user);
 
-    const loginButton = document.querySelector('[data-slot="providers-add-kiro-login-aws"]');
+    const loginButton = document.querySelector(
+      '[data-slot="providers-add-kiro-login-aws"]',
+    );
     if (!(loginButton instanceof HTMLButtonElement)) {
       throw new Error("Missing kiro aws login button");
     }
@@ -1098,7 +1262,9 @@ describe("providers/ProvidersPanel", () => {
     render(<ProvidersPanel />);
     await openAddAccountDialog(user);
 
-    const loginButton = document.querySelector('[data-slot="providers-add-kiro-login-google"]');
+    const loginButton = document.querySelector(
+      '[data-slot="providers-add-kiro-login-google"]',
+    );
     if (!(loginButton instanceof HTMLButtonElement)) {
       throw new Error("Missing kiro google login button");
     }
@@ -1115,7 +1281,9 @@ describe("providers/ProvidersPanel", () => {
     render(<ProvidersPanel />);
     await openAddAccountDialog(user);
 
-    const importButton = document.querySelector('[data-slot="providers-add-kiro-import-ide"]');
+    const importButton = document.querySelector(
+      '[data-slot="providers-add-kiro-import-ide"]',
+    );
     if (!(importButton instanceof HTMLButtonElement)) {
       throw new Error("Missing kiro import ide button");
     }
@@ -1127,7 +1295,9 @@ describe("providers/ProvidersPanel", () => {
       multiple: false,
     });
     expect(providerMocks.importKiroIde).toHaveBeenCalledWith("/tmp/kiro");
-    expect(providerMocks.refreshKiroQuotaCache).toHaveBeenCalledWith(["kiro-1"]);
+    expect(providerMocks.refreshKiroQuotaCache).toHaveBeenCalledWith([
+      "kiro-1",
+    ]);
     expect(providerMocks.refreshKiroQuotas).not.toHaveBeenCalled();
   });
 
@@ -1138,7 +1308,9 @@ describe("providers/ProvidersPanel", () => {
     render(<ProvidersPanel />);
     await openAddAccountDialog(user);
 
-    const importButton = document.querySelector('[data-slot="providers-add-kiro-import-kam"]');
+    const importButton = document.querySelector(
+      '[data-slot="providers-add-kiro-import-kam"]',
+    );
     if (!(importButton instanceof HTMLButtonElement)) {
       throw new Error("Missing kiro import kam button");
     }
@@ -1151,7 +1323,9 @@ describe("providers/ProvidersPanel", () => {
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
     expect(providerMocks.importKiroKam).toHaveBeenCalledWith("/tmp/kiro.json");
-    expect(providerMocks.refreshKiroQuotaCache).toHaveBeenCalledWith(["kiro-1"]);
+    expect(providerMocks.refreshKiroQuotaCache).toHaveBeenCalledWith([
+      "kiro-1",
+    ]);
     expect(providerMocks.refreshKiroQuotas).not.toHaveBeenCalled();
   });
 
@@ -1161,14 +1335,16 @@ describe("providers/ProvidersPanel", () => {
     providerMocks.refreshKiroQuotaCache.mockReturnValueOnce(
       new Promise<undefined>((resolve) => {
         resolveRefreshQuota = () => resolve(undefined);
-      })
+      }),
     );
     vi.mocked(open).mockResolvedValueOnce("/tmp/kiro");
 
     render(<ProvidersPanel />);
     await openAddAccountDialog(user);
 
-    const importButton = document.querySelector('[data-slot="providers-add-kiro-import-ide"]');
+    const importButton = document.querySelector(
+      '[data-slot="providers-add-kiro-import-ide"]',
+    );
     if (!(importButton instanceof HTMLButtonElement)) {
       throw new Error("Missing kiro import ide button");
     }
@@ -1176,9 +1352,13 @@ describe("providers/ProvidersPanel", () => {
     await user.click(importButton);
 
     await waitFor(() => {
-      expect(providerMocks.toastSuccess).toHaveBeenCalledWith(m.kiro_import_success());
+      expect(providerMocks.toastSuccess).toHaveBeenCalledWith(
+        m.kiro_import_success(),
+      );
     });
-    expect(providerMocks.refreshKiroQuotaCache).toHaveBeenCalledWith(["kiro-1"]);
+    expect(providerMocks.refreshKiroQuotaCache).toHaveBeenCalledWith([
+      "kiro-1",
+    ]);
 
     resolveRefreshQuota?.();
   });
@@ -1189,7 +1369,9 @@ describe("providers/ProvidersPanel", () => {
     await openAddAccountDialog(user);
     await switchAddProviderToCodex(user);
 
-    const loginButton = document.querySelector('[data-slot="providers-add-codex-login"]');
+    const loginButton = document.querySelector(
+      '[data-slot="providers-add-codex-login"]',
+    );
     if (!(loginButton instanceof HTMLButtonElement)) {
       throw new Error("Missing codex login button");
     }
@@ -1208,7 +1390,9 @@ describe("providers/ProvidersPanel", () => {
     await switchAddProviderToCodex(user);
     await switchCodexMode(user, "file");
 
-    const importButton = document.querySelector('[data-slot="providers-add-codex-import-file"]');
+    const importButton = document.querySelector(
+      '[data-slot="providers-add-codex-import-file"]',
+    );
     if (!(importButton instanceof HTMLButtonElement)) {
       throw new Error("Missing codex import file button");
     }
@@ -1221,8 +1405,12 @@ describe("providers/ProvidersPanel", () => {
       multiple: false,
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
-    expect(providerMocks.importCodexFile).toHaveBeenCalledWith("/tmp/codex-account.json");
-    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
+    expect(providerMocks.importCodexFile).toHaveBeenCalledWith(
+      "/tmp/codex-account.json",
+    );
+    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith([
+      "codex-1",
+    ]);
     expect(providerMocks.refreshCodexQuotas).not.toHaveBeenCalled();
   });
 
@@ -1235,7 +1423,9 @@ describe("providers/ProvidersPanel", () => {
     await switchAddProviderToCodex(user);
     await switchCodexMode(user, "file");
 
-    const importButton = document.querySelector('[data-slot="providers-add-codex-import-directory"]');
+    const importButton = document.querySelector(
+      '[data-slot="providers-add-codex-import-directory"]',
+    );
     if (!(importButton instanceof HTMLButtonElement)) {
       throw new Error("Missing codex import directory button");
     }
@@ -1247,8 +1437,12 @@ describe("providers/ProvidersPanel", () => {
       directory: true,
       multiple: false,
     });
-    expect(providerMocks.importCodexFile).toHaveBeenCalledWith("/tmp/codex-auth");
-    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
+    expect(providerMocks.importCodexFile).toHaveBeenCalledWith(
+      "/tmp/codex-auth",
+    );
+    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith([
+      "codex-1",
+    ]);
     expect(providerMocks.refreshCodexQuotas).not.toHaveBeenCalled();
   });
 
@@ -1261,14 +1455,20 @@ describe("providers/ProvidersPanel", () => {
     await switchCodexMode(user, "refresh_token");
 
     const panel = getAddProviderPanel("codex");
-    await user.type(
-      within(panel).getByRole("textbox"),
-      "rt-one\nrt-two"
+    await user.type(within(panel).getByRole("textbox"), "rt-one\nrt-two");
+    await user.click(
+      within(panel).getByRole("button", {
+        name: m.codex_manual_import_button(),
+      }),
     );
-    await user.click(within(panel).getByRole("button", { name: m.codex_manual_import_button() }));
 
-    expect(providerMocks.importCodexRefreshTokens).toHaveBeenCalledWith("rt-one\nrt-two", "codex");
-    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
+    expect(providerMocks.importCodexRefreshTokens).toHaveBeenCalledWith(
+      "rt-one\nrt-two",
+      "codex",
+    );
+    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith([
+      "codex-1",
+    ]);
     expect(open).not.toHaveBeenCalled();
   });
 
@@ -1282,16 +1482,28 @@ describe("providers/ProvidersPanel", () => {
 
     const panel = getAddProviderPanel("codex");
     await user.type(within(panel).getByRole("textbox"), "mobile-rt");
-    await user.click(within(panel).getByRole("button", { name: m.codex_manual_import_button() }));
+    await user.click(
+      within(panel).getByRole("button", {
+        name: m.codex_manual_import_button(),
+      }),
+    );
 
-    expect(providerMocks.importCodexRefreshTokens).toHaveBeenCalledWith("mobile-rt", "mobile");
-    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
+    expect(providerMocks.importCodexRefreshTokens).toHaveBeenCalledWith(
+      "mobile-rt",
+      "mobile",
+    );
+    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith([
+      "codex-1",
+    ]);
     expect(open).not.toHaveBeenCalled();
   });
 
   it("imports codex JSON or access token from manual input", async () => {
     const user = userEvent.setup();
-    const payload = JSON.stringify({ access_token: "access-token", expires_in: 3600 });
+    const payload = JSON.stringify({
+      access_token: "access-token",
+      expires_in: 3600,
+    });
 
     render(<ProvidersPanel />);
     await openAddAccountDialog(user);
@@ -1299,11 +1511,19 @@ describe("providers/ProvidersPanel", () => {
     await switchCodexMode(user, "codex_session");
 
     const panel = getAddProviderPanel("codex");
-    fireEvent.change(within(panel).getByRole("textbox"), { target: { value: payload } });
-    await user.click(within(panel).getByRole("button", { name: m.codex_manual_import_button() }));
+    fireEvent.change(within(panel).getByRole("textbox"), {
+      target: { value: payload },
+    });
+    await user.click(
+      within(panel).getByRole("button", {
+        name: m.codex_manual_import_button(),
+      }),
+    );
 
     expect(providerMocks.importCodexText).toHaveBeenCalledWith(payload);
-    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
+    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith([
+      "codex-1",
+    ]);
     expect(open).not.toHaveBeenCalled();
   });
 
@@ -1313,7 +1533,7 @@ describe("providers/ProvidersPanel", () => {
     providerMocks.refreshCodexQuotaCache.mockReturnValueOnce(
       new Promise<undefined>((resolve) => {
         resolveRefreshQuota = () => resolve(undefined);
-      })
+      }),
     );
     vi.mocked(open).mockResolvedValueOnce("/tmp/codex-account.json");
 
@@ -1322,7 +1542,9 @@ describe("providers/ProvidersPanel", () => {
     await switchAddProviderToCodex(user);
     await switchCodexMode(user, "file");
 
-    const importButton = document.querySelector('[data-slot="providers-add-codex-import-file"]');
+    const importButton = document.querySelector(
+      '[data-slot="providers-add-codex-import-file"]',
+    );
     if (!(importButton instanceof HTMLButtonElement)) {
       throw new Error("Missing codex import file button");
     }
@@ -1330,9 +1552,13 @@ describe("providers/ProvidersPanel", () => {
     await user.click(importButton);
 
     await waitFor(() => {
-      expect(providerMocks.toastSuccess).toHaveBeenCalledWith(m.codex_import_success());
+      expect(providerMocks.toastSuccess).toHaveBeenCalledWith(
+        m.codex_import_success(),
+      );
     });
-    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
+    expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith([
+      "codex-1",
+    ]);
 
     resolveRefreshQuota?.();
   });
@@ -1348,23 +1574,33 @@ describe("providers/ProvidersPanel", () => {
     render(<ProvidersPanel />);
     await screen.findByText("alice@example.com");
 
-    await user.click(within(getAccountsTable()).getByRole("checkbox", { name: "Select all" }));
-    await user.click(screen.getByRole("button", { name: `${m.common_delete()}(2)` }));
+    await user.click(
+      within(getAccountsTable()).getByRole("checkbox", { name: "Select all" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: `${m.common_delete()}(2)` }),
+    );
 
-    const dialog = document.querySelector("[data-slot='accounts-batch-delete-dialog']");
+    const dialog = document.querySelector(
+      "[data-slot='accounts-batch-delete-dialog']",
+    );
     if (!(dialog instanceof HTMLElement)) {
       throw new Error("Missing accounts batch delete dialog");
     }
-    await user.click(within(dialog).getByRole("button", { name: m.common_delete() }));
+    await user.click(
+      within(dialog).getByRole("button", { name: m.common_delete() }),
+    );
 
     expect(screen.queryByText("alice@example.com")).not.toBeInTheDocument();
     expect(screen.queryByText("bob@example.com")).not.toBeInTheDocument();
-    expect(screen.getByText(m.providers_accounts_loading())).toBeInTheDocument();
+    expect(
+      screen.getByText(m.providers_accounts_loading()),
+    ).toBeInTheDocument();
 
     resolveDelete?.(undefined);
     await waitFor(() => {
       expect(providerMocks.toastSuccess).toHaveBeenCalledWith(
-        m.providers_accounts_delete_success({ count: 2 })
+        m.providers_accounts_delete_success({ count: 2 }),
       );
     });
   });
@@ -1381,11 +1617,15 @@ describe("providers/ProvidersPanel", () => {
     await switchAddProviderToCodex(user);
     await switchCodexMode(user, "file");
 
-    const importFileButton = document.querySelector('[data-slot="providers-add-codex-import-file"]');
+    const importFileButton = document.querySelector(
+      '[data-slot="providers-add-codex-import-file"]',
+    );
     if (!(importFileButton instanceof HTMLButtonElement)) {
       throw new Error("Missing codex import file button");
     }
-    const importDirectoryButton = document.querySelector('[data-slot="providers-add-codex-import-directory"]');
+    const importDirectoryButton = document.querySelector(
+      '[data-slot="providers-add-codex-import-directory"]',
+    );
     if (!(importDirectoryButton instanceof HTMLButtonElement)) {
       throw new Error("Missing codex import directory button");
     }
@@ -1405,8 +1645,14 @@ describe("providers/ProvidersPanel", () => {
       directory: true,
       multiple: false,
     });
-    expect(providerMocks.importCodexFile).toHaveBeenNthCalledWith(1, "/tmp/codex-account.json");
-    expect(providerMocks.importCodexFile).toHaveBeenNthCalledWith(2, "/tmp/codex-auth");
+    expect(providerMocks.importCodexFile).toHaveBeenNthCalledWith(
+      1,
+      "/tmp/codex-account.json",
+    );
+    expect(providerMocks.importCodexFile).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/codex-auth",
+    );
   });
 
   it("renders unified disabled and cooling down account statuses", async () => {
@@ -1468,11 +1714,13 @@ describe("providers/ProvidersPanel", () => {
     expect(await screen.findByText("disabled@example.com")).toBeInTheDocument();
     expect(screen.getByText("cooling@example.com")).toBeInTheDocument();
     expect(
-      within(getAccountsTable()).getByText(m.kiro_account_status_disabled({}, { locale: "zh" }))
+      within(getAccountsTable()).getByText(
+        m.kiro_account_status_disabled({}, { locale: "zh" }),
+      ),
     ).toBeInTheDocument();
     expect(
       within(getAccountsTable()).getByText(
-        m.providers_account_status_cooling_down({}, { locale: "zh" })
+        m.providers_account_status_cooling_down({}, { locale: "zh" }),
       ),
     ).toBeInTheDocument();
   });

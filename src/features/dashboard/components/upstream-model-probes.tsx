@@ -1,94 +1,105 @@
-import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Ban, CheckCircle2, Clock3 } from "lucide-react"
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Ban, CheckCircle2, Clock3 } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
   DashboardUpstreamModelProbe,
   DashboardUpstreamModelProbeStatus,
-} from "@/features/dashboard/types"
-import { cn } from "@/lib/utils"
-import { m } from "@/paraglide/messages.js"
+} from "@/features/dashboard/types";
+import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages.js";
 
 type UpstreamModelProbesProps = {
-  probes: DashboardUpstreamModelProbe[]
-}
+  probes: DashboardUpstreamModelProbe[];
+};
 
 const STATUS_ICON = {
   pending: Clock3,
   ok: CheckCircle2,
   failed: AlertTriangle,
   unsupported: Ban,
-} satisfies Record<DashboardUpstreamModelProbeStatus, typeof Clock3>
+} satisfies Record<DashboardUpstreamModelProbeStatus, typeof Clock3>;
 
 const STATUS_CLASS_NAME = {
   pending: "text-muted-foreground",
   ok: "text-emerald-600 dark:text-emerald-400",
   failed: "text-destructive",
   unsupported: "text-muted-foreground",
-} satisfies Record<DashboardUpstreamModelProbeStatus, string>
+} satisfies Record<DashboardUpstreamModelProbeStatus, string>;
 
 function statusLabel(status: DashboardUpstreamModelProbeStatus) {
   switch (status) {
     case "pending":
-      return m.dashboard_upstream_models_status_pending()
+      return m.dashboard_upstream_models_status_pending();
     case "ok":
-      return m.dashboard_upstream_models_status_ok()
+      return m.dashboard_upstream_models_status_ok();
     case "failed":
-      return m.dashboard_upstream_models_status_failed()
+      return m.dashboard_upstream_models_status_failed();
     case "unsupported":
-      return m.dashboard_upstream_models_status_unsupported()
+      return m.dashboard_upstream_models_status_unsupported();
   }
 }
 
 function providerLabel(probe: DashboardUpstreamModelProbe) {
   if (probe.accountId) {
-    return `${probe.provider} · ${probe.accountId}`
+    return `${probe.provider} · ${probe.accountId}`;
   }
-  return probe.provider
+  return probe.provider;
 }
 
-function ProbeStatus({ status }: { status: DashboardUpstreamModelProbeStatus }) {
-  const Icon = STATUS_ICON[status]
+function ProbeStatus({
+  status,
+}: {
+  status: DashboardUpstreamModelProbeStatus;
+}) {
+  const Icon = STATUS_ICON[status];
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-[13px]", STATUS_CLASS_NAME[status])}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[13px]",
+        STATUS_CLASS_NAME[status],
+      )}
+    >
       <Icon className="size-3.5" aria-hidden="true" />
       <span>{statusLabel(status)}</span>
     </span>
-  )
+  );
 }
 
 function ProbeModels({ models }: { models: string[] }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   useEffect(() => {
-    const node = containerRef.current
+    const node = containerRef.current;
     if (!node || typeof ResizeObserver === "undefined") {
-      return
+      return;
     }
 
-    const updateWidth = () => setContainerWidth(node.clientWidth)
-    updateWidth()
-    const observer = new ResizeObserver(updateWidth)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
+    const updateWidth = () => setContainerWidth(node.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   if (models.length === 0) {
-    return <span className="text-[13px] text-muted-foreground">{m.dashboard_upstream_models_empty()}</span>
+    return (
+      <span className="text-[13px] text-muted-foreground">
+        {m.dashboard_upstream_models_empty()}
+      </span>
+    );
   }
 
-  const minColumnWidth = 176
-  const columnGap = 16
+  const minColumnWidth = 176;
+  const columnGap = 16;
   const columnCount = containerWidth
-    ? Math.max(1, Math.floor((containerWidth + columnGap) / (minColumnWidth + columnGap)))
-    : 1
-  const rowCount = Math.ceil(models.length / columnCount)
+    ? Math.max(
+        1,
+        Math.floor((containerWidth + columnGap) / (minColumnWidth + columnGap)),
+      )
+    : 1;
+  const rowCount = Math.ceil(models.length / columnCount);
 
   return (
     <div
@@ -101,20 +112,24 @@ function ProbeModels({ models }: { models: string[] }) {
       }}
     >
       {models.map((model) => (
-        <span key={model} className="truncate text-[12px] leading-5 text-foreground/80" title={model}>
+        <span
+          key={model}
+          className="truncate text-[12px] leading-5 text-foreground/80"
+          title={model}
+        >
           {model}
         </span>
       ))}
     </div>
-  )
+  );
 }
 
 function ProbeRow({
   probe,
   index,
 }: {
-  probe: DashboardUpstreamModelProbe
-  index: number
+  probe: DashboardUpstreamModelProbe;
+  index: number;
 }) {
   return (
     <div
@@ -124,8 +139,12 @@ function ProbeRow({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-[14px] font-semibold leading-5">{probe.upstreamId}</span>
-            <span className="truncate text-[12px] leading-5 text-muted-foreground">{providerLabel(probe)}</span>
+            <span className="truncate text-[14px] font-semibold leading-5">
+              {probe.upstreamId}
+            </span>
+            <span className="truncate text-[12px] leading-5 text-muted-foreground">
+              {providerLabel(probe)}
+            </span>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4">
@@ -144,7 +163,7 @@ function ProbeRow({
         ) : null}
       </div>
     </div>
-  )
+  );
 }
 
 export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
@@ -152,7 +171,9 @@ export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
     <div className="border-border/70 border-t px-4 pt-3 lg:px-6">
       <Card className="h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
         <CardHeader className="gap-1.5 px-4 py-3">
-        <CardTitle className="text-[15px] font-semibold leading-5">{m.dashboard_upstream_models_title()}</CardTitle>
+          <CardTitle className="text-[15px] font-semibold leading-5">
+            {m.dashboard_upstream_models_title()}
+          </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-3 pt-0">
           {probes.length > 0 ? (
@@ -171,5 +192,5 @@ export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

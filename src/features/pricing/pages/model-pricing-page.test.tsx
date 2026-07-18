@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -120,15 +126,16 @@ describe("pricing/ModelPricingPage", () => {
     );
     expect(screen.getByDisplayValue("272000")).toBeInTheDocument();
     expect(
-      screen.getByText(m.model_pricing_version({ version: snapshot.settings.version })),
+      screen.getByText(
+        m.model_pricing_version({ version: snapshot.settings.version }),
+      ),
     ).toBeInTheDocument();
     expect(
       container.querySelector('[data-slot="model-pricing-table-viewport"]'),
     ).toHaveClass("overflow-auto");
-    expect(container.querySelector('[data-slot="model-pricing-page"]')).toHaveClass(
-      "flex-1",
-      "min-h-0",
-    );
+    expect(
+      container.querySelector('[data-slot="model-pricing-page"]'),
+    ).toHaveClass("flex-1", "min-h-0");
     expect(screen.getByText(m.model_pricing_column_actions())).toHaveClass(
       "sticky",
       "right-0",
@@ -140,7 +147,9 @@ describe("pricing/ModelPricingPage", () => {
 
     const modelInput = await screen.findByDisplayValue("gpt-5.6-sol");
     fireEvent.change(modelInput, { target: { value: "gpt-5.6-custom" } });
-    fireEvent.click(screen.getByRole("button", { name: m.model_pricing_save() }));
+    fireEvent.click(
+      screen.getByRole("button", { name: m.model_pricing_save() }),
+    );
 
     await waitFor(() => {
       expect(saveModelPricingSettingsMock).toHaveBeenCalledWith({
@@ -165,24 +174,34 @@ describe("pricing/ModelPricingPage", () => {
     renderPage();
 
     await screen.findByDisplayValue("gpt-5.6-sol");
-    fireEvent.click(screen.getByRole("button", { name: m.model_pricing_reset() }));
+    fireEvent.click(
+      screen.getByRole("button", { name: m.model_pricing_reset() }),
+    );
 
     expect(resetModelPricingSettingsMock).not.toHaveBeenCalled();
-    expect(screen.getByText(m.model_pricing_reset_confirm_title())).toBeInTheDocument();
+    expect(
+      screen.getByText(m.model_pricing_reset_confirm_title()),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(m.model_pricing_reset_confirm_description()),
     ).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: m.model_pricing_reset_confirm_action() }),
+      screen.getByRole("button", {
+        name: m.model_pricing_reset_confirm_action(),
+      }),
     );
 
     await waitFor(() => {
       expect(resetModelPricingSettingsMock).toHaveBeenCalled();
     });
     await waitFor(() => {
-      expect(toastSuccessMock).toHaveBeenCalledWith(m.model_pricing_reset_done());
+      expect(toastSuccessMock).toHaveBeenCalledWith(
+        m.model_pricing_reset_done(),
+      );
     });
-    expect(screen.queryByText(m.model_pricing_reset_done())).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(m.model_pricing_reset_done()),
+    ).not.toBeInTheDocument();
   });
 });

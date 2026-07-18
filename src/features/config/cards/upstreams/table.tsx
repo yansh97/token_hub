@@ -1,7 +1,16 @@
 import type { ReactElement } from "react";
 
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { Ban, Check, Columns3, Copy, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import {
+  Ban,
+  Check,
+  Columns3,
+  Copy,
+  Eye,
+  EyeOff,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,14 +23,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   getUpstreamLabel,
   toMaskedApiKey,
   toMaskedProxyUrl,
   toStatusLabel,
 } from "@/features/config/cards/upstreams/constants";
-import type { UpstreamColumnDefinition, UpstreamColumnId } from "@/features/config/cards/upstreams/types";
+import type {
+  UpstreamColumnDefinition,
+  UpstreamColumnId,
+} from "@/features/config/cards/upstreams/types";
 import {
   UPSTREAM_DISPATCH_STRATEGIES,
   UPSTREAM_ORDER_STRATEGIES,
@@ -43,20 +59,24 @@ type UpstreamsToolbarProps = {
 };
 
 const UPSTREAM_ORDER_VALUES: ReadonlySet<string> = new Set(
-  UPSTREAM_ORDER_STRATEGIES.map((strategy) => strategy.value)
+  UPSTREAM_ORDER_STRATEGIES.map((strategy) => strategy.value),
 );
 const UPSTREAM_DISPATCH_VALUES: ReadonlySet<string> = new Set(
-  UPSTREAM_DISPATCH_STRATEGIES.map((strategy) => strategy.value)
+  UPSTREAM_DISPATCH_STRATEGIES.map((strategy) => strategy.value),
 );
 const CELL_PLACEHOLDER = "—";
 const TOOLTIP_CONTENT_CLASS = "max-w-[560px] whitespace-pre-wrap break-words";
 
 function toUpstreamOrderStrategy(value: string): UpstreamOrderStrategy | null {
-  return UPSTREAM_ORDER_VALUES.has(value) ? (value as UpstreamOrderStrategy) : null;
+  return UPSTREAM_ORDER_VALUES.has(value)
+    ? (value as UpstreamOrderStrategy)
+    : null;
 }
 
 function toUpstreamDispatchType(value: string): UpstreamDispatchType | null {
-  return UPSTREAM_DISPATCH_VALUES.has(value) ? (value as UpstreamDispatchType) : null;
+  return UPSTREAM_DISPATCH_VALUES.has(value)
+    ? (value as UpstreamDispatchType)
+    : null;
 }
 
 type CellTooltipProps = {
@@ -120,7 +140,11 @@ export function UpstreamsToolbar({
             variant="ghost"
             size="icon-sm"
             onClick={onToggleApiKeys}
-            aria-label={showApiKeys ? m.upstreams_hide_api_keys() : m.upstreams_show_api_keys()}
+            aria-label={
+              showApiKeys
+                ? m.upstreams_hide_api_keys()
+                : m.upstreams_show_api_keys()
+            }
           >
             {showApiKeys ? (
               <EyeOff className="size-4" aria-hidden="true" />
@@ -132,7 +156,10 @@ export function UpstreamsToolbar({
       </div>
       <div className="flex flex-wrap items-end gap-2">
         <div className="grid gap-1">
-          <Label htmlFor="upstreams-order" className="text-xs text-muted-foreground">
+          <Label
+            htmlFor="upstreams-order"
+            className="text-xs text-muted-foreground"
+          >
             {m.upstream_strategy_order_label()}
           </Label>
           <Select
@@ -145,7 +172,9 @@ export function UpstreamsToolbar({
             }}
           >
             <SelectTrigger id="upstreams-order" className="min-w-[180px]">
-              <SelectValue placeholder={m.upstream_strategy_order_placeholder()} />
+              <SelectValue
+                placeholder={m.upstream_strategy_order_placeholder()}
+              />
             </SelectTrigger>
             <SelectContent>
               {UPSTREAM_ORDER_STRATEGIES.map((option) => (
@@ -157,7 +186,10 @@ export function UpstreamsToolbar({
           </Select>
         </div>
         <div className="grid gap-1">
-          <Label htmlFor="upstreams-dispatch" className="text-xs text-muted-foreground">
+          <Label
+            htmlFor="upstreams-dispatch"
+            className="text-xs text-muted-foreground"
+          >
             {m.upstream_strategy_dispatch_label()}
           </Label>
           <Select
@@ -170,7 +202,9 @@ export function UpstreamsToolbar({
             }}
           >
             <SelectTrigger id="upstreams-dispatch" className="min-w-[180px]">
-              <SelectValue placeholder={m.upstream_strategy_dispatch_placeholder()} />
+              <SelectValue
+                placeholder={m.upstream_strategy_dispatch_placeholder()}
+              />
             </SelectTrigger>
             <SelectContent>
               {UPSTREAM_DISPATCH_STRATEGIES.map((option) => (
@@ -183,13 +217,18 @@ export function UpstreamsToolbar({
         </div>
         {showsHedgeDelay ? (
           <div className="grid gap-1">
-            <Label htmlFor="upstreams-hedge-delay" className="text-xs text-muted-foreground">
+            <Label
+              htmlFor="upstreams-hedge-delay"
+              className="text-xs text-muted-foreground"
+            >
               {m.upstream_strategy_delay_ms_label()}
             </Label>
             <Input
               id="upstreams-hedge-delay"
               value={strategy.hedgeDelayMs}
-              onChange={(event) => updateStrategy({ hedgeDelayMs: event.target.value })}
+              onChange={(event) =>
+                updateStrategy({ hedgeDelayMs: event.target.value })
+              }
               placeholder="2000"
               inputMode="numeric"
               className="w-[120px]"
@@ -198,13 +237,18 @@ export function UpstreamsToolbar({
         ) : null}
         {showsMaxParallel ? (
           <div className="grid gap-1">
-            <Label htmlFor="upstreams-max-parallel" className="text-xs text-muted-foreground">
+            <Label
+              htmlFor="upstreams-max-parallel"
+              className="text-xs text-muted-foreground"
+            >
               {m.upstream_strategy_max_parallel_label()}
             </Label>
             <Input
               id="upstreams-max-parallel"
               value={strategy.maxParallel}
-              onChange={(event) => updateStrategy({ maxParallel: event.target.value })}
+              onChange={(event) =>
+                updateStrategy({ maxParallel: event.target.value })
+              }
               placeholder="2"
               inputMode="numeric"
               className="w-[96px]"
@@ -212,7 +256,9 @@ export function UpstreamsToolbar({
           </div>
         ) : null}
       </div>
-      <p className="text-xs text-muted-foreground">{m.upstream_strategy_help()}</p>
+      <p className="text-xs text-muted-foreground">
+        {m.upstream_strategy_help()}
+      </p>
     </div>
   );
 }
@@ -250,7 +296,13 @@ function renderTextCell(value: string, placeholder: string) {
   const trimmed = value.trim();
   return (
     <CellTooltip content={trimmed} disabled={!trimmed}>
-      <span className={trimmed ? "block w-full truncate text-foreground" : "block w-full truncate text-muted-foreground"}>
+      <span
+        className={
+          trimmed
+            ? "block w-full truncate text-foreground"
+            : "block w-full truncate text-muted-foreground"
+        }
+      >
         {trimmed || placeholder}
       </span>
     </CellTooltip>
@@ -266,7 +318,9 @@ function renderPriorityCell(value: string) {
 }
 
 function renderApiKeyCell(upstream: UpstreamForm, showApiKeys: boolean) {
-  const value = showApiKeys ? upstream.apiKeys : toMaskedApiKey(upstream.apiKeys);
+  const value = showApiKeys
+    ? upstream.apiKeys
+    : toMaskedApiKey(upstream.apiKeys);
   return renderTextCell(value, m.common_optional());
 }
 
@@ -355,12 +409,19 @@ function UpstreamRowActions({
           variant="ghost"
           size="icon-sm"
           onClick={onToggleEnabled}
-          aria-label={enabled ? m.upstreams_row_disable({ rowLabel }) : m.upstreams_row_enable({ rowLabel })}
+          aria-label={
+            enabled
+              ? m.upstreams_row_disable({ rowLabel })
+              : m.upstreams_row_enable({ rowLabel })
+          }
         >
           {enabled ? (
             <Ban className="size-4 text-muted-foreground" aria-hidden="true" />
           ) : (
-            <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            <Check
+              className="size-4 text-emerald-600 dark:text-emerald-400"
+              aria-hidden="true"
+            />
           )}
         </Button>
         <Button
@@ -415,7 +476,9 @@ function UpstreamsTableRow({
       {columns.map((column) => (
         <td
           key={column.id}
-          className={["px-3 py-2 align-top", column.cellClassName].filter(Boolean).join(" ")}
+          className={["px-3 py-2 align-top", column.cellClassName]
+            .filter(Boolean)
+            .join(" ")}
         >
           <div className="flex h-8 min-w-0 items-center">
             {renderUpstreamCell(column.id, upstream, showApiKeys)}
@@ -466,11 +529,13 @@ function parsePriorityValue(value: string) {
 
 function sortUpstreamsByPriority(upstreams: UpstreamForm[]) {
   // Display order follows priority descending; ties keep original list order.
-  const entries = upstreams.map((upstream, upstreamIndex): SortedUpstreamEntry => ({
-    upstream,
-    upstreamIndex,
-    priority: parsePriorityValue(upstream.priority),
-  }));
+  const entries = upstreams.map(
+    (upstream, upstreamIndex): SortedUpstreamEntry => ({
+      upstream,
+      upstreamIndex,
+      priority: parsePriorityValue(upstream.priority),
+    }),
+  );
   entries.sort((left, right) => {
     if (left.priority !== right.priority) {
       return right.priority - left.priority;

@@ -48,11 +48,17 @@ export function UpstreamEditorDialog({
         <AlertDialogHeader className="flex-row items-start justify-between gap-6 text-left">
           <div className="space-y-2">
             <AlertDialogTitle>{title}</AlertDialogTitle>
-            <AlertDialogDescription>{m.upstreams_editor_subtitle()}</AlertDialogDescription>
+            <AlertDialogDescription>
+              {m.upstreams_editor_subtitle()}
+            </AlertDialogDescription>
           </div>
           {editor.open ? (
             <Label className="flex shrink-0 items-center gap-2 font-normal">
-              <span>{editor.draft.enabled ? m.common_enabled() : m.common_disabled()}</span>
+              <span>
+                {editor.draft.enabled
+                  ? m.common_enabled()
+                  : m.common_disabled()}
+              </span>
               <Switch
                 checked={editor.draft.enabled}
                 onCheckedChange={(enabled) => onChangeDraft({ enabled })}

@@ -1,65 +1,61 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import * as React from "react";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
   ChartTooltip,
   type ChartConfig,
-} from "@/components/ui/chart"
+} from "@/components/ui/chart";
 import {
   formatCompact,
   formatInteger,
   formatNanoUsdCost,
-} from "@/features/dashboard/format"
-import type { DashboardModelStat } from "@/features/dashboard/types"
-import { m } from "@/paraglide/messages.js"
+} from "@/features/dashboard/format";
+import type { DashboardModelStat } from "@/features/dashboard/types";
+import { m } from "@/paraglide/messages.js";
 
 /** 横向排行图通用行；key 稳定，label 展示。 */
 type RankingRow = {
-  key: string
-  label: string
-  totalTokens: number
-  requests: number
-  costNanoUsd: number
-}
+  key: string;
+  label: string;
+  totalTokens: number;
+  requests: number;
+  costNanoUsd: number;
+};
 
 const chartConfig = {
   totalTokens: {
     label: m.dashboard_chart_total_tokens(),
     color: "var(--chart-1)",
   },
-} satisfies ChartConfig
+} satisfies ChartConfig;
 
-const BAR_ROW_PX = 30
-const CHART_MIN_HEIGHT_PX = 196
-const Y_AXIS_WIDTH = 112
+const BAR_ROW_PX = 30;
+const CHART_MIN_HEIGHT_PX = 196;
+const Y_AXIS_WIDTH = 112;
+const MODEL_USAGE_DISPLAY_LIMIT = 5;
 
 type ChartUsageRankingProps = {
-  title: string
-  rows: RankingRow[]
-}
+  title: string;
+  rows: RankingRow[];
+};
 
 function truncateLabel(label: string, max = 18) {
-  const trimmed = label.trim() || "—"
+  const trimmed = label.trim() || "—";
   if (trimmed.length <= max) {
-    return trimmed
+    return trimmed;
   }
-  return `${trimmed.slice(0, max - 1)}…`
+  return `${trimmed.slice(0, max - 1)}…`;
 }
 
 function resolveChartHeight(rowCount: number) {
   if (rowCount <= 0) {
-    return CHART_MIN_HEIGHT_PX
+    return CHART_MIN_HEIGHT_PX;
   }
-  return Math.max(CHART_MIN_HEIGHT_PX, rowCount * BAR_ROW_PX + 24)
+  return Math.max(CHART_MIN_HEIGHT_PX, rowCount * BAR_ROW_PX + 24);
 }
 
 function RankingTooltip({
@@ -68,28 +64,38 @@ function RankingTooltip({
   totalTokens,
   costNanoUsd,
 }: {
-  label: string
-  requests: number
-  totalTokens: number
-  costNanoUsd: number
+  label: string;
+  requests: number;
+  totalTokens: number;
+  costNanoUsd: number;
 }) {
   return (
     <div className="grid min-w-[10rem] gap-1.5">
       <div className="font-medium break-all">{label}</div>
       <div className="flex items-center justify-between gap-4 text-xs">
-        <span className="text-muted-foreground">{m.dashboard_chart_total_tokens()}</span>
-        <span className="font-medium tabular-nums">{formatInteger(totalTokens)}</span>
+        <span className="text-muted-foreground">
+          {m.dashboard_chart_total_tokens()}
+        </span>
+        <span className="font-medium tabular-nums">
+          {formatInteger(totalTokens)}
+        </span>
       </div>
       <div className="flex items-center justify-between gap-4 text-xs">
-        <span className="text-muted-foreground">{m.dashboard_stat_requests()}</span>
-        <span className="font-medium tabular-nums">{formatInteger(requests)}</span>
+        <span className="text-muted-foreground">
+          {m.dashboard_stat_requests()}
+        </span>
+        <span className="font-medium tabular-nums">
+          {formatInteger(requests)}
+        </span>
       </div>
       <div className="flex items-center justify-between gap-4 text-xs">
         <span className="text-muted-foreground">{m.dashboard_stat_cost()}</span>
-        <span className="font-medium tabular-nums">{formatNanoUsdCost(costNanoUsd)}</span>
+        <span className="font-medium tabular-nums">
+          {formatNanoUsdCost(costNanoUsd)}
+        </span>
       </div>
     </div>
-  )
+  );
 }
 
 function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
@@ -100,14 +106,19 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
         // Y 轴短标签；tooltip 用完整 label。
         tickLabel: truncateLabel(row.label),
       })),
-    [rows]
-  )
-  const height = resolveChartHeight(chartData.length)
+    [rows],
+  );
+  const height = resolveChartHeight(chartData.length);
 
   return (
-    <Card className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
+    <Card
+      className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none"
+      data-model-count={chartData.length}
+    >
       <CardHeader className="gap-1.5 px-4 py-3">
-      <CardTitle className="text-[15px] font-semibold leading-5">{title}</CardTitle>
+        <CardTitle className="text-[15px] font-semibold leading-5">
+          {title}
+        </CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-3 pt-0 sm:px-4">
         {chartData.length === 0 ? (
@@ -148,11 +159,11 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
                 cursor={false}
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) {
-                    return null
+                    return null;
                   }
-                  const row = payload[0]?.payload as RankingRow | undefined
+                  const row = payload[0]?.payload as RankingRow | undefined;
                   if (!row) {
-                    return null
+                    return null;
                   }
                   // 自定义 tooltip，避免 ChartTooltipContent 单值 formatter 套娃。
                   return (
@@ -164,7 +175,7 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
                         costNanoUsd={row.costNanoUsd}
                       />
                     </div>
-                  )
+                  );
                 }}
               />
               <Bar
@@ -178,30 +189,25 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 type ChartModelUsageProps = {
-  models: DashboardModelStat[]
-}
+  models: DashboardModelStat[];
+};
 
 export function ChartModelUsage({ models }: ChartModelUsageProps) {
   const rows = React.useMemo(
     () =>
-      models.map((item) => ({
+      models.slice(0, MODEL_USAGE_DISPLAY_LIMIT).map((item) => ({
         key: item.model,
         label: item.model,
         totalTokens: item.totalTokens,
         requests: item.requests,
         costNanoUsd: item.costNanoUsd,
       })),
-    [models]
-  )
+    [models],
+  );
 
-  return (
-    <ChartUsageRanking
-      title={m.dashboard_models_title()}
-      rows={rows}
-    />
-  )
+  return <ChartUsageRanking title={m.dashboard_models_title()} rows={rows} />;
 }

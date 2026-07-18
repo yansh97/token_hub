@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -53,7 +60,9 @@ export function UpdateNotifier() {
   const navigate = useNavigate();
   const { state, actions } = useUpdater();
   const { checkForUpdate, downloadAndInstall, relaunchApp } = actions;
-  const [dismissedRestartPromptKey, setDismissedRestartPromptKey] = useState<string | null>(null);
+  const [dismissedRestartPromptKey, setDismissedRestartPromptKey] = useState<
+    string | null
+  >(null);
   const [windowVisible, setWindowVisible] = useState(false);
   const availableToastVersionRef = useRef<string | null>(null);
   const availableToastIdRef = useRef<ToastId | null>(null);
@@ -75,9 +84,12 @@ export function UpdateNotifier() {
   const downloadProgressLabel = useMemo(
     () =>
       state.status === "downloading"
-        ? buildDownloadProgressLabel(state.downloadState.downloaded, state.downloadState.total)
+        ? buildDownloadProgressLabel(
+            state.downloadState.downloaded,
+            state.downloadState.total,
+          )
         : "",
-    [state.downloadState.downloaded, state.downloadState.total, state.status]
+    [state.downloadState.downloaded, state.downloadState.total, state.status],
   );
 
   const runAutoCheck = useCallback(
@@ -85,7 +97,7 @@ export function UpdateNotifier() {
       console.info("[updater] checking for updates", { reason });
       void checkForUpdate({ source: "auto" });
     },
-    [checkForUpdate]
+    [checkForUpdate],
   );
 
   useLayoutEffect(() => {
@@ -98,7 +110,10 @@ export function UpdateNotifier() {
 
   const triggerVisibleAutoCheck = useCallback((reason: string) => {
     const visibleState = visibleWindowCheckRef.current;
-    if (!visibleState.appProxyUrlReady || !canStartUpdateCheck(visibleState.status)) {
+    if (
+      !visibleState.appProxyUrlReady ||
+      !canStartUpdateCheck(visibleState.status)
+    ) {
       console.info("[updater] skip visible-window update check", {
         appProxyUrlReady: visibleState.appProxyUrlReady,
         status: visibleState.status,
@@ -125,7 +140,8 @@ export function UpdateNotifier() {
     let unlisten: (() => void) | null = null;
 
     const syncWindowVisibility = () => {
-      const focused = document.hasFocus() && document.visibilityState !== "hidden";
+      const focused =
+        document.hasFocus() && document.visibilityState !== "hidden";
       setWindowVisible(focused);
       if (focused) {
         triggerVisibleAutoCheck("main-window-focused");
@@ -150,7 +166,10 @@ export function UpdateNotifier() {
         unlisten = stopListening;
       })
       .catch((error: unknown) => {
-        console.warn("[updater] failed to listen for main window visibility", error);
+        console.warn(
+          "[updater] failed to listen for main window visibility",
+          error,
+        );
       });
 
     return () => {
@@ -292,7 +311,7 @@ export function UpdateNotifier() {
         setDismissedRestartPromptKey(installedRestartPromptKey);
       }
     },
-    [installedRestartPromptKey]
+    [installedRestartPromptKey],
   );
 
   const onRestartNow = () => {
@@ -304,11 +323,18 @@ export function UpdateNotifier() {
 
   return (
     <div data-slot="update-notifier">
-      <AlertDialog open={restartPromptOpen} onOpenChange={handleRestartPromptOpenChange}>
+      <AlertDialog
+        open={restartPromptOpen}
+        onOpenChange={handleRestartPromptOpenChange}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{m.update_restart_prompt_title()}</AlertDialogTitle>
-            <AlertDialogDescription>{m.update_restart_prompt_desc()}</AlertDialogDescription>
+            <AlertDialogTitle>
+              {m.update_restart_prompt_title()}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {m.update_restart_prompt_desc()}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{m.common_close()}</AlertDialogCancel>

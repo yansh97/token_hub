@@ -1,4 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
 
 import { getLocale, setLocale, type Locale } from "@/paraglide/runtime.js";
 
@@ -35,7 +42,10 @@ export function I18nProvider({ children }: I18nProviderProps) {
     syncDocumentLang(locale);
   }, [locale]);
 
-  const value = useMemo(() => ({ locale, setLocale: setAppLocale }), [locale, setAppLocale]);
+  const value = useMemo(
+    () => ({ locale, setLocale: setAppLocale }),
+    [locale, setAppLocale],
+  );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

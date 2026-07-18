@@ -12,4 +12,3 @@ describe("parseError", () => {
     expect(parseError({ ok: true })).toBe("[object Object]");
   });
 });
-

@@ -60,14 +60,24 @@ type AccountBase = {
   status: AccountStatusValue;
 };
 
-type AccountStatusValue = "active" | "disabled" | "expired" | "invalid" | "cooling_down";
+type AccountStatusValue =
+  | "active"
+  | "disabled"
+  | "expired"
+  | "invalid"
+  | "cooling_down";
 
 type AccountStatusSummary = Record<AccountStatusValue, number> & {
   all: number;
 };
 
 type AddDialogProvider = "kiro" | "codex";
-type CodexManualInputMode = "login" | "refresh_token" | "mobile_refresh_token" | "codex_session" | "file";
+type CodexManualInputMode =
+  | "login"
+  | "refresh_token"
+  | "mobile_refresh_token"
+  | "codex_session"
+  | "file";
 
 type ProvidersToolbarProps = {
   search: string;
@@ -86,7 +96,10 @@ type ProvidersToolbarProps = {
   onImportKiroIde: () => Promise<void>;
   onImportKiroKam: () => Promise<void>;
   onCodexLogin: () => Promise<void>;
-  onImportCodexRefreshTokens: (contents: string, clientKind: "codex" | "mobile") => Promise<void>;
+  onImportCodexRefreshTokens: (
+    contents: string,
+    clientKind: "codex" | "mobile",
+  ) => Promise<void>;
   onImportCodexText: (contents: string) => Promise<void>;
   onImportCodexFile: () => Promise<void>;
   onImportCodexDirectory: () => Promise<void>;
@@ -114,10 +127,22 @@ type ProvidersSectionsProps = {
   onRefreshQuota: (row: ProviderAccountTableRow) => Promise<void>;
   onLogout: (row: ProviderAccountTableRow) => Promise<void>;
   onBatchDelete: (rows: ProviderAccountTableRow[]) => Promise<void>;
-  onSaveProxyUrl: (row: ProviderAccountTableRow, proxyUrl: string) => Promise<void>;
-  onSavePriority: (row: ProviderAccountTableRow, priority: number) => Promise<void>;
-  onToggleStatus: (row: ProviderAccountTableRow, status: "active" | "disabled") => Promise<void>;
-  onToggleAutoRefresh: (row: ProviderAccountTableRow, enabled: boolean) => Promise<void>;
+  onSaveProxyUrl: (
+    row: ProviderAccountTableRow,
+    proxyUrl: string,
+  ) => Promise<void>;
+  onSavePriority: (
+    row: ProviderAccountTableRow,
+    priority: number,
+  ) => Promise<void>;
+  onToggleStatus: (
+    row: ProviderAccountTableRow,
+    status: "active" | "disabled",
+  ) => Promise<void>;
+  onToggleAutoRefresh: (
+    row: ProviderAccountTableRow,
+    enabled: boolean,
+  ) => Promise<void>;
 };
 
 function ProvidersSearchInput({
@@ -128,7 +153,10 @@ function ProvidersSearchInput({
   onSearchChange: (value: string) => void;
 }) {
   return (
-    <div data-slot="providers-search" className="relative flex min-w-[220px] flex-1 items-center">
+    <div
+      data-slot="providers-search"
+      className="relative flex min-w-[220px] flex-1 items-center"
+    >
       <Search className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
       <Input
         value={search}
@@ -150,12 +178,22 @@ function ProviderFilterSelect({
 }) {
   return (
     <div data-slot="providers-filter-provider">
-      <Select value={value} onValueChange={(nextValue) => onChange(nextValue as ProviderFilterValue)}>
-        <SelectTrigger size="sm" aria-label={m.providers_filter_provider_label()}>
+      <Select
+        value={value}
+        onValueChange={(nextValue) =>
+          onChange(nextValue as ProviderFilterValue)
+        }
+      >
+        <SelectTrigger
+          size="sm"
+          aria-label={m.providers_filter_provider_label()}
+        >
           <SelectValue placeholder={m.providers_filter_provider_label()} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={PROVIDER_FILTER_ALL}>{m.providers_filter_all_providers()}</SelectItem>
+          <SelectItem value={PROVIDER_FILTER_ALL}>
+            {m.providers_filter_all_providers()}
+          </SelectItem>
           <SelectItem value="kiro">{m.providers_kiro_title()}</SelectItem>
           <SelectItem value="codex">{m.providers_codex_title()}</SelectItem>
         </SelectContent>
@@ -173,17 +211,30 @@ function StatusFilterSelect({
 }) {
   return (
     <div data-slot="providers-filter-status">
-      <Select value={value} onValueChange={(nextValue) => onChange(nextValue as StatusFilterValue)}>
+      <Select
+        value={value}
+        onValueChange={(nextValue) => onChange(nextValue as StatusFilterValue)}
+      >
         <SelectTrigger size="sm" aria-label={m.providers_filter_status_label()}>
           <SelectValue placeholder={m.providers_filter_status_label()} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={STATUS_FILTER_ALL}>{m.providers_filter_all_statuses()}</SelectItem>
-          <SelectItem value="active">{m.kiro_account_status_active()}</SelectItem>
+          <SelectItem value={STATUS_FILTER_ALL}>
+            {m.providers_filter_all_statuses()}
+          </SelectItem>
+          <SelectItem value="active">
+            {m.kiro_account_status_active()}
+          </SelectItem>
           <SelectItem value="disabled">{m.common_disabled()}</SelectItem>
-          <SelectItem value="expired">{m.kiro_account_status_expired()}</SelectItem>
-          <SelectItem value="invalid">{m.codex_account_status_invalid()}</SelectItem>
-          <SelectItem value="cooling_down">{m.providers_account_status_cooling_down()}</SelectItem>
+          <SelectItem value="expired">
+            {m.kiro_account_status_expired()}
+          </SelectItem>
+          <SelectItem value="invalid">
+            {m.codex_account_status_invalid()}
+          </SelectItem>
+          <SelectItem value="cooling_down">
+            {m.providers_account_status_cooling_down()}
+          </SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -201,7 +252,9 @@ function buildEmptyStatusSummary(): AccountStatusSummary {
   };
 }
 
-function buildStatusSummary(rows: ProviderAccountTableRow[]): AccountStatusSummary {
+function buildStatusSummary(
+  rows: ProviderAccountTableRow[],
+): AccountStatusSummary {
   const summary = buildEmptyStatusSummary();
   for (const row of rows) {
     summary.all += 1;
@@ -211,14 +264,16 @@ function buildStatusSummary(rows: ProviderAccountTableRow[]): AccountStatusSumma
 }
 
 function statusSummaryFromPage(
-  counts: {
-    all: number;
-    active: number;
-    disabled: number;
-    expired: number;
-    invalid: number;
-    cooling_down: number;
-  } | undefined
+  counts:
+    | {
+        all: number;
+        active: number;
+        disabled: number;
+        expired: number;
+        invalid: number;
+        cooling_down: number;
+      }
+    | undefined,
 ): AccountStatusSummary {
   return counts ?? buildEmptyStatusSummary();
 }
@@ -275,7 +330,9 @@ function AccountStatusSummaryBar({
           data-slot={`providers-status-summary-${item.status}`}
         >
           <span>{getSummaryStatusLabel(item.status)}</span>
-          <span className="font-mono text-xs text-muted-foreground">{item.count}</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {item.count}
+          </span>
         </Button>
       ))}
     </div>
@@ -323,8 +380,14 @@ function ProvidersToolbar({
       className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2"
     >
       <ProvidersSearchInput search={search} onSearchChange={onSearchChange} />
-      <ProviderFilterSelect value={providerFilter} onChange={onProviderFilterChange} />
-      <StatusFilterSelect value={statusFilter} onChange={onStatusFilterChange} />
+      <ProviderFilterSelect
+        value={providerFilter}
+        onChange={onProviderFilterChange}
+      />
+      <StatusFilterSelect
+        value={statusFilter}
+        onChange={onStatusFilterChange}
+      />
       <Button
         type="button"
         variant="outline"
@@ -346,7 +409,9 @@ function ProvidersToolbar({
         aria-label={m.common_refresh()}
       >
         <RefreshCw
-          className={["size-4", refreshing ? "animate-spin" : ""].filter(Boolean).join(" ")}
+          className={["size-4", refreshing ? "animate-spin" : ""]
+            .filter(Boolean)
+            .join(" ")}
           aria-hidden="true"
         />
       </Button>
@@ -405,7 +470,9 @@ function KiroLoginHint({
   }
   return (
     <div className="rounded-md border border-border/60 bg-background/70 p-3 text-xs">
-      <p className="font-medium text-foreground">{m.kiro_device_code_title()}</p>
+      <p className="font-medium text-foreground">
+        {m.kiro_device_code_title()}
+      </p>
       <p className="mt-2 break-all text-muted-foreground">{verificationUrl}</p>
       <p className="mt-1 font-mono text-sm text-foreground">{userCode}</p>
       <p className="mt-2 text-muted-foreground">{m.kiro_login_open_hint()}</p>
@@ -496,7 +563,10 @@ function ProvidersAddAccountDialog({
   onImportKiroIde: () => Promise<void>;
   onImportKiroKam: () => Promise<void>;
   onCodexLogin: () => Promise<void>;
-  onImportCodexRefreshTokens: (contents: string, clientKind: "codex" | "mobile") => Promise<void>;
+  onImportCodexRefreshTokens: (
+    contents: string,
+    clientKind: "codex" | "mobile",
+  ) => Promise<void>;
   onImportCodexText: (contents: string) => Promise<void>;
   onImportCodexFile: () => Promise<void>;
   onImportCodexDirectory: () => Promise<void>;
@@ -545,7 +615,10 @@ function ProvidersAddAccountDialog({
 
   return (
     <Dialog modal open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-slot="providers-add-account-dialog" aria-describedby={undefined}>
+      <DialogContent
+        data-slot="providers-add-account-dialog"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
           <DialogTitle>{addLabel}</DialogTitle>
         </DialogHeader>
@@ -574,7 +647,10 @@ function ProvidersAddAccountDialog({
             </Button>
           </div>
           {activeProvider === "kiro" ? (
-            <div data-slot="providers-add-panel-kiro" className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
+            <div
+              data-slot="providers-add-panel-kiro"
+              className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
@@ -638,28 +714,42 @@ function ProvidersAddAccountDialog({
                 </Button>
               </div>
               {kiroStatusText ? (
-                <p className="text-xs text-muted-foreground">{kiroStatusText}</p>
+                <p className="text-xs text-muted-foreground">
+                  {kiroStatusText}
+                </p>
               ) : null}
-              <KiroLoginHint verificationUrl={kiroVerificationUrl} userCode={kiroUserCode} />
+              <KiroLoginHint
+                verificationUrl={kiroVerificationUrl}
+                userCode={kiroUserCode}
+              />
             </div>
           ) : (
-            <div data-slot="providers-add-panel-codex" className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
+            <div
+              data-slot="providers-add-panel-codex"
+              className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3"
+            >
               <div className="inline-flex flex-wrap rounded-lg border border-border/60 bg-background/70 p-1">
-                {(["login", "refresh_token", "mobile_refresh_token", "codex_session", "file"] as const).map(
-                  (mode) => (
-                    <Button
-                      key={mode}
-                      type="button"
-                      size="sm"
-                      variant={codexMode === mode ? "default" : "ghost"}
-                      onClick={() => switchCodexMode(mode)}
-                      disabled={codexActionBusy}
-                      data-slot={`providers-add-codex-mode-${mode}`}
-                    >
-                      {codexModeLabel(mode)}
-                    </Button>
-                  )
-                )}
+                {(
+                  [
+                    "login",
+                    "refresh_token",
+                    "mobile_refresh_token",
+                    "codex_session",
+                    "file",
+                  ] as const
+                ).map((mode) => (
+                  <Button
+                    key={mode}
+                    type="button"
+                    size="sm"
+                    variant={codexMode === mode ? "default" : "ghost"}
+                    onClick={() => switchCodexMode(mode)}
+                    disabled={codexActionBusy}
+                    data-slot={`providers-add-codex-mode-${mode}`}
+                  >
+                    {codexModeLabel(mode)}
+                  </Button>
+                ))}
               </div>
               {codexMode === "login" ? (
                 <Button
@@ -687,7 +777,9 @@ function ProvidersAddAccountDialog({
                   </div>
                   <textarea
                     value={codexManualInput}
-                    onChange={(event) => setCodexManualInput(event.target.value)}
+                    onChange={(event) =>
+                      setCodexManualInput(event.target.value)
+                    }
                     placeholder={codexManualPlaceholder(codexMode)}
                     spellCheck={false}
                     rows={codexMode === "codex_session" ? 8 : 4}
@@ -715,34 +807,36 @@ function ProvidersAddAccountDialog({
               ) : null}
               {codexMode === "file" ? (
                 <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    void onImportCodexFile();
-                  }}
-                  disabled={codexActionBusy}
-                  data-slot="providers-add-codex-import-file"
-                >
-                  {m.codex_import_file_button()}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    void onImportCodexDirectory();
-                  }}
-                  disabled={codexActionBusy}
-                  data-slot="providers-add-codex-import-directory"
-                >
-                  {m.codex_import_directory_button()}
-                </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      void onImportCodexFile();
+                    }}
+                    disabled={codexActionBusy}
+                    data-slot="providers-add-codex-import-file"
+                  >
+                    {m.codex_import_file_button()}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      void onImportCodexDirectory();
+                    }}
+                    disabled={codexActionBusy}
+                    data-slot="providers-add-codex-import-directory"
+                  >
+                    {m.codex_import_directory_button()}
+                  </Button>
                 </div>
               ) : null}
               {codexStatusText ? (
-                <p className="text-xs text-muted-foreground">{codexStatusText}</p>
+                <p className="text-xs text-muted-foreground">
+                  {codexStatusText}
+                </p>
               ) : null}
               <CodexLoginHint loginUrl={codexLoginUrl} />
             </div>
@@ -755,8 +849,10 @@ function ProvidersAddAccountDialog({
 
 function useProviderFilters() {
   const [search, setSearch] = useState("");
-  const [providerFilter, setProviderFilter] = useState<ProviderFilterValue>(PROVIDER_FILTER_ALL);
-  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>(STATUS_FILTER_ALL);
+  const [providerFilter, setProviderFilter] =
+    useState<ProviderFilterValue>(PROVIDER_FILTER_ALL);
+  const [statusFilter, setStatusFilter] =
+    useState<StatusFilterValue>(STATUS_FILTER_ALL);
 
   return {
     search,
@@ -779,7 +875,10 @@ function buildToolbarProps(
   onImportKiroIde: () => Promise<void>,
   onImportKiroKam: () => Promise<void>,
   onCodexLogin: () => Promise<void>,
-  onImportCodexRefreshTokens: (contents: string, clientKind: "codex" | "mobile") => Promise<void>,
+  onImportCodexRefreshTokens: (
+    contents: string,
+    clientKind: "codex" | "mobile",
+  ) => Promise<void>,
   onImportCodexText: (contents: string) => Promise<void>,
   onImportCodexFile: () => Promise<void>,
   onImportCodexDirectory: () => Promise<void>,
@@ -988,21 +1087,26 @@ function buildKiroQuotaDetails(quota: ProviderAccountPageItem["quota"] | null) {
         used: formatNumber(item.used),
         limit: formatNumber(item.limit),
       }),
-      secondary: joinSummaryParts([formatPercentage(item.percentage), resetLabel]),
+      secondary: joinSummaryParts([
+        formatPercentage(item.percentage),
+        resetLabel,
+      ]),
     };
   });
   return {
     planType: quota.plan_type ?? PLACEHOLDER,
     quotaSummary: summarizeQuota(
       `${quotaItems[0]?.name} · ${quotaItems[0]?.summary ?? PLACEHOLDER}`,
-      quotaItems.length
+      quotaItems.length,
     ),
     quotaError: "",
     quotaItems,
   };
 }
 
-function buildCodexQuotaDetails(quota: ProviderAccountPageItem["quota"] | null) {
+function buildCodexQuotaDetails(
+  quota: ProviderAccountPageItem["quota"] | null,
+) {
   if (quota?.error) {
     return {
       planType: quota.plan_type ?? PLACEHOLDER,
@@ -1039,14 +1143,17 @@ function buildCodexQuotaDetails(quota: ProviderAccountPageItem["quota"] | null) 
     return {
       name: quotaName,
       summary: usageLabel,
-      secondary: joinSummaryParts([formatPercentage(item.percentage), resetLabel]),
+      secondary: joinSummaryParts([
+        formatPercentage(item.percentage),
+        resetLabel,
+      ]),
     };
   });
   return {
     planType: quota.plan_type ?? PLACEHOLDER,
     quotaSummary: summarizeQuota(
       `${quotaItems[0]?.name} · ${quotaItems[0]?.summary ?? PLACEHOLDER}`,
-      quotaItems.length
+      quotaItems.length,
     ),
     quotaError: "",
     quotaItems,
@@ -1054,19 +1161,19 @@ function buildCodexQuotaDetails(quota: ProviderAccountPageItem["quota"] | null) 
 }
 
 function isKiroProviderAccount(
-  account: ProviderAccountPageItem
+  account: ProviderAccountPageItem,
 ): account is ProviderAccountPageItem & { provider_kind: "kiro" } {
   return account.provider_kind === "kiro";
 }
 
 function isCodexProviderAccount(
-  account: ProviderAccountPageItem
+  account: ProviderAccountPageItem,
 ): account is ProviderAccountPageItem & { provider_kind: "codex" } {
   return account.provider_kind === "codex";
 }
 
 function buildKiroRow(
-  account: ProviderAccountPageItem & { provider_kind: "kiro" }
+  account: ProviderAccountPageItem & { provider_kind: "kiro" },
 ): ProviderAccountTableRow {
   const quota = buildKiroQuotaDetails(account.quota);
   return {
@@ -1088,10 +1195,19 @@ function buildKiroRow(
       { label: m.providers_table_provider(), value: m.providers_kiro_title() },
       { label: m.providers_table_account(), value: formatDisplayName(account) },
       { label: m.providers_table_account_id(), value: account.account_id },
-      { label: m.providers_table_status(), value: formatKiroStatus(account.status) },
-      { label: m.providers_table_expires(), value: formatDateValue(account.expires_at) },
+      {
+        label: m.providers_table_status(),
+        value: formatKiroStatus(account.status),
+      },
+      {
+        label: m.providers_table_expires(),
+        value: formatDateValue(account.expires_at),
+      },
       { label: m.providers_table_plan(), value: quota.planType },
-      { label: m.providers_table_source(), value: formatKiroAuthMethod(account.auth_method) },
+      {
+        label: m.providers_table_source(),
+        value: formatKiroAuthMethod(account.auth_method),
+      },
     ],
     quotaError: quota.quotaError,
     quotaItems: quota.quotaItems,
@@ -1103,7 +1219,7 @@ function buildKiroRow(
 }
 
 function buildCodexRow(
-  account: ProviderAccountPageItem & { provider_kind: "codex" }
+  account: ProviderAccountPageItem & { provider_kind: "codex" },
 ): ProviderAccountTableRow {
   const quota = buildCodexQuotaDetails(account.quota);
   return {
@@ -1125,8 +1241,14 @@ function buildCodexRow(
       { label: m.providers_table_provider(), value: m.providers_codex_title() },
       { label: m.providers_table_account(), value: formatDisplayName(account) },
       { label: m.providers_table_account_id(), value: account.account_id },
-      { label: m.providers_table_status(), value: formatCodexStatus(account.status) },
-      { label: m.providers_table_expires(), value: formatDateValue(account.expires_at ?? null) },
+      {
+        label: m.providers_table_status(),
+        value: formatCodexStatus(account.status),
+      },
+      {
+        label: m.providers_table_expires(),
+        value: formatDateValue(account.expires_at ?? null),
+      },
       { label: m.providers_table_plan(), value: quota.planType },
     ],
     quotaError: quota.quotaError,
@@ -1138,14 +1260,18 @@ function buildCodexRow(
   };
 }
 
-function buildProviderRow(account: ProviderAccountPageItem): ProviderAccountTableRow {
+function buildProviderRow(
+  account: ProviderAccountPageItem,
+): ProviderAccountTableRow {
   if (isKiroProviderAccount(account)) {
     return buildKiroRow(account);
   }
   if (isCodexProviderAccount(account)) {
     return buildCodexRow(account);
   }
-  throw new Error(`Unsupported provider account kind: ${account.provider_kind}`);
+  throw new Error(
+    `Unsupported provider account kind: ${account.provider_kind}`,
+  );
 }
 
 function collectErrorMessages(parts: string[]) {
@@ -1201,53 +1327,76 @@ function useProvidersPanelState() {
   });
   const kiroAccounts = useKiroAccounts({ autoLoad: false });
   const codexAccounts = useCodexAccounts({ autoLoad: false });
-  const refreshKiroData = useCallback(async (accountId?: string) => {
-    await kiroAccounts.refreshQuotaCache(accountId ? [accountId] : undefined);
-    await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
-  }, [kiroAccounts, providerAccounts]);
-  const refreshCodexData = useCallback(async (accountId?: string) => {
-    await codexAccounts.refreshQuotaCache(accountId ? [accountId] : undefined);
-    await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
-  }, [codexAccounts, providerAccounts]);
-  const syncImportedKiroAccounts = useCallback(async (accountIds: string[]) => {
-    try {
-      await kiroAccounts.refreshQuotaCache(accountIds);
+  const refreshKiroData = useCallback(
+    async (accountId?: string) => {
+      await kiroAccounts.refreshQuotaCache(accountId ? [accountId] : undefined);
       await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
-    } catch (error) {
-      toast.error(parseError(error));
-    }
-  }, [kiroAccounts, providerAccounts]);
-  const syncImportedCodexAccounts = useCallback(async (accountIds: string[]) => {
-    try {
-      await codexAccounts.refreshQuotaCache(accountIds);
+    },
+    [kiroAccounts, providerAccounts],
+  );
+  const refreshCodexData = useCallback(
+    async (accountId?: string) => {
+      await codexAccounts.refreshQuotaCache(
+        accountId ? [accountId] : undefined,
+      );
       await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
-    } catch (error) {
-      toast.error(parseError(error));
-    }
-  }, [codexAccounts, providerAccounts]);
+    },
+    [codexAccounts, providerAccounts],
+  );
+  const syncImportedKiroAccounts = useCallback(
+    async (accountIds: string[]) => {
+      try {
+        await kiroAccounts.refreshQuotaCache(accountIds);
+        await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
+      } catch (error) {
+        toast.error(parseError(error));
+      }
+    },
+    [kiroAccounts, providerAccounts],
+  );
+  const syncImportedCodexAccounts = useCallback(
+    async (accountIds: string[]) => {
+      try {
+        await codexAccounts.refreshQuotaCache(accountIds);
+        await Promise.all([
+          providerAccounts.refresh(),
+          codexAccounts.refresh(),
+        ]);
+      } catch (error) {
+        toast.error(parseError(error));
+      }
+    },
+    [codexAccounts, providerAccounts],
+  );
   const kiroLogin = useKiroLogin({ onRefresh: refreshKiroData });
   const codexLogin = useCodexLogin({ onRefresh: refreshCodexData });
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [addDialogProvider, setAddDialogProvider] = useState<AddDialogProvider>("kiro");
+  const [addDialogProvider, setAddDialogProvider] =
+    useState<AddDialogProvider>("kiro");
   const resetKiroLogin = kiroLogin.resetLogin;
   const resetCodexLogin = codexLogin.resetLogin;
-  const handleAddDialogOpenChange = useCallback((nextOpen: boolean) => {
-    setAddDialogOpen(nextOpen);
-    if (nextOpen) {
-      setAddDialogProvider("kiro");
-      return;
-    }
-    if (!nextOpen) {
-      // 弹窗关闭是用户取消授权的明确信号，立即清理两个授权流的 UI 状态。
-      resetKiroLogin();
-      resetCodexLogin();
-    }
-  }, [resetCodexLogin, resetKiroLogin]);
+  const handleAddDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setAddDialogOpen(nextOpen);
+      if (nextOpen) {
+        setAddDialogProvider("kiro");
+        return;
+      }
+      if (!nextOpen) {
+        // 弹窗关闭是用户取消授权的明确信号，立即清理两个授权流的 UI 状态。
+        resetKiroLogin();
+        resetCodexLogin();
+      }
+    },
+    [resetCodexLogin, resetKiroLogin],
+  );
   const [kiroImporting, setKiroImporting] = useState(false);
   const [codexImporting, setCodexImporting] = useState(false);
   const [codexBulkRefreshing, setCodexBulkRefreshing] = useState(false);
   const [batchDeleting, setBatchDeleting] = useState(false);
-  const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(new Set());
+  const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(
+    new Set(),
+  );
   const refreshAll = useCallback(async () => {
     await Promise.all([
       kiroAccounts.refresh(),
@@ -1263,13 +1412,17 @@ function useProvidersPanelState() {
       providerAccounts.statusCounts
         ? statusSummaryFromPage(providerAccounts.statusCounts)
         : buildStatusSummary(rows),
-    [providerAccounts.statusCounts, rows]
+    [providerAccounts.statusCounts, rows],
   );
   const refreshAllCodexTokens = useCallback(async () => {
     // 批量刷新必须基于 Codex 全量列表，不能复用当前分页/筛选后的表格行。
     const accounts =
-      codexAccounts.accounts.length > 0 ? codexAccounts.accounts : await codexAccounts.refresh();
-    const targets = accounts.filter((account) => account.auto_refresh_enabled ?? true);
+      codexAccounts.accounts.length > 0
+        ? codexAccounts.accounts
+        : await codexAccounts.refresh();
+    const targets = accounts.filter(
+      (account) => account.auto_refresh_enabled ?? true,
+    );
     if (targets.length === 0) {
       toast.error(m.providers_refresh_all_codex_tokens_empty());
       return;
@@ -1299,18 +1452,23 @@ function useProvidersPanelState() {
             succeeded,
             failed,
             error: firstError,
-          })
+          }),
         );
         return;
       }
-      toast.success(m.providers_refresh_all_codex_tokens_success({ count: succeeded }));
+      toast.success(
+        m.providers_refresh_all_codex_tokens_success({ count: succeeded }),
+      );
     } finally {
       setCodexBulkRefreshing(false);
     }
   }, [codexAccounts, providerAccounts]);
-  const loginKiro = useCallback(async (method: KiroLoginMethod) => {
-    await kiroLogin.beginLogin(method);
-  }, [kiroLogin]);
+  const loginKiro = useCallback(
+    async (method: KiroLoginMethod) => {
+      await kiroLogin.beginLogin(method);
+    },
+    [kiroLogin],
+  );
   const importKiroIde = useCallback(async () => {
     const selection = await open({
       directory: true,
@@ -1392,23 +1550,11 @@ function useProvidersPanelState() {
       setCodexImporting(false);
     }
   }, [codexAccounts, syncImportedCodexAccounts]);
-  const importCodexText = useCallback(async (contents: string) => {
-    setCodexImporting(true);
-    try {
-      const imported = await codexAccounts.importText(contents);
-      toast.success(m.codex_import_success());
-      void syncImportedCodexAccounts(imported.map((item) => item.account_id));
-    } catch (error) {
-      toast.error(parseError(error));
-    } finally {
-      setCodexImporting(false);
-    }
-  }, [codexAccounts, syncImportedCodexAccounts]);
-  const importCodexRefreshTokens = useCallback(
-    async (contents: string, clientKind: "codex" | "mobile") => {
+  const importCodexText = useCallback(
+    async (contents: string) => {
       setCodexImporting(true);
       try {
-        const imported = await codexAccounts.importRefreshTokens(contents, clientKind);
+        const imported = await codexAccounts.importText(contents);
         toast.success(m.codex_import_success());
         void syncImportedCodexAccounts(imported.map((item) => item.account_id));
       } catch (error) {
@@ -1417,9 +1563,28 @@ function useProvidersPanelState() {
         setCodexImporting(false);
       }
     },
-    [codexAccounts, syncImportedCodexAccounts]
+    [codexAccounts, syncImportedCodexAccounts],
   );
-  const refreshBusy = kiroAccounts.loading || codexAccounts.loading || providerAccounts.loading;
+  const importCodexRefreshTokens = useCallback(
+    async (contents: string, clientKind: "codex" | "mobile") => {
+      setCodexImporting(true);
+      try {
+        const imported = await codexAccounts.importRefreshTokens(
+          contents,
+          clientKind,
+        );
+        toast.success(m.codex_import_success());
+        void syncImportedCodexAccounts(imported.map((item) => item.account_id));
+      } catch (error) {
+        toast.error(parseError(error));
+      } finally {
+        setCodexImporting(false);
+      }
+    },
+    [codexAccounts, syncImportedCodexAccounts],
+  );
+  const refreshBusy =
+    kiroAccounts.loading || codexAccounts.loading || providerAccounts.loading;
   const kiroActionBusy =
     kiroImporting ||
     kiroLogin.login.status === "waiting" ||
@@ -1463,7 +1628,7 @@ function useProvidersPanelState() {
   );
   const visibleRows = useMemo(
     () => rows.filter((row) => !optimisticDeletedIds.has(row.id)),
-    [rows, optimisticDeletedIds]
+    [rows, optimisticDeletedIds],
   );
   const tableBusy = providerAccounts.loading || batchDeleting;
   const tableError = collectErrorMessages([
@@ -1481,7 +1646,7 @@ function useProvidersPanelState() {
       await codexAccounts.logout(row.accountId);
       await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts],
   );
   const handleRowRefresh = useCallback(
     async (row: ProviderAccountTableRow) => {
@@ -1491,12 +1656,15 @@ function useProvidersPanelState() {
       try {
         await codexAccounts.refreshAccount(row.accountId);
         await codexAccounts.refreshQuotaCache([row.accountId]);
-        await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        await Promise.all([
+          providerAccounts.refresh(),
+          codexAccounts.refresh(),
+        ]);
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [codexAccounts, providerAccounts]
+    [codexAccounts, providerAccounts],
   );
   const handleCodexAutoRefreshToggle = useCallback(
     async (row: ProviderAccountTableRow, enabled: boolean) => {
@@ -1510,71 +1678,95 @@ function useProvidersPanelState() {
         toast.error(parseError(error));
       }
     },
-    [codexAccounts, providerAccounts]
+    [codexAccounts, providerAccounts],
   );
   const handleRowRefreshQuota = useCallback(
     async (row: ProviderAccountTableRow) => {
       try {
         if (row.provider === "kiro") {
           await kiroAccounts.refreshQuotaNow(row.accountId);
-          await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
+          await Promise.all([
+            providerAccounts.refresh(),
+            kiroAccounts.refresh(),
+          ]);
           return;
         }
         await codexAccounts.refreshQuotaNow(row.accountId);
-        await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        await Promise.all([
+          providerAccounts.refresh(),
+          codexAccounts.refresh(),
+        ]);
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts],
   );
   const handleAccountStatusToggle = useCallback(
     async (row: ProviderAccountTableRow, status: "active" | "disabled") => {
       try {
         if (row.provider === "kiro") {
           await kiroAccounts.setStatus(row.accountId, status);
-          await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
+          await Promise.all([
+            providerAccounts.refresh(),
+            kiroAccounts.refresh(),
+          ]);
           return;
         }
         await codexAccounts.setStatus(row.accountId, status);
-        await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        await Promise.all([
+          providerAccounts.refresh(),
+          codexAccounts.refresh(),
+        ]);
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts],
   );
   const handleSaveProxyUrl = useCallback(
     async (row: ProviderAccountTableRow, proxyUrl: string) => {
       try {
         if (row.provider === "kiro") {
           await kiroAccounts.setProxyUrl(row.accountId, proxyUrl || null);
-          await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
+          await Promise.all([
+            providerAccounts.refresh(),
+            kiroAccounts.refresh(),
+          ]);
         } else {
           await codexAccounts.setProxyUrl(row.accountId, proxyUrl || null);
-          await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+          await Promise.all([
+            providerAccounts.refresh(),
+            codexAccounts.refresh(),
+          ]);
         }
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts],
   );
   const handleSavePriority = useCallback(
     async (row: ProviderAccountTableRow, priority: number) => {
       try {
         if (row.provider === "kiro") {
           await kiroAccounts.setPriority(row.accountId, priority);
-          await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
+          await Promise.all([
+            providerAccounts.refresh(),
+            kiroAccounts.refresh(),
+          ]);
         } else {
           await codexAccounts.setPriority(row.accountId, priority);
-          await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+          await Promise.all([
+            providerAccounts.refresh(),
+            codexAccounts.refresh(),
+          ]);
         }
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts],
   );
 
   const handleBatchDelete = useCallback(
@@ -1589,8 +1781,13 @@ function useProvidersPanelState() {
       try {
         await deleteProviderAccounts(accountIds);
         await providerAccounts.refresh();
-        void Promise.all([kiroAccounts.refresh(), codexAccounts.refresh()]).catch(() => undefined);
-        toast.success(m.providers_accounts_delete_success({ count: accountIds.length }));
+        void Promise.all([
+          kiroAccounts.refresh(),
+          codexAccounts.refresh(),
+        ]).catch(() => undefined);
+        toast.success(
+          m.providers_accounts_delete_success({ count: accountIds.length }),
+        );
       } catch (error) {
         toast.error(parseError(error));
       } finally {
@@ -1598,7 +1795,7 @@ function useProvidersPanelState() {
         setOptimisticDeletedIds(new Set());
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts],
   );
 
   return {

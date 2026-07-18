@@ -31,17 +31,21 @@ function mergeModels(...groups: readonly (readonly string[])[]) {
 }
 
 function firstApiKey(value: string) {
-  return value
-    .split(/[,\n]/)
-    .map((item) => item.trim())
-    .find(Boolean) ?? "";
+  return (
+    value
+      .split(/[,\n]/)
+      .map((item) => item.trim())
+      .find(Boolean) ?? ""
+  );
 }
 
 export function AvailableModelsEditor({
   draft,
   onChangeDraft,
 }: AvailableModelsEditorProps) {
-  const [options, setOptions] = useState(() => mergeModels(draft.availableModels));
+  const [options, setOptions] = useState(() =>
+    mergeModels(draft.availableModels),
+  );
   const [search, setSearch] = useState("");
   const [customModel, setCustomModel] = useState("");
   const [fetching, setFetching] = useState(false);
@@ -78,7 +82,9 @@ export function AvailableModelsEditor({
       updateSelectedModels([...selectedModels, model]);
       return;
     }
-    updateSelectedModels(selectedModels.filter((candidate) => candidate !== model));
+    updateSelectedModels(
+      selectedModels.filter((candidate) => candidate !== model),
+    );
   };
 
   const toggleVisibleModels = () => {
@@ -87,7 +93,9 @@ export function AvailableModelsEditor({
     }
     if (allVisibleModelsSelected) {
       const visibleModelSet = new Set(visibleOptions);
-      updateSelectedModels(selectedModels.filter((model) => !visibleModelSet.has(model)));
+      updateSelectedModels(
+        selectedModels.filter((model) => !visibleModelSet.has(model)),
+      );
       return;
     }
     updateSelectedModels([...selectedModels, ...visibleOptions]);
@@ -152,19 +160,25 @@ export function AvailableModelsEditor({
         }}
         aria-label={m.field_available_models()}
       >
-        <ToggleGroupItem value="all">{m.available_models_all()}</ToggleGroupItem>
+        <ToggleGroupItem value="all">
+          {m.available_models_all()}
+        </ToggleGroupItem>
         <ToggleGroupItem value="selected">
           {m.available_models_selected()}
         </ToggleGroupItem>
       </ToggleGroup>
 
       {draft.availableModelsMode === "all" ? (
-        <p className="text-sm text-muted-foreground">{m.available_models_all_desc()}</p>
+        <p className="text-sm text-muted-foreground">
+          {m.available_models_all_desc()}
+        </p>
       ) : (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {m.available_models_selected_count({ count: selectedModels.length })}
+              {m.available_models_selected_count({
+                count: selectedModels.length,
+              })}
             </span>
             {selectedModels.map((model) => (
               <Badge key={model} variant="secondary" className="gap-1 pr-1">
@@ -213,7 +227,9 @@ export function AvailableModelsEditor({
             </Button>
           </div>
 
-          {feedback ? <p className="text-xs text-muted-foreground">{feedback}</p> : null}
+          {feedback ? (
+            <p className="text-xs text-muted-foreground">{feedback}</p>
+          ) : null}
 
           <ScrollArea className="h-40 rounded-md border">
             <div className="divide-y">
@@ -225,7 +241,9 @@ export function AvailableModelsEditor({
                       onCheckedChange={toggleVisibleModels}
                       aria-label={visibleModelsBulkLabel}
                     />
-                    <span className="text-xs font-medium">{visibleModelsBulkLabel}</span>
+                    <span className="text-xs font-medium">
+                      {visibleModelsBulkLabel}
+                    </span>
                   </Label>
                   {visibleOptions.map((model) => (
                     <Label
@@ -234,9 +252,13 @@ export function AvailableModelsEditor({
                     >
                       <Checkbox
                         checked={selectedModelSet.has(model)}
-                        onCheckedChange={(value) => toggleModel(model, value === true)}
+                        onCheckedChange={(value) =>
+                          toggleModel(model, value === true)
+                        }
                       />
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs">{model}</span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                        {model}
+                      </span>
                     </Label>
                   ))}
                 </>

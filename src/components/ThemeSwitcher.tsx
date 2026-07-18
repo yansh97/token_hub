@@ -25,7 +25,8 @@ const THEME_OPTIONS: readonly {
 
 export function ThemeSwitcher() {
   const { theme = "system", setTheme } = useTheme();
-  const TriggerIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Laptop;
+  const TriggerIcon =
+    theme === "dark" ? Moon : theme === "light" ? Sun : Laptop;
 
   return (
     <DropdownMenu>
@@ -54,13 +55,18 @@ export function ThemeSwitcher() {
                   setTheme(option.value);
                 }
               }}
-              className={cn("flex items-center justify-between", isActive && "bg-accent")}
+              className={cn(
+                "flex items-center justify-between",
+                isActive && "bg-accent",
+              )}
             >
               <span className="flex items-center gap-2">
                 <OptionIcon className="size-4" aria-hidden="true" />
                 {option.label()}
               </span>
-              {isActive ? <Check className="size-4" aria-hidden="true" /> : null}
+              {isActive ? (
+                <Check className="size-4" aria-hidden="true" />
+              ) : null}
             </DropdownMenuItem>
           );
         })}

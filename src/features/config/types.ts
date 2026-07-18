@@ -2,10 +2,14 @@ import { m } from "@/paraglide/messages.js";
 
 export const UPSTREAM_ORDER_STRATEGIES = [
   { value: "fill_first", label: () => m.upstream_strategy_order_fill_first() },
-  { value: "round_robin", label: () => m.upstream_strategy_order_round_robin() },
+  {
+    value: "round_robin",
+    label: () => m.upstream_strategy_order_round_robin(),
+  },
 ] as const;
 
-export type UpstreamOrderStrategy = (typeof UPSTREAM_ORDER_STRATEGIES)[number]["value"];
+export type UpstreamOrderStrategy =
+  (typeof UPSTREAM_ORDER_STRATEGIES)[number]["value"];
 
 export const UPSTREAM_DISPATCH_STRATEGIES = [
   { value: "serial", label: () => m.upstream_strategy_dispatch_serial() },
@@ -13,7 +17,8 @@ export const UPSTREAM_DISPATCH_STRATEGIES = [
   { value: "race", label: () => m.upstream_strategy_dispatch_race() },
 ] as const;
 
-export type UpstreamDispatchType = (typeof UPSTREAM_DISPATCH_STRATEGIES)[number]["value"];
+export type UpstreamDispatchType =
+  (typeof UPSTREAM_DISPATCH_STRATEGIES)[number]["value"];
 
 export type UpstreamDispatchStrategy =
   | { type: "serial" }
@@ -26,12 +31,16 @@ export type UpstreamStrategy = {
 };
 
 export const TRAY_TOKEN_RATE_FORMATS = [
-  { value: "combined", label: () => m.proxy_core_tray_token_rate_format_combined() },
+  {
+    value: "combined",
+    label: () => m.proxy_core_tray_token_rate_format_combined(),
+  },
   { value: "split", label: () => m.proxy_core_tray_token_rate_format_split() },
   { value: "both", label: () => m.proxy_core_tray_token_rate_format_both() },
 ] as const;
 
-export type TrayTokenRateFormat = (typeof TRAY_TOKEN_RATE_FORMATS)[number]["value"];
+export type TrayTokenRateFormat =
+  (typeof TRAY_TOKEN_RATE_FORMATS)[number]["value"];
 
 export type KiroPreferredEndpoint = "ide" | "cli";
 

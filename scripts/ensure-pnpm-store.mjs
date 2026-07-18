@@ -6,9 +6,17 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const candidates = [
-  { cmd: "corepack", args: ["pnpm", "store", "path", "--silent"], label: "corepack pnpm" },
+  {
+    cmd: "corepack",
+    args: ["pnpm", "store", "path", "--silent"],
+    label: "corepack pnpm",
+  },
   { cmd: "pnpm", args: ["store", "path", "--silent"], label: "pnpm" },
-  { cmd: "npx", args: ["-y", "pnpm", "store", "path", "--silent"], label: "npx pnpm" },
+  {
+    cmd: "npx",
+    args: ["-y", "pnpm", "store", "path", "--silent"],
+    label: "npx pnpm",
+  },
 ];
 
 function getErrorMessage(error) {
@@ -49,10 +57,14 @@ if (!storePath) {
     errorCodes.length === candidates.length &&
     errorCodes.every((code) => code === "ENOENT");
   if (allMissing) {
-    console.warn(`pnpm not found; skipping pnpm store initialization. Details: ${details}`);
+    console.warn(
+      `pnpm not found; skipping pnpm store initialization. Details: ${details}`,
+    );
     process.exit(0);
   }
-  throw new Error(`Failed to resolve pnpm store path. Tried ${candidates.length} commands. Details: ${details}`);
+  throw new Error(
+    `Failed to resolve pnpm store path. Tried ${candidates.length} commands. Details: ${details}`,
+  );
 }
 
 await mkdir(storePath, { recursive: true });

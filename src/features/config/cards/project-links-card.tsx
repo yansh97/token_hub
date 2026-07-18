@@ -1,7 +1,13 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { TOKEN_PROXY_GITHUB_URL } from "@/lib/links";
 import { m } from "@/paraglide/messages.js";
 

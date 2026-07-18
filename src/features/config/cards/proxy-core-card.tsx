@@ -1,7 +1,13 @@
 import { RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -13,8 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ProxyServicePanel, type ProxyServiceViewProps } from "@/features/config/cards/proxy-service-card";
-import { type ConfigForm, type KiroPreferredEndpoint } from "@/features/config/types";
+import {
+  ProxyServicePanel,
+  type ProxyServiceViewProps,
+} from "@/features/config/cards/proxy-service-card";
+import {
+  type ConfigForm,
+  type KiroPreferredEndpoint,
+} from "@/features/config/types";
 import { m } from "@/paraglide/messages.js";
 
 const KIRO_ENDPOINT_OPTIONS: ReadonlyArray<{
@@ -25,7 +37,9 @@ const KIRO_ENDPOINT_OPTIONS: ReadonlyArray<{
   { value: "cli", label: () => m.kiro_preferred_endpoint_cli() },
 ];
 
-function isKiroPreferredEndpoint(value: string): value is KiroPreferredEndpoint {
+function isKiroPreferredEndpoint(
+  value: string,
+): value is KiroPreferredEndpoint {
   return value === "ide" || value === "cli";
 }
 
@@ -40,7 +54,11 @@ type ProxyCoreCardProps = {
 
 type ProxyCoreFieldsProps = Pick<
   ProxyCoreCardProps,
-  "form" | "showLocalKey" | "onToggleLocalKey" | "onChange" | "onResetHotModelMappings"
+  | "form"
+  | "showLocalKey"
+  | "onToggleLocalKey"
+  | "onChange"
+  | "onResetHotModelMappings"
 >;
 
 function ProxyCoreFields({
@@ -83,10 +101,14 @@ function ProxyCoreFields({
           onChange={(event) => onChange({ localApiKey: event.target.value })}
           placeholder={m.common_optional()}
         />
-        <p className="text-xs text-muted-foreground">{m.proxy_core_local_api_key_help()}</p>
+        <p className="text-xs text-muted-foreground">
+          {m.proxy_core_local_api_key_help()}
+        </p>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="app-proxy-url">{m.proxy_core_app_proxy_url_label()}</Label>
+        <Label htmlFor="app-proxy-url">
+          {m.proxy_core_app_proxy_url_label()}
+        </Label>
         <Input
           id="app-proxy-url"
           value={form.appProxyUrl}
@@ -101,7 +123,8 @@ function ProxyCoreFields({
         <div className="space-y-1">
           <Label htmlFor="cors-enabled">允许浏览器跨域调用本地代理</Label>
           <p className="text-xs text-muted-foreground">
-            开启后，loopback 页面可从浏览器访问本地代理；实际请求仍需要本地访问 key。
+            开启后，loopback 页面可从浏览器访问本地代理；实际请求仍需要本地访问
+            key。
           </p>
         </div>
         <Switch
@@ -114,7 +137,8 @@ function ProxyCoreFields({
         <div className="space-y-1">
           <Label htmlFor="model-list-prefix">模型列表显示渠道前缀</Label>
           <p className="text-xs text-muted-foreground">
-            开启后，`/v1/models` 会返回 `upstream_id/模型名`；同名模型额外保留无前缀入口用于轮询。
+            开启后，`/v1/models` 会返回
+            `upstream_id/模型名`；同名模型额外保留无前缀入口用于轮询。
           </p>
         </div>
         <Switch
@@ -132,7 +156,12 @@ function ProxyCoreFields({
             })}
           </p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={onResetHotModelMappings}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onResetHotModelMappings}
+        >
           <RotateCcw className="size-4" aria-hidden="true" />
           {m.proxy_core_hot_model_mappings_reset()}
         </Button>
@@ -257,7 +286,9 @@ type ProxyCoreServiceSectionProps = {
   proxyService: ProxyServiceViewProps;
 };
 
-function ProxyCoreServiceSection({ proxyService }: ProxyCoreServiceSectionProps) {
+function ProxyCoreServiceSection({
+  proxyService,
+}: ProxyCoreServiceSectionProps) {
   return (
     <div className="pt-1">
       <ProxyServicePanel {...proxyService} />

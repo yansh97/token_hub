@@ -1,12 +1,12 @@
-import type { ReactNode } from "react"
+import type { ReactNode } from "react";
 
-import { Separator } from "@/components/ui/separator"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 type SiteHeaderProps = {
-  title: string
-  actions?: ReactNode
-}
+  title: string;
+  actions?: ReactNode;
+};
 
 export function SiteHeader({ title, actions }: SiteHeaderProps) {
   return (
@@ -18,10 +18,8 @@ export function SiteHeader({ title, actions }: SiteHeaderProps) {
           className="mx-2 data-[orientation=vertical]:h-4"
         />
         <h1 className="text-base font-medium">{title}</h1>
-        <div className="ml-auto flex items-center gap-2">
-          {actions}
-        </div>
+        <div className="ml-auto flex items-center gap-2">{actions}</div>
       </div>
     </header>
-  )
+  );
 }

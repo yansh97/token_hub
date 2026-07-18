@@ -43,19 +43,45 @@ describe("config/cards/AgentNodeCard", () => {
         onStart={vi.fn()}
         onStop={vi.fn()}
         onRestart={vi.fn()}
-      />
+      />,
     );
 
-    expect(screen.getByText(m.agent_node_title({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByText(m.agent_node_desc({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByText(m.proxy_service_state_label({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByText(m.proxy_service_badge_running({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByLabelText(m.agent_node_server_url_label({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByLabelText(m.agent_node_hostname_label({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByText(m.agent_node_hostname_help({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByLabelText(m.agent_node_api_key_label({}, { locale: "zh" }))).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: m.common_save({}, { locale: "zh" }) })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: m.proxy_service_stop({}, { locale: "zh" }) })).toBeInTheDocument();
-    expect(screen.queryByText("Connect this desktop app to a public Agent Console.")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(m.agent_node_title({}, { locale: "zh" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(m.agent_node_desc({}, { locale: "zh" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(m.proxy_service_state_label({}, { locale: "zh" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(m.proxy_service_badge_running({}, { locale: "zh" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        m.agent_node_server_url_label({}, { locale: "zh" }),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(m.agent_node_hostname_label({}, { locale: "zh" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(m.agent_node_hostname_help({}, { locale: "zh" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(m.agent_node_api_key_label({}, { locale: "zh" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: m.common_save({}, { locale: "zh" }) }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: m.proxy_service_stop({}, { locale: "zh" }),
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Connect this desktop app to a public Agent Console."),
+    ).not.toBeInTheDocument();
   });
 });

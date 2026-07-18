@@ -103,7 +103,11 @@ describe("upstreams/upstream-editor-helpers", () => {
   });
 
   it("coerces account-backed providers to exclusive selections", () => {
-    expect(coerceProviderSelection(["openai", "antigravity"])).toEqual(["antigravity"]);
-    expect(coerceProviderSelection(["codex", "antigravity"])).toEqual(["codex"]);
+    expect(coerceProviderSelection(["openai", "antigravity"])).toEqual([
+      "antigravity",
+    ]);
+    expect(coerceProviderSelection(["codex", "antigravity"])).toEqual([
+      "codex",
+    ]);
   });
 });

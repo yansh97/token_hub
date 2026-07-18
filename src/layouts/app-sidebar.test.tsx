@@ -22,7 +22,11 @@ type UseRouterStateArgs<T> = {
 };
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children, ...props }: ComponentProps<"a"> & { to: string; children: ReactNode }) => (
+  Link: ({
+    to,
+    children,
+    ...props
+  }: ComponentProps<"a"> & { to: string; children: ReactNode }) => (
     <a href={to} {...props}>
       {children}
     </a>
@@ -47,11 +51,17 @@ describe("layouts/AppSidebar", () => {
     render(
       <SidebarProvider>
         <AppSidebar />
-      </SidebarProvider>
+      </SidebarProvider>,
     );
 
-    expect(screen.getByRole("link", { name: "Token Hub (dev)" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: m.agent_node_title({}, { locale: "zh" }) })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Token Hub (dev)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", {
+        name: m.agent_node_title({}, { locale: "zh" }),
+      }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Agent Node")).not.toBeInTheDocument();
   });
 
@@ -59,20 +69,26 @@ describe("layouts/AppSidebar", () => {
     render(
       <SidebarProvider>
         <AppSidebar />
-      </SidebarProvider>
+      </SidebarProvider>,
     );
 
-    expect(screen.queryByRole("link", { name: m.config_section_providers_label() })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: m.config_section_providers_label() }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the Agents and Agent Node menu items", () => {
     render(
       <SidebarProvider>
         <AppSidebar />
-      </SidebarProvider>
+      </SidebarProvider>,
     );
 
-    expect(screen.queryByRole("link", { name: m.config_section_agents_label() })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: m.agent_node_title() })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: m.config_section_agents_label() }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: m.agent_node_title() }),
+    ).not.toBeInTheDocument();
   });
 });

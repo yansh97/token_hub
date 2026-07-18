@@ -2409,12 +2409,11 @@ async fn assert_disconnect_once_retries_same_upstream_before_fallback() {
     let (status, response_text) = send_scripted_replay_probe(state).await;
     // 成功恢复时不再写中间 502 行，只应有最终成功日志。
     let logged_count = wait_for_request_log_count(&pool, 1).await;
-    let failure_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM request_logs WHERE status = 502;",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("count transport failure logs");
+    let failure_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM request_logs WHERE status = 502;")
+            .fetch_one(&pool)
+            .await
+            .expect("count transport failure logs");
     let primary_connections = primary.connections();
     let primary_requests = primary.requests();
     let fallback_requests = fallback.requests();
@@ -2435,7 +2434,10 @@ async fn assert_disconnect_once_retries_same_upstream_before_fallback() {
     assert_wire_request_replayed(&primary_requests);
     assert!(fallback_requests.is_empty());
     assert_eq!(logged_count, 1);
-    assert_eq!(failure_count, 0, "recovered transport failure must not log intermediate 502");
+    assert_eq!(
+        failure_count, 0,
+        "recovered transport failure must not log intermediate 502"
+    );
 }
 
 async fn assert_disconnect_twice_falls_back_after_one_fresh_retry() {
@@ -2589,8 +2591,7 @@ async fn assert_codex_transport_disconnect_does_not_restart_account_chain(pinned
         Some("responses fallback after codex disconnect")
     );
     assert_eq!(
-        codex_connections,
-        2,
+        codex_connections, 2,
         "transport disconnect allows one same-upstream retry without expanding the account chain"
     );
     assert_eq!(fallback_requests.len(), 1);

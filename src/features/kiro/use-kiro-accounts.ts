@@ -75,59 +75,74 @@ export function useKiroAccounts(options?: UseKiroAccountsOptions) {
     }
   }, []);
 
-  const setProxyUrl = useCallback(async (accountId: string, proxyUrl: string | null) => {
-    setLoading(true);
-    try {
-      const updated = await setKiroProxyUrl(accountId, proxyUrl);
-      setAccounts((prev) =>
-        prev.map((item) => (item.account_id === accountId ? { ...item, ...updated } : item))
-      );
-      setError("");
-      return updated;
-    } catch (err) {
-      const message = parseError(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setProxyUrl = useCallback(
+    async (accountId: string, proxyUrl: string | null) => {
+      setLoading(true);
+      try {
+        const updated = await setKiroProxyUrl(accountId, proxyUrl);
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.account_id === accountId ? { ...item, ...updated } : item,
+          ),
+        );
+        setError("");
+        return updated;
+      } catch (err) {
+        const message = parseError(err);
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
-  const setStatus = useCallback(async (accountId: string, status: "active" | "disabled") => {
-    setLoading(true);
-    try {
-      const updated = await setKiroStatus(accountId, status);
-      setAccounts((prev) =>
-        prev.map((item) => (item.account_id === accountId ? { ...item, ...updated } : item))
-      );
-      setError("");
-      return updated;
-    } catch (err) {
-      const message = parseError(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setStatus = useCallback(
+    async (accountId: string, status: "active" | "disabled") => {
+      setLoading(true);
+      try {
+        const updated = await setKiroStatus(accountId, status);
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.account_id === accountId ? { ...item, ...updated } : item,
+          ),
+        );
+        setError("");
+        return updated;
+      } catch (err) {
+        const message = parseError(err);
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
-  const setPriority = useCallback(async (accountId: string, priority: number) => {
-    setLoading(true);
-    try {
-      const updated = await setKiroPriority(accountId, priority);
-      setAccounts((prev) =>
-        prev.map((item) => (item.account_id === accountId ? { ...item, ...updated } : item))
-      );
-      setError("");
-      return updated;
-    } catch (err) {
-      const message = parseError(err);
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setPriority = useCallback(
+    async (accountId: string, priority: number) => {
+      setLoading(true);
+      try {
+        const updated = await setKiroPriority(accountId, priority);
+        setAccounts((prev) =>
+          prev.map((item) =>
+            item.account_id === accountId ? { ...item, ...updated } : item,
+          ),
+        );
+        setError("");
+        return updated;
+      } catch (err) {
+        const message = parseError(err);
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   const refreshQuotaCache = useCallback(async (accountIds?: string[]) => {
     await refreshKiroQuotaCache(accountIds);

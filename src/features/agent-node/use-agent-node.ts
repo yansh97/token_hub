@@ -16,9 +16,12 @@ const EMPTY_AGENT_NODE_CONFIG: AgentNodeConfig = {
 };
 
 export function useAgentNode() {
-  const [config, setConfig] = useState<AgentNodeConfig>(EMPTY_AGENT_NODE_CONFIG);
+  const [config, setConfig] = useState<AgentNodeConfig>(
+    EMPTY_AGENT_NODE_CONFIG,
+  );
   const [status, setStatus] = useState<AgentNodeServiceStatus | null>(null);
-  const [requestState, setRequestState] = useState<AgentNodeRequestState>("idle");
+  const [requestState, setRequestState] =
+    useState<AgentNodeRequestState>("idle");
   const [message, setMessage] = useState("");
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
 
@@ -32,7 +35,7 @@ export function useAgentNode() {
         | "agent_node_status"
         | "agent_node_start"
         | "agent_node_stop"
-        | "agent_node_restart"
+        | "agent_node_restart",
     ) => {
       setRequestState("working");
       setMessage("");
@@ -45,15 +48,18 @@ export function useAgentNode() {
         setMessage(parseError(error));
       }
     },
-    []
+    [],
   );
 
   const load = useCallback(async () => {
     setRequestState("working");
     setMessage("");
     try {
-      const nextConfig = await invoke<AgentNodeConfig>("agent_node_read_config");
-      const nextStatus = await invoke<AgentNodeServiceStatus>("agent_node_status");
+      const nextConfig = await invoke<AgentNodeConfig>(
+        "agent_node_read_config",
+      );
+      const nextStatus =
+        await invoke<AgentNodeServiceStatus>("agent_node_status");
       setConfig(nextConfig);
       setStatus(nextStatus);
       setRequestState("idle");
@@ -67,9 +73,12 @@ export function useAgentNode() {
     setRequestState("working");
     setMessage("");
     try {
-      const nextStatus = await invoke<AgentNodeServiceStatus>("agent_node_save_config", {
-        config,
-      });
+      const nextStatus = await invoke<AgentNodeServiceStatus>(
+        "agent_node_save_config",
+        {
+          config,
+        },
+      );
       setStatus(nextStatus);
       setRequestState("idle");
     } catch (error) {

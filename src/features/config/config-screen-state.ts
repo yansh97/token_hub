@@ -19,7 +19,13 @@ import { parseError } from "@/lib/error";
 import { useI18n } from "@/lib/i18n";
 import { m } from "@/paraglide/messages.js";
 
-type JsonValue = null | string | number | boolean | JsonValue[] | { [key: string]: JsonValue };
+type JsonValue =
+  | null
+  | string
+  | number
+  | boolean
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 function sortJsonValue(value: JsonValue): JsonValue {
   if (Array.isArray(value)) {
@@ -41,13 +47,13 @@ function stableStringify(value: JsonValue) {
 
 function normalizeConfigForCompare(
   config: ProxyConfigFile,
-  extras: Record<string, unknown>
+  extras: Record<string, unknown>,
 ) {
   // 将配置走一遍 toForm/toPayload，统一空值/null/overrides 等形态，避免启动即脏。
   // tray_token_rate 是前端固定的展示偏好，保留旧值用于触发一次迁移保存。
   return mergeConfigExtras(
     { ...toPayload(toForm(config)), tray_token_rate: config.tray_token_rate },
-    extras
+    extras,
   );
 }
 
@@ -57,16 +63,28 @@ export type AutoStartStatus = "idle" | "loading" | "error";
 function createStatusBadge(
   status: StatusState,
   isDirty: boolean,
-  lastConfig: ProxyConfigFile | null
+  lastConfig: ProxyConfigFile | null,
 ): StatusBadge {
   if (status === "loading" || status === "saving") {
-    return { id: "working", label: m.config_status_working(), variant: "secondary" };
+    return {
+      id: "working",
+      label: m.config_status_working(),
+      variant: "secondary",
+    };
   }
   if (status === "error") {
-    return { id: "error", label: m.config_status_error(), variant: "destructive" };
+    return {
+      id: "error",
+      label: m.config_status_error(),
+      variant: "destructive",
+    };
   }
   if (isDirty) {
-    return { id: "unsaved", label: m.config_status_unsaved(), variant: "secondary" };
+    return {
+      id: "unsaved",
+      label: m.config_status_unsaved(),
+      variant: "secondary",
+    };
   }
   if (lastConfig) {
     return { id: "saved", label: m.config_status_saved(), variant: "default" };
@@ -86,7 +104,8 @@ export function useConfigState() {
   const [showUpstreamKeys, setShowUpstreamKeys] = useState(false);
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
   const [autoStartBaseline, setAutoStartBaseline] = useState(false);
-  const [autoStartStatus, setAutoStartStatus] = useState<AutoStartStatus>("loading");
+  const [autoStartStatus, setAutoStartStatus] =
+    useState<AutoStartStatus>("loading");
   const [autoStartMessage, setAutoStartMessage] = useState("");
 
   const updateForm = useCallback((patch: Partial<ConfigForm>) => {
@@ -125,7 +144,8 @@ export function useConfigState() {
 }
 
 export function useProxyServiceState() {
-  const [proxyServiceStatus, setProxyServiceStatus] = useState<ProxyServiceStatus | null>(null);
+  const [proxyServiceStatus, setProxyServiceStatus] =
+    useState<ProxyServiceStatus | null>(null);
   const [proxyServiceRequestState, setProxyServiceRequestState] =
     useState<ProxyServiceRequestState>("idle");
   const [proxyServiceMessage, setProxyServiceMessage] = useState("");
@@ -162,10 +182,16 @@ export function useProxyServiceActions({
       setProxyServiceRequestState("error");
       setProxyServiceMessage(parseError(error));
     }
-  }, [setProxyServiceMessage, setProxyServiceRequestState, setProxyServiceStatus]);
+  }, [
+    setProxyServiceMessage,
+    setProxyServiceRequestState,
+    setProxyServiceStatus,
+  ]);
 
   const runProxyCommand = useCallback(
-    async (command: "proxy_start" | "proxy_stop" | "proxy_restart" | "proxy_reload") => {
+    async (
+      command: "proxy_start" | "proxy_stop" | "proxy_restart" | "proxy_reload",
+    ) => {
       setProxyServiceRequestState("working");
       setProxyServiceMessage("");
       try {
@@ -177,15 +203,37 @@ export function useProxyServiceActions({
         setProxyServiceMessage(parseError(error));
       }
     },
-    [setProxyServiceMessage, setProxyServiceRequestState, setProxyServiceStatus]
+    [
+      setProxyServiceMessage,
+      setProxyServiceRequestState,
+      setProxyServiceStatus,
+    ],
   );
 
-  const startProxy = useCallback(async () => runProxyCommand("proxy_start"), [runProxyCommand]);
-  const stopProxy = useCallback(async () => runProxyCommand("proxy_stop"), [runProxyCommand]);
-  const restartProxy = useCallback(async () => runProxyCommand("proxy_restart"), [runProxyCommand]);
-  const reloadProxy = useCallback(async () => runProxyCommand("proxy_reload"), [runProxyCommand]);
+  const startProxy = useCallback(
+    async () => runProxyCommand("proxy_start"),
+    [runProxyCommand],
+  );
+  const stopProxy = useCallback(
+    async () => runProxyCommand("proxy_stop"),
+    [runProxyCommand],
+  );
+  const restartProxy = useCallback(
+    async () => runProxyCommand("proxy_restart"),
+    [runProxyCommand],
+  );
+  const reloadProxy = useCallback(
+    async () => runProxyCommand("proxy_reload"),
+    [runProxyCommand],
+  );
 
-  return { refreshProxyStatus, startProxy, stopProxy, restartProxy, reloadProxy };
+  return {
+    refreshProxyStatus,
+    startProxy,
+    stopProxy,
+    restartProxy,
+    reloadProxy,
+  };
 }
 
 export function useConfigDerived(
@@ -195,13 +243,16 @@ export function useConfigDerived(
   status: StatusState,
   autoStartEnabled: boolean,
   autoStartBaseline: boolean,
-  autoStartStatus: AutoStartStatus
+  autoStartStatus: AutoStartStatus,
 ) {
   useI18n();
   const validation = useMemo(() => validate(form), [form]);
   const currentPayload = useMemo(
-    () => (validation.valid ? mergeConfigExtras(toPayload(form), configExtras) : null),
-    [configExtras, form, validation.valid]
+    () =>
+      validation.valid
+        ? mergeConfigExtras(toPayload(form), configExtras)
+        : null,
+    [configExtras, form, validation.valid],
   );
 
   const normalizedLastConfig = useMemo(() => {

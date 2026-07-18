@@ -42,14 +42,18 @@ impl ProxyHttpClients {
         proxy_url: Option<&str>,
     ) -> Result<Client, String> {
         let proxy_key = normalize_proxy_url(proxy_url);
-        let h2_client = build_tuned_client(proxy_key.as_deref(), false)
-            .map_err(|err| format!("Failed to rebuild HTTP client after transport failure: {err}"))?;
+        let h2_client = build_tuned_client(proxy_key.as_deref(), false).map_err(|err| {
+            format!("Failed to rebuild HTTP client after transport failure: {err}")
+        })?;
         let mut guard = self
             .by_key
             .lock()
             .map_err(|_| "HTTP client pool is poisoned.".to_string())?;
 
-        guard.insert(ClientKey::new(proxy_key.as_deref(), false), h2_client.clone());
+        guard.insert(
+            ClientKey::new(proxy_key.as_deref(), false),
+            h2_client.clone(),
+        );
         let h1_key = ClientKey::new(proxy_key.as_deref(), true);
         if guard.contains_key(&h1_key) {
             let h1_client = build_tuned_client(proxy_key.as_deref(), true).map_err(|err| {
@@ -82,12 +86,13 @@ impl ProxyHttpClients {
         if let Some(existing) = guard.get(&key) {
             return Ok(existing.clone());
         }
-        let client = build_tuned_client(key.proxy_url.as_deref(), key.http1_only).map_err(|err| {
-            format!(
-                "Failed to build {} HTTP client: {err}",
-                if http1_only { "HTTP/1.1" } else { "upstream" }
-            )
-        })?;
+        let client =
+            build_tuned_client(key.proxy_url.as_deref(), key.http1_only).map_err(|err| {
+                format!(
+                    "Failed to build {} HTTP client: {err}",
+                    if http1_only { "HTTP/1.1" } else { "upstream" }
+                )
+            })?;
         guard.insert(key, client.clone());
         Ok(client)
     }
@@ -214,7 +219,9 @@ mod tests {
         let after_h2 = clients
             .rotate_client_for_proxy_url(Some(proxy))
             .expect("rotate");
-        let after_h1 = clients.client_for_proxy_url_http1(Some(proxy)).expect("h1 after");
+        let after_h1 = clients
+            .client_for_proxy_url_http1(Some(proxy))
+            .expect("h1 after");
 
         // 指针不必不同，但槽位必须仍可用；count 保持 1 direct + proxy h2 + proxy h1。
         assert_eq!(clients.client_count(), 3);

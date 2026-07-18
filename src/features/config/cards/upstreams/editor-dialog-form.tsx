@@ -13,7 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AvailableModelsEditor } from "@/features/config/cards/upstreams/available-models-editor";
 import { ConvertFromMapEditor } from "@/features/config/cards/upstreams/convert-from-map-editor";
 import {
@@ -37,17 +41,24 @@ const KIRO_ENDPOINT_OPTIONS: ReadonlyArray<{
   value: KiroPreferredEndpoint | typeof KIRO_ENDPOINT_INHERIT;
   label: () => string;
 }> = [
-  { value: KIRO_ENDPOINT_INHERIT, label: () => m.kiro_preferred_endpoint_inherit() },
+  {
+    value: KIRO_ENDPOINT_INHERIT,
+    label: () => m.kiro_preferred_endpoint_inherit(),
+  },
   { value: "ide", label: () => m.kiro_preferred_endpoint_ide() },
   { value: "cli", label: () => m.kiro_preferred_endpoint_cli() },
 ];
 
-function isKiroPreferredEndpoint(value: string): value is KiroPreferredEndpoint {
+function isKiroPreferredEndpoint(
+  value: string,
+): value is KiroPreferredEndpoint {
   return value === "ide" || value === "cli";
 }
 
 function isLockedAccountBackedUpstream(draft: UpstreamForm) {
-  const providers = draft.providers.map((value) => value.trim()).filter(Boolean);
+  const providers = draft.providers
+    .map((value) => value.trim())
+    .filter(Boolean);
   return (
     providers.length === 1 &&
     ((providers[0] === "kiro" && draft.id.trim() === "kiro-default") ||
@@ -97,7 +108,9 @@ function UpstreamConnectionFields({
   onToggleApiKeys,
   onChangeDraft,
 }: UpstreamConnectionFieldsProps) {
-  const providers = draft.providers.map((value) => value.trim()).filter(Boolean);
+  const providers = draft.providers
+    .map((value) => value.trim())
+    .filter(Boolean);
   const isAccountBackedProvider = isAccountBackedProviderSet(providers);
   const isKiro = providers.includes("kiro");
   const isLocked = isLockedAccountBackedUpstream(draft);
@@ -158,7 +171,9 @@ function UpstreamConnectionFields({
             <Input
               id="upstream-editor-baseUrl"
               value={draft.baseUrl}
-              onChange={(event) => onChangeDraft({ baseUrl: event.target.value })}
+              onChange={(event) =>
+                onChangeDraft({ baseUrl: event.target.value })
+              }
               placeholder="https://api.openai.com"
             />
           </EditorField>
@@ -172,7 +187,9 @@ function UpstreamConnectionFields({
               visible={showApiKeys}
               onVisibilityChange={onToggleApiKeys}
               value={draft.apiKeys}
-              onChange={(event) => onChangeDraft({ apiKeys: event.target.value })}
+              onChange={(event) =>
+                onChangeDraft({ apiKeys: event.target.value })
+              }
               placeholder={m.common_optional()}
             />
           </EditorField>
@@ -213,7 +230,11 @@ function CompatibilitySwitch({
           </TooltipContent>
         </Tooltip>
       </Label>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={ariaLabel} />
+      <Switch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        aria-label={ariaLabel}
+      />
     </div>
   );
 }
@@ -283,11 +304,16 @@ function UpstreamModelMappingFields({
   onChangeDraft,
 }: UpstreamOpenAIResponsesFieldsProps) {
   const handleAdd = () => {
-    onChangeDraft({ modelMappings: [...draft.modelMappings, createModelMapping()] });
+    onChangeDraft({
+      modelMappings: [...draft.modelMappings, createModelMapping()],
+    });
   };
 
   return (
-    <div data-slot="upstream-model-mapping-fields" className="col-span-2 space-y-2">
+    <div
+      data-slot="upstream-model-mapping-fields"
+      className="col-span-2 space-y-2"
+    >
       <div className="flex items-center gap-2">
         <Label className="inline-flex items-center gap-1">
           {m.field_model_mappings()}
@@ -335,7 +361,10 @@ function UpstreamHeaderOverrideFields({
   };
 
   return (
-    <div data-slot="upstream-header-override-fields" className="col-span-2 space-y-2">
+    <div
+      data-slot="upstream-header-override-fields"
+      className="col-span-2 space-y-2"
+    >
       <div className="flex items-center gap-2">
         <Label className="inline-flex items-center gap-1">
           {m.field_header_overrides()}
@@ -377,7 +406,9 @@ function UpstreamAdvancedFields({
   appProxyUrl,
   onChangeDraft,
 }: UpstreamAdvancedFieldsProps) {
-  const providers = draft.providers.map((value) => value.trim()).filter(Boolean);
+  const providers = draft.providers
+    .map((value) => value.trim())
+    .filter(Boolean);
   const isAccountBackedProvider = isAccountBackedProviderSet(providers);
   const isLocked = isLockedAccountBackedUpstream(draft);
   const canUseAppProxy = !!appProxyUrl.trim();
@@ -386,7 +417,9 @@ function UpstreamAdvancedFields({
     <details className="group">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-md py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold">{m.upstreams_section_advanced()}</h3>
+          <h3 className="text-sm font-semibold">
+            {m.upstreams_section_advanced()}
+          </h3>
           <p className="text-xs text-muted-foreground">
             {m.upstreams_section_advanced_summary()}
           </p>
@@ -397,7 +430,11 @@ function UpstreamAdvancedFields({
         />
       </summary>
       <div className="mt-4 grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-4 gap-y-4 border-t pt-4">
-        <EditorField label={m.field_id()} tooltip={m.field_id_tip()} htmlFor="upstream-editor-id">
+        <EditorField
+          label={m.field_id()}
+          tooltip={m.field_id_tip()}
+          htmlFor="upstream-editor-id"
+        >
           <Input
             id="upstream-editor-id"
             value={draft.id}
@@ -417,7 +454,9 @@ function UpstreamAdvancedFields({
               <Input
                 id="upstream-editor-proxyUrl"
                 value={draft.proxyUrl}
-                onChange={(event) => onChangeDraft({ proxyUrl: event.target.value })}
+                onChange={(event) =>
+                  onChangeDraft({ proxyUrl: event.target.value })
+                }
                 placeholder="http://127.0.0.1:7890"
                 className="min-w-0 flex-1"
               />
@@ -443,7 +482,9 @@ function UpstreamAdvancedFields({
           <Input
             id="upstream-editor-priority"
             value={draft.priority}
-            onChange={(event) => onChangeDraft({ priority: event.target.value })}
+            onChange={(event) =>
+              onChangeDraft({ priority: event.target.value })
+            }
             placeholder="0"
             inputMode="numeric"
           />
@@ -455,9 +496,18 @@ function UpstreamAdvancedFields({
           value={draft.convertFromMap}
           onChange={(convertFromMap) => onChangeDraft({ convertFromMap })}
         />
-        <UpstreamModelMappingFields draft={draft} onChangeDraft={onChangeDraft} />
-        <UpstreamHeaderOverrideFields draft={draft} onChangeDraft={onChangeDraft} />
-        <UpstreamOpenAIResponsesFields draft={draft} onChangeDraft={onChangeDraft} />
+        <UpstreamModelMappingFields
+          draft={draft}
+          onChangeDraft={onChangeDraft}
+        />
+        <UpstreamHeaderOverrideFields
+          draft={draft}
+          onChangeDraft={onChangeDraft}
+        />
+        <UpstreamOpenAIResponsesFields
+          draft={draft}
+          onChangeDraft={onChangeDraft}
+        />
       </div>
     </details>
   );

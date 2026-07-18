@@ -28,14 +28,14 @@ function latestTag() {
     "git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$' | head -n 1",
     {
       encoding: "utf8",
-    }
+    },
   ).trim();
   return output || "";
 }
 
 export function parseReleaseCommitVersion(commitSubject) {
   const match = commitSubject.match(
-    /^chore: token-hub release v(\d+\.\d+\.\d+)(?: \(\#\d+\))?$/
+    /^chore: token-hub release v(\d+\.\d+\.\d+)(?: \(\#\d+\))?$/,
   );
   return match?.[1] ?? "";
 }
@@ -45,7 +45,8 @@ export function evaluateReleaseGuard({ version, newestTag, commitSubject }) {
   const currentTag = `v${version}`;
   const releaseCommitVersion = parseReleaseCommitVersion(commitSubject);
   const isReleaseCommit = releaseCommitVersion === version;
-  const isNewRelease = !isPrerelease && isReleaseCommit && newestTag !== currentTag;
+  const isNewRelease =
+    !isPrerelease && isReleaseCommit && newestTag !== currentTag;
   return {
     currentTag,
     isPrerelease,

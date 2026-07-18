@@ -5,9 +5,11 @@ import type { ConfigForm } from "@/features/config/types";
 function updateListItem<T extends Record<string, unknown>>(
   list: T[],
   index: number,
-  patch: Partial<T>
+  patch: Partial<T>,
 ) {
-  return list.map((item, current) => (current === index ? { ...item, ...patch } : item));
+  return list.map((item, current) =>
+    current === index ? { ...item, ...patch } : item,
+  );
 }
 
 function removeListItem<T>(list: T[], index: number) {
@@ -15,7 +17,7 @@ function removeListItem<T>(list: T[], index: number) {
 }
 
 export function useConfigListActions(
-  setForm: Dispatch<SetStateAction<ConfigForm>>
+  setForm: Dispatch<SetStateAction<ConfigForm>>,
 ) {
   const updateUpstream = useCallback(
     (index: number, patch: Partial<ConfigForm["upstreams"][number]>) => {
@@ -24,15 +26,18 @@ export function useConfigListActions(
         upstreams: updateListItem(prev.upstreams, index, patch),
       }));
     },
-    [setForm]
+    [setForm],
   );
 
-  const addUpstreamWithValue = useCallback((upstream: ConfigForm["upstreams"][number]) => {
-    setForm((prev) => ({
-      ...prev,
-      upstreams: [...prev.upstreams, upstream],
-    }));
-  }, [setForm]);
+  const addUpstreamWithValue = useCallback(
+    (upstream: ConfigForm["upstreams"][number]) => {
+      setForm((prev) => ({
+        ...prev,
+        upstreams: [...prev.upstreams, upstream],
+      }));
+    },
+    [setForm],
+  );
 
   const removeUpstream = useCallback(
     (index: number) => {
@@ -41,7 +46,7 @@ export function useConfigListActions(
         upstreams: removeListItem(prev.upstreams, index),
       }));
     },
-    [setForm]
+    [setForm],
   );
 
   return {

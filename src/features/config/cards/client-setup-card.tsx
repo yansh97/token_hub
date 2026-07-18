@@ -15,10 +15,7 @@ import {
   type ClientSetupInfo,
   type RequestState,
 } from "./client-setup-state";
-import {
-  ClaudeSetupDetails,
-  CodexSetupDetails,
-} from "./client-setup-details";
+import { ClaudeSetupDetails, CodexSetupDetails } from "./client-setup-details";
 
 type ClientSetupCardProps = {
   savedAt: string;
@@ -72,7 +69,10 @@ function buildClaudeTool({
     content: setup ? (
       <ClaudeSetupDetails setup={setup} />
     ) : (
-      <ToolDetailsFallback previewState={previewState} previewMessage={previewMessage} />
+      <ToolDetailsFallback
+        previewState={previewState}
+        previewMessage={previewMessage}
+      />
     ),
     action,
     canApply: Boolean(setup) && canApply,
@@ -103,7 +103,10 @@ function buildCodexTool({
     content: setup ? (
       <CodexSetupDetails setup={setup} />
     ) : (
-      <ToolDetailsFallback previewState={previewState} previewMessage={previewMessage} />
+      <ToolDetailsFallback
+        previewState={previewState}
+        previewMessage={previewMessage}
+      />
     ),
     action,
     canApply: Boolean(setup) && canApply,
@@ -135,7 +138,8 @@ function ToolCards({ tools }: { tools: readonly ToolListItem[] }) {
 
 export function ClientSetupCard({ savedAt, isDirty }: ClientSetupCardProps) {
   const canApply = !isDirty;
-  const { previewState, previewMessage, setup, loadPreview } = useClientSetupPreview(savedAt);
+  const { previewState, previewMessage, setup, loadPreview } =
+    useClientSetupPreview(savedAt);
 
   const claude = useWriteAction("write_claude_code_settings", loadPreview);
   const codex = useWriteAction("write_codex_config", loadPreview);
@@ -154,7 +158,11 @@ export function ClientSetupCard({ savedAt, isDirty }: ClientSetupCardProps) {
   };
 
   const tools: ToolListItem[] = [
-    buildClaudeTool({ ...baseArgs, action: claude.action, onApply: claude.apply }),
+    buildClaudeTool({
+      ...baseArgs,
+      action: claude.action,
+      onApply: claude.apply,
+    }),
     buildCodexTool({ ...baseArgs, action: codex.action, onApply: codex.apply }),
   ];
 

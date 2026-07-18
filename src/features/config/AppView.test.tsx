@@ -11,7 +11,9 @@ vi.mock("@/layouts/app-sidebar", () => ({
 }));
 
 vi.mock("@/layouts/site-header", () => ({
-  SiteHeader: ({ title }: { title: string }) => <div data-testid="site-header">{title}</div>,
+  SiteHeader: ({ title }: { title: string }) => (
+    <div data-testid="site-header">{title}</div>
+  ),
 }));
 
 vi.mock("@/features/config/cards", () => ({
@@ -44,7 +46,11 @@ const IDLE_PROXY_STATUS: ProxyServiceStatus = {
 
 const BASE_APP_VIEW_PROPS = {
   form: EMPTY_FORM,
-  statusBadge: { id: "saved" as const, label: "saved", variant: "default" as const },
+  statusBadge: {
+    id: "saved" as const,
+    label: "saved",
+    variant: "default" as const,
+  },
   showLocalKey: false,
   showUpstreamKeys: false,
   providerOptions: [],
@@ -85,11 +91,15 @@ describe("config/AppView", () => {
         canSave
         isDirty
         validation={{ valid: true, message: "" }}
-      />
+      />,
     );
 
-    expect(screen.getByRole("button", { name: m.common_refresh() })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: m.common_save() })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: m.common_refresh() }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: m.common_save() }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows retry action only inside error alert for dirty draft", () => {
@@ -105,10 +115,12 @@ describe("config/AppView", () => {
         isDirty
         validation={{ valid: true, message: "" }}
         onSave={onSave}
-      />
+      />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: m.config_retry_save() }));
+    fireEvent.click(
+      screen.getByRole("button", { name: m.config_retry_save() }),
+    );
 
     expect(onSave).toHaveBeenCalledTimes(1);
   });
@@ -123,7 +135,7 @@ describe("config/AppView", () => {
         canSave={false}
         isDirty={false}
         validation={{ valid: true, message: "" }}
-      />
+      />,
     );
 
     expect(screen.queryByText("should not be shown")).not.toBeInTheDocument();
@@ -142,12 +154,14 @@ describe("config/AppView", () => {
           valid: false,
           message: m.error_stream_first_output_timeout_secs_integer(),
         }}
-      />
+      />,
     );
 
-    expect(screen.getByText(m.config_invalid_configuration())).toBeInTheDocument();
     expect(
-      screen.getByText(m.error_stream_first_output_timeout_secs_integer())
+      screen.getByText(m.config_invalid_configuration()),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(m.error_stream_first_output_timeout_secs_integer()),
     ).toBeInTheDocument();
   });
 
@@ -161,7 +175,7 @@ describe("config/AppView", () => {
         canSave
         isDirty={false}
         validation={{ valid: true, message: "" }}
-      />
+      />,
     );
 
     expect(screen.getByTestId("config-file-card")).toBeInTheDocument();
@@ -179,7 +193,7 @@ describe("config/AppView", () => {
         canSave
         isDirty={false}
         validation={{ valid: true, message: "" }}
-      />
+      />,
     );
 
     expect(screen.getByTestId("client-setup-card")).toBeInTheDocument();

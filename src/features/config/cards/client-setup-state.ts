@@ -37,9 +37,7 @@ export type ActionState = {
   lastPath: string;
 };
 
-export type WriteCommand =
-  | "write_claude_code_settings"
-  | "write_codex_config";
+export type WriteCommand = "write_claude_code_settings" | "write_codex_config";
 
 export function toActionState(): ActionState {
   return { state: "idle", message: "", lastPath: "" };
@@ -88,7 +86,10 @@ export function useClientSetupPreview(savedAt: string) {
   return { previewState, previewMessage, setup, loadPreview };
 }
 
-export function useWriteAction(command: WriteCommand, loadPreview: () => Promise<void>) {
+export function useWriteAction(
+  command: WriteCommand,
+  loadPreview: () => Promise<void>,
+) {
   const [action, setAction] = useState<ActionState>(toActionState);
 
   const apply = useCallback(async () => {
@@ -96,7 +97,11 @@ export function useWriteAction(command: WriteCommand, loadPreview: () => Promise
     try {
       const result = await invoke<ClientConfigWriteResult>(command);
       const path = result.paths.join(", ");
-      setAction({ state: "success", message: m.client_setup_apply_success({ path }), lastPath: path });
+      setAction({
+        state: "success",
+        message: m.client_setup_apply_success({ path }),
+        lastPath: path,
+      });
       await loadPreview();
     } catch (error) {
       setAction({ state: "error", message: parseError(error), lastPath: "" });

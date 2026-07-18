@@ -10,7 +10,13 @@ const PROVIDER_ACCOUNTS_SEARCH_DEBOUNCE_MS = 250;
 export type ProviderAccountsPageFilters = {
   searchKeyword: string;
   providerFilter: "all" | "kiro" | "codex";
-  statusFilter: "all" | "active" | "disabled" | "expired" | "invalid" | "cooling_down";
+  statusFilter:
+    | "all"
+    | "active"
+    | "disabled"
+    | "expired"
+    | "invalid"
+    | "cooling_down";
 };
 
 type ProviderAccountsPageStatus = "idle" | "loading" | "error";
@@ -44,7 +50,7 @@ export function useProviderAccountsPage(filters: ProviderAccountsPageFilters) {
   const requestSeq = useRef(0);
   const debouncedSearchKeyword = useDebouncedValue(
     filters.searchKeyword,
-    PROVIDER_ACCOUNTS_SEARCH_DEBOUNCE_MS
+    PROVIDER_ACCOUNTS_SEARCH_DEBOUNCE_MS,
   );
   const filterKey = `${debouncedSearchKeyword}|${filters.providerFilter}|${filters.statusFilter}`;
   const lastFilterKey = useRef(filterKey);
@@ -77,7 +83,7 @@ export function useProviderAccountsPage(filters: ProviderAccountsPageFilters) {
         setError(parseError(cause));
       }
     },
-    [debouncedSearchKeyword, filters.providerFilter, filters.statusFilter]
+    [debouncedSearchKeyword, filters.providerFilter, filters.statusFilter],
   );
 
   useEffect(() => {
@@ -100,7 +106,7 @@ export function useProviderAccountsPage(filters: ProviderAccountsPageFilters) {
   const total = snapshot?.total ?? 0;
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / PROVIDER_ACCOUNTS_PAGE_SIZE)),
-    [total]
+    [total],
   );
 
   const refresh = useCallback(async () => {

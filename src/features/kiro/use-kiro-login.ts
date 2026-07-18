@@ -3,7 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { pollKiroLogin, startKiroLogin } from "@/features/kiro/api";
-import type { KiroLoginMethod, KiroLoginStartResponse } from "@/features/kiro/types";
+import type {
+  KiroLoginMethod,
+  KiroLoginStartResponse,
+} from "@/features/kiro/types";
 import { parseError } from "@/lib/error";
 import { m } from "@/paraglide/messages.js";
 
@@ -78,8 +81,14 @@ function startLoginPolling(
   };
 }
 
-function normalizeIntervalSeconds(intervalSeconds: number | null | undefined, fallback: number) {
-  if (typeof intervalSeconds !== "number" || !Number.isFinite(intervalSeconds)) {
+function normalizeIntervalSeconds(
+  intervalSeconds: number | null | undefined,
+  fallback: number,
+) {
+  if (
+    typeof intervalSeconds !== "number" ||
+    !Number.isFinite(intervalSeconds)
+  ) {
     return fallback;
   }
   return Math.max(1, intervalSeconds);
@@ -102,7 +111,10 @@ export function useKiroLogin({ onRefresh, onSelect }: UseKiroLoginOptions) {
     clearPoller();
   }, [clearPoller]);
 
-  const isCurrentLoginRun = useCallback((loginRun: number) => loginRunSeq.current === loginRun, []);
+  const isCurrentLoginRun = useCallback(
+    (loginRun: number) => loginRunSeq.current === loginRun,
+    [],
+  );
 
   const resetLogin = useCallback(() => {
     // 关闭添加账户弹窗时重置设备授权状态，避免下次打开沿用旧轮询结果。
@@ -171,7 +183,10 @@ export function useKiroLogin({ onRefresh, onSelect }: UseKiroLoginOptions) {
         if (start.login_url) {
           void openUrl(start.login_url);
         }
-        const intervalSeconds = normalizeIntervalSeconds(start.interval_seconds, 3);
+        const intervalSeconds = normalizeIntervalSeconds(
+          start.interval_seconds,
+          3,
+        );
         startPolling(start.state, intervalSeconds, loginRun);
       } catch (err) {
         if (!isCurrentLoginRun(loginRun)) {

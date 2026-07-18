@@ -45,9 +45,11 @@ import { m } from "@/paraglide/messages.js";
 const DETAIL_PLACEHOLDER = "—";
 const REQUEST_DETAIL_CAPTURE_EVENT = "request-detail-capture-changed";
 const CAPTURE_COUNTDOWN_TICK_MS = 1_000;
-const DETAIL_FIELD_ROW_CLASS = "grid grid-cols-[11rem_minmax(0,1fr)] items-start gap-x-3 py-1";
+const DETAIL_FIELD_ROW_CLASS =
+  "grid grid-cols-[11rem_minmax(0,1fr)] items-start gap-x-3 py-1";
 const DETAIL_FIELD_LABEL_CLASS = "text-xs leading-snug text-muted-foreground";
-const DETAIL_FIELD_VALUE_CLASS = "min-w-0 text-sm text-foreground justify-self-start";
+const DETAIL_FIELD_VALUE_CLASS =
+  "min-w-0 text-sm text-foreground justify-self-start";
 const IDLE_CAPTURE_STATE: RequestDetailCaptureState = {
   enabled: false,
   expiresAtMs: null,
@@ -66,7 +68,10 @@ function statusToVariant(status: number): BadgeVariant {
   return "outline";
 }
 
-function isCaptureWindowActive(state: RequestDetailCaptureState, nowMs: number) {
+function isCaptureWindowActive(
+  state: RequestDetailCaptureState,
+  nowMs: number,
+) {
   if (!state.enabled) {
     return false;
   }
@@ -76,7 +81,10 @@ function isCaptureWindowActive(state: RequestDetailCaptureState, nowMs: number) 
   return state.expiresAtMs > nowMs;
 }
 
-function getCaptureRemainingSeconds(state: RequestDetailCaptureState, nowMs: number) {
+function getCaptureRemainingSeconds(
+  state: RequestDetailCaptureState,
+  nowMs: number,
+) {
   if (!state.enabled || state.expiresAtMs === null) {
     return null;
   }
@@ -89,7 +97,9 @@ function getCaptureRemainingSeconds(state: RequestDetailCaptureState, nowMs: num
 
 function getResponseDetailValue(detail: RequestLogDetail) {
   // 空白响应体没有排障价值，优先回退到错误摘要。
-  return detail.responseBody?.trim() ? detail.responseBody : detail.responseError;
+  return detail.responseBody?.trim()
+    ? detail.responseBody
+    : detail.responseError;
 }
 
 type DetailFieldProps = {
@@ -116,7 +126,9 @@ type BasicInfoSectionProps = {
 // 基础信息区域：展示表格中的字段
 function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
   const timestamp = formatDashboardTimestamp(detail.tsMs, formatter);
-  const streamText = detail.stream ? m.logs_detail_stream_yes() : m.logs_detail_stream_no();
+  const streamText = detail.stream
+    ? m.logs_detail_stream_yes()
+    : m.logs_detail_stream_no();
   const providerText = formatDashboardProviderLabel(
     detail.upstreamId,
     detail.provider,
@@ -130,7 +142,9 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-foreground">{m.logs_detail_basic_info()}</p>
+      <p className="text-sm font-medium text-foreground">
+        {m.logs_detail_basic_info()}
+      </p>
       <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-1">
         <DetailField label="ID" value={String(detail.id)} />
         <DetailField label={m.dashboard_table_time()} value={timestamp} />
@@ -139,10 +153,15 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
           value={formatDashboardClientIp(detail.clientIp)}
         />
         <DetailField label={m.dashboard_table_path()} value={detail.path} />
-        <DetailField label={m.dashboard_table_provider()} value={providerText} />
+        <DetailField
+          label={m.dashboard_table_provider()}
+          value={providerText}
+        />
         {/* Model 展示逻辑与表格一致：主模型在上，映射模型在下 */}
         <div className={DETAIL_FIELD_ROW_CLASS}>
-          <span className={DETAIL_FIELD_LABEL_CLASS}>{m.dashboard_table_model()}</span>
+          <span className={DETAIL_FIELD_LABEL_CLASS}>
+            {m.dashboard_table_model()}
+          </span>
           <div className="flex min-w-0 flex-col items-start">
             <span className="w-full truncate text-sm text-foreground">
               {detail.model?.trim() || DETAIL_PLACEHOLDER}
@@ -155,8 +174,13 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
           </div>
         </div>
         <div className={DETAIL_FIELD_ROW_CLASS}>
-          <span className={DETAIL_FIELD_LABEL_CLASS}>{m.dashboard_table_status()}</span>
-          <Badge variant={statusToVariant(detail.status)} className="justify-self-start">
+          <span className={DETAIL_FIELD_LABEL_CLASS}>
+            {m.dashboard_table_status()}
+          </span>
+          <Badge
+            variant={statusToVariant(detail.status)}
+            className="justify-self-start"
+          >
             {detail.status}
           </Badge>
         </div>
@@ -191,7 +215,9 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
         />
         <DetailField
           label={m.logs_timing_upstream_first_body_chunk_ms()}
-          value={formatOptionalInteger(detail.upstreamFirstBodyChunkMs ?? detail.upstreamFirstByteMs)}
+          value={formatOptionalInteger(
+            detail.upstreamFirstBodyChunkMs ?? detail.upstreamFirstByteMs,
+          )}
         />
         <DetailField
           label={m.logs_timing_first_client_flush_ms()}
@@ -201,7 +227,10 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
           label={m.logs_timing_first_output_ms()}
           value={formatOptionalInteger(detail.firstOutputMs)}
         />
-        <DetailField label={m.logs_detail_upstream_request_id()} value={detail.upstreamRequestId} />
+        <DetailField
+          label={m.logs_detail_upstream_request_id()}
+          value={detail.upstreamRequestId}
+        />
       </div>
     </div>
   );
@@ -229,7 +258,10 @@ function DetailSection({ title, value }: DetailSectionProps) {
 }
 
 // 将详情格式化为可复制的文本
-function formatDetailAsText(detail: RequestLogDetail, formatter: Intl.DateTimeFormat): string {
+function formatDetailAsText(
+  detail: RequestLogDetail,
+  formatter: Intl.DateTimeFormat,
+): string {
   const lines: string[] = [];
   const providerText = formatDashboardProviderLabel(
     detail.upstreamId,
@@ -242,27 +274,57 @@ function formatDetailAsText(detail: RequestLogDetail, formatter: Intl.DateTimeFo
     detail.mappedModel.trim() !== detail.model.trim();
 
   lines.push(`ID: ${detail.id}`);
-  lines.push(`${m.dashboard_table_time()}: ${formatDashboardTimestamp(detail.tsMs, formatter)}`);
-  lines.push(`${m.dashboard_table_ip()}: ${formatDashboardClientIp(detail.clientIp)}`);
+  lines.push(
+    `${m.dashboard_table_time()}: ${formatDashboardTimestamp(detail.tsMs, formatter)}`,
+  );
+  lines.push(
+    `${m.dashboard_table_ip()}: ${formatDashboardClientIp(detail.clientIp)}`,
+  );
   lines.push(`${m.dashboard_table_path()}: ${detail.path}`);
   lines.push(`${m.dashboard_table_provider()}: ${providerText}`);
-  lines.push(`${m.dashboard_table_model()}: ${detail.model?.trim() || DETAIL_PLACEHOLDER}`);
+  lines.push(
+    `${m.dashboard_table_model()}: ${detail.model?.trim() || DETAIL_PLACEHOLDER}`,
+  );
   if (hasMappedModel) {
     lines.push(`${m.logs_detail_model_mapped()}: ${detail.mappedModel}`);
   }
   lines.push(`${m.dashboard_table_status()}: ${detail.status}`);
-  lines.push(`${m.logs_detail_stream()}: ${detail.stream ? m.logs_detail_stream_yes() : m.logs_detail_stream_no()}`);
-  lines.push(`${m.dashboard_table_cost()}: ${formatNanoUsdCost(detail.costNanoUsd)}`);
-  lines.push(`${m.logs_detail_image_output_tokens()}: ${formatOptionalInteger(detail.imageOutputTokens)}`);
-  lines.push(`${m.logs_detail_pricing_model()}: ${detail.pricingModel?.trim() || DETAIL_PLACEHOLDER}`);
-  lines.push(`${m.logs_detail_pricing_context_tier()}: ${formatPricingContextTier(detail.pricingContextTier)}`);
-  lines.push(`${m.logs_detail_pricing_version()}: ${detail.pricingVersion?.trim() || DETAIL_PLACEHOLDER}`);
-  lines.push(`${m.dashboard_table_latency_ms()}: ${formatInteger(detail.latencyMs)}`);
-  lines.push(`${m.logs_timing_upstream_response_headers_ms()}: ${formatOptionalInteger(detail.upstreamResponseHeadersMs)}`);
-  lines.push(`${m.logs_timing_upstream_first_body_chunk_ms()}: ${formatOptionalInteger(detail.upstreamFirstBodyChunkMs ?? detail.upstreamFirstByteMs)}`);
-  lines.push(`${m.logs_timing_first_client_flush_ms()}: ${formatOptionalInteger(detail.firstClientFlushMs)}`);
-  lines.push(`${m.logs_timing_first_output_ms()}: ${formatOptionalInteger(detail.firstOutputMs)}`);
-  lines.push(`${m.logs_detail_upstream_request_id()}: ${detail.upstreamRequestId?.trim() || DETAIL_PLACEHOLDER}`);
+  lines.push(
+    `${m.logs_detail_stream()}: ${detail.stream ? m.logs_detail_stream_yes() : m.logs_detail_stream_no()}`,
+  );
+  lines.push(
+    `${m.dashboard_table_cost()}: ${formatNanoUsdCost(detail.costNanoUsd)}`,
+  );
+  lines.push(
+    `${m.logs_detail_image_output_tokens()}: ${formatOptionalInteger(detail.imageOutputTokens)}`,
+  );
+  lines.push(
+    `${m.logs_detail_pricing_model()}: ${detail.pricingModel?.trim() || DETAIL_PLACEHOLDER}`,
+  );
+  lines.push(
+    `${m.logs_detail_pricing_context_tier()}: ${formatPricingContextTier(detail.pricingContextTier)}`,
+  );
+  lines.push(
+    `${m.logs_detail_pricing_version()}: ${detail.pricingVersion?.trim() || DETAIL_PLACEHOLDER}`,
+  );
+  lines.push(
+    `${m.dashboard_table_latency_ms()}: ${formatInteger(detail.latencyMs)}`,
+  );
+  lines.push(
+    `${m.logs_timing_upstream_response_headers_ms()}: ${formatOptionalInteger(detail.upstreamResponseHeadersMs)}`,
+  );
+  lines.push(
+    `${m.logs_timing_upstream_first_body_chunk_ms()}: ${formatOptionalInteger(detail.upstreamFirstBodyChunkMs ?? detail.upstreamFirstByteMs)}`,
+  );
+  lines.push(
+    `${m.logs_timing_first_client_flush_ms()}: ${formatOptionalInteger(detail.firstClientFlushMs)}`,
+  );
+  lines.push(
+    `${m.logs_timing_first_output_ms()}: ${formatOptionalInteger(detail.firstOutputMs)}`,
+  );
+  lines.push(
+    `${m.logs_detail_upstream_request_id()}: ${detail.upstreamRequestId?.trim() || DETAIL_PLACEHOLDER}`,
+  );
 
   if (detail.usageJson?.trim()) {
     lines.push("");
@@ -356,7 +418,7 @@ function RequestDetailSheet({
       }
       onOpenChange(nextOpen);
     },
-    [onOpenChange]
+    [onOpenChange],
   );
 
   return (
@@ -388,7 +450,9 @@ function RequestDetailSheet({
         <ScrollArea className="flex-1">
           <div className="space-y-4 px-4 pb-6">
             {status === "loading" ? (
-              <p className="text-sm text-muted-foreground">{m.logs_detail_loading()}</p>
+              <p className="text-sm text-muted-foreground">
+                {m.logs_detail_loading()}
+              </p>
             ) : null}
             {status === "error" ? (
               <Alert variant="destructive">
@@ -450,7 +514,8 @@ export function LogsPanel() {
   const { locale } = useI18n();
   const formatter = createDashboardTimeFormatter(locale);
 
-  const [captureState, setCaptureState] = useState<RequestDetailCaptureState>(IDLE_CAPTURE_STATE);
+  const [captureState, setCaptureState] =
+    useState<RequestDetailCaptureState>(IDLE_CAPTURE_STATE);
   const [captureLoading, setCaptureLoading] = useState(false);
   const [captureNowMs, setCaptureNowMs] = useState(() => Date.now());
   const [detailOpen, setDetailOpen] = useState(false);
@@ -461,15 +526,21 @@ export function LogsPanel() {
 
   const isLoading = status === "loading";
   const captureEnabled = isCaptureWindowActive(captureState, captureNowMs);
-  const captureRemainingSeconds = getCaptureRemainingSeconds(captureState, captureNowMs);
+  const captureRemainingSeconds = getCaptureRemainingSeconds(
+    captureState,
+    captureNowMs,
+  );
   const captureStatusText = captureRemainingSeconds
     ? m.logs_capture_status_countdown({ seconds: captureRemainingSeconds })
     : "";
 
-  const updateCaptureState = useCallback((nextState: RequestDetailCaptureState) => {
-    setCaptureState(nextState);
-    setCaptureNowMs(Date.now());
-  }, []);
+  const updateCaptureState = useCallback(
+    (nextState: RequestDetailCaptureState) => {
+      setCaptureState(nextState);
+      setCaptureNowMs(Date.now());
+    },
+    [],
+  );
 
   const loadCaptureState = useCallback(async () => {
     try {
@@ -497,7 +568,7 @@ export function LogsPanel() {
               return;
             }
             updateCaptureState(event.payload);
-          }
+          },
         );
         if (!active) {
           stop();
@@ -545,17 +616,20 @@ export function LogsPanel() {
     };
   }, [captureState.enabled, captureState.expiresAtMs, loadCaptureState]);
 
-  const handleToggleCapture = useCallback(async (nextValue: boolean) => {
-    setCaptureLoading(true);
-    try {
-      const nextState = await setRequestDetailCapture(nextValue);
-      updateCaptureState(nextState);
-    } catch {
-      // ignore
-    } finally {
-      setCaptureLoading(false);
-    }
-  }, [updateCaptureState]);
+  const handleToggleCapture = useCallback(
+    async (nextValue: boolean) => {
+      setCaptureLoading(true);
+      try {
+        const nextState = await setRequestDetailCapture(nextValue);
+        updateCaptureState(nextState);
+      } catch {
+        // ignore
+      } finally {
+        setCaptureLoading(false);
+      }
+    },
+    [updateCaptureState],
+  );
 
   const handleSelectItem = useCallback(async (itemId: number) => {
     const requestId = detailRequestSeq.current + 1;
@@ -599,7 +673,10 @@ export function LogsPanel() {
   }, []);
 
   return (
-    <div data-testid="logs-panel" className="flex min-h-0 flex-1 flex-col gap-4">
+    <div
+      data-testid="logs-panel"
+      className="flex min-h-0 flex-1 flex-col gap-4"
+    >
       {status === "error" ? (
         <Alert variant="destructive" className="mx-4 lg:mx-6">
           <AlertCircle className="size-4" aria-hidden="true" />

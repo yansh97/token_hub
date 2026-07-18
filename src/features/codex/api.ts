@@ -21,7 +21,7 @@ export async function importCodexText(contents: string) {
 
 export async function importCodexRefreshTokens(
   contents: string,
-  clientKind: "codex" | "mobile"
+  clientKind: "codex" | "mobile",
 ) {
   return await invoke<CodexAccountSummary[]>("codex_import_refresh_tokens", {
     contents,
@@ -66,14 +66,20 @@ export async function setCodexAutoRefresh(accountId: string, enabled: boolean) {
   });
 }
 
-export async function setCodexStatus(accountId: string, status: "active" | "disabled") {
+export async function setCodexStatus(
+  accountId: string,
+  status: "active" | "disabled",
+) {
   return await invoke<CodexAccountSummary>("codex_set_status", {
     accountId,
     status,
   });
 }
 
-export async function setCodexProxyUrl(accountId: string, proxyUrl: string | null) {
+export async function setCodexProxyUrl(
+  accountId: string,
+  proxyUrl: string | null,
+) {
   return await invoke<CodexAccountSummary>("codex_set_proxy_url", {
     accountId,
     proxyUrl,

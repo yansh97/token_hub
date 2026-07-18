@@ -134,9 +134,13 @@ export function StorageUsageCard() {
             value={usage ? formatBytes(usage.otherBytes) : "--"}
           />
         </div>
-        <p className="text-xs text-muted-foreground">{m.storage_usage_hint()}</p>
+        <p className="text-xs text-muted-foreground">
+          {m.storage_usage_hint()}
+        </p>
         {isLoading ? (
-          <p className="text-xs text-muted-foreground">{m.storage_usage_loading()}</p>
+          <p className="text-xs text-muted-foreground">
+            {m.storage_usage_loading()}
+          </p>
         ) : null}
         {status === "error" ? (
           <p className="text-xs text-destructive">{errorText}</p>

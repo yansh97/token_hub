@@ -1,6 +1,12 @@
 import { useState } from "react";
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -62,19 +68,26 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={vi.fn(async () => undefined)}
         onToggleStatus={vi.fn(async () => undefined)}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
-    expect(screen.getByRole("columnheader", { name: "ID" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: m.field_priority() })).toBeInTheDocument();
     expect(
-      screen.queryByRole("columnheader", { name: m.providers_table_account_id() })
+      screen.getByRole("columnheader", { name: "ID" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: m.field_priority() }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", {
+        name: m.providers_table_account_id(),
+      }),
     ).not.toBeInTheDocument();
   });
 
   it("constrains the account column width and shows tooltip for truncated account names", async () => {
     const user = userEvent.setup();
-    const longDisplayName = "very-long-account-name-for-tooltip-display@example.com";
+    const longDisplayName =
+      "very-long-account-name-for-tooltip-display@example.com";
     const rows = [{ ...buildRow(1), displayName: longDisplayName }];
 
     render(
@@ -95,23 +108,26 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={vi.fn(async () => undefined)}
         onToggleStatus={vi.fn(async () => undefined)}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
-    expect(screen.getByRole("columnheader", { name: m.providers_table_account() })).toHaveClass(
-      "w-[10rem]"
-    );
+    expect(
+      screen.getByRole("columnheader", { name: m.providers_table_account() }),
+    ).toHaveClass("w-[10rem]");
 
     const accountNameCell = screen.getByText(longDisplayName);
     expect(accountNameCell).toHaveClass("max-w-[10rem]", "truncate");
 
     await user.hover(accountNameCell);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(longDisplayName);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      longDisplayName,
+    );
   });
 
   it("shows tooltip for truncated account id cells on hover", async () => {
     const user = userEvent.setup();
-    const longAccountId = "codex-account-with-a-very-long-id-for-tooltip-display.json";
+    const longAccountId =
+      "codex-account-with-a-very-long-id-for-tooltip-display.json";
     const rows = [{ ...buildRow(1), accountId: longAccountId }];
 
     render(
@@ -132,7 +148,7 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={vi.fn(async () => undefined)}
         onToggleStatus={vi.fn(async () => undefined)}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
     const accountIdCell = screen.getByText(longAccountId);
@@ -148,7 +164,9 @@ describe("providers/providers-accounts-table", () => {
     const onSaveProxyUrl = vi.fn(async () => undefined);
     const onRefreshQuota = vi.fn(async () => undefined);
     const onToggleStatus = vi.fn(async () => undefined);
-    const allRows = Array.from({ length: 11 }, (_, index) => buildRow(index + 1));
+    const allRows = Array.from({ length: 11 }, (_, index) =>
+      buildRow(index + 1),
+    );
 
     function Harness() {
       const [page, setPage] = useState(1);
@@ -165,7 +183,9 @@ describe("providers/providers-accounts-table", () => {
           totalPages={totalPages}
           totalItems={allRows.length}
           onPrevPage={() => setPage((current) => Math.max(1, current - 1))}
-          onNextPage={() => setPage((current) => Math.min(totalPages, current + 1))}
+          onNextPage={() =>
+            setPage((current) => Math.min(totalPages, current + 1))
+          }
           onRefresh={onRefresh}
           onLogout={onLogout}
           onBatchDelete={onBatchDelete}
@@ -180,17 +200,23 @@ describe("providers/providers-accounts-table", () => {
 
     render(<Harness />);
 
-    expect(screen.getByRole("button", { name: m.dashboard_next_page() })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: m.dashboard_next_page() }),
+    ).toBeInTheDocument();
     expect(screen.getByText("user-1@example.com")).toBeInTheDocument();
     expect(screen.queryByText("user-11@example.com")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: m.dashboard_next_page() }));
+    await user.click(
+      screen.getByRole("button", { name: m.dashboard_next_page() }),
+    );
 
     expect(screen.queryByText("user-1@example.com")).not.toBeInTheDocument();
     expect(screen.getByText("user-11@example.com")).toBeInTheDocument();
     expect(
-      screen.getByTestId("providers-pagination-indicator")
-    ).toHaveTextContent(m.dashboard_page_indicator({ page: "2", totalPages: "2" }));
+      screen.getByTestId("providers-pagination-indicator"),
+    ).toHaveTextContent(
+      m.dashboard_page_indicator({ page: "2", totalPages: "2" }),
+    );
   });
 
   it("clears off-page selection after pagination changes", async () => {
@@ -201,7 +227,9 @@ describe("providers/providers-accounts-table", () => {
     const onSaveProxyUrl = vi.fn(async () => undefined);
     const onRefreshQuota = vi.fn(async () => undefined);
     const onToggleStatus = vi.fn(async () => undefined);
-    const allRows = Array.from({ length: 11 }, (_, index) => buildRow(index + 1));
+    const allRows = Array.from({ length: 11 }, (_, index) =>
+      buildRow(index + 1),
+    );
 
     function Harness() {
       const [page, setPage] = useState(1);
@@ -218,7 +246,9 @@ describe("providers/providers-accounts-table", () => {
           totalPages={totalPages}
           totalItems={allRows.length}
           onPrevPage={() => setPage((current) => Math.max(1, current - 1))}
-          onNextPage={() => setPage((current) => Math.min(totalPages, current + 1))}
+          onNextPage={() =>
+            setPage((current) => Math.min(totalPages, current + 1))
+          }
           onRefresh={onRefresh}
           onLogout={onLogout}
           onBatchDelete={onBatchDelete}
@@ -233,13 +263,19 @@ describe("providers/providers-accounts-table", () => {
 
     render(<Harness />);
 
-    await user.click(screen.getByRole("checkbox", { name: "Select user-1@example.com" }));
-    expect(screen.getByText(m.providers_accounts_delete_description({ count: 1 }))).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("checkbox", { name: "Select user-1@example.com" }),
+    );
+    expect(
+      screen.getByText(m.providers_accounts_delete_description({ count: 1 })),
+    ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: m.dashboard_next_page() }));
+    await user.click(
+      screen.getByRole("button", { name: m.dashboard_next_page() }),
+    );
 
     expect(
-      screen.queryByText(m.providers_accounts_delete_description({ count: 1 }))
+      screen.queryByText(m.providers_accounts_delete_description({ count: 1 })),
     ).not.toBeInTheDocument();
   });
 
@@ -271,18 +307,26 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={onRefreshQuota}
         onToggleStatus={onToggleStatus}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
-    await user.click(screen.getByRole("checkbox", { name: "Select user-1@example.com" }));
-    await user.click(screen.getByRole("button", { name: `${m.common_delete()}(1)` }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Select user-1@example.com" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: `${m.common_delete()}(1)` }),
+    );
 
-    const dialog = document.querySelector("[data-slot='accounts-batch-delete-dialog']");
+    const dialog = document.querySelector(
+      "[data-slot='accounts-batch-delete-dialog']",
+    );
     if (!(dialog instanceof HTMLElement)) {
       throw new Error("Missing accounts batch delete dialog");
     }
 
-    await user.click(within(dialog).getByRole("button", { name: m.common_delete() }));
+    await user.click(
+      within(dialog).getByRole("button", { name: m.common_delete() }),
+    );
 
     await waitFor(() => {
       expect(onBatchDelete).toHaveBeenCalledTimes(1);
@@ -318,22 +362,29 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={onRefreshQuota}
         onToggleStatus={onToggleStatus}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
-    await user.click(screen.getByRole("button", { name: m.providers_account_dialog_title() }));
+    await user.click(
+      screen.getByRole("button", { name: m.providers_account_dialog_title() }),
+    );
 
     const input = await screen.findByLabelText(m.field_proxy_url());
     expect(input).toHaveValue("http://127.0.0.1:7890");
 
     await user.clear(input);
     await user.type(input, "socks5://127.0.0.1:1080");
-    await user.click(screen.getByRole("button", { name: m.providers_save_proxy_url() }));
+    await user.click(
+      screen.getByRole("button", { name: m.providers_save_proxy_url() }),
+    );
 
     await waitFor(() => {
       expect(onSaveProxyUrl).toHaveBeenCalledTimes(1);
     });
-    expect(onSaveProxyUrl).toHaveBeenCalledWith(rows[0], "socks5://127.0.0.1:1080");
+    expect(onSaveProxyUrl).toHaveBeenCalledWith(
+      rows[0],
+      "socks5://127.0.0.1:1080",
+    );
   });
 
   it("renders account detail dialog as summary and list sections instead of field cards", async () => {
@@ -379,14 +430,22 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={onRefreshQuota}
         onToggleStatus={onToggleStatus}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
-    await user.click(screen.getByRole("button", { name: m.providers_account_dialog_title() }));
+    await user.click(
+      screen.getByRole("button", { name: m.providers_account_dialog_title() }),
+    );
 
-    expect(document.querySelector("[data-slot='provider-account-summary-band']")).toBeTruthy();
-    expect(document.querySelector("[data-slot='provider-account-detail-list']")).toBeTruthy();
-    expect(document.querySelector("[data-slot='provider-account-quota-list']")).toBeTruthy();
+    expect(
+      document.querySelector("[data-slot='provider-account-summary-band']"),
+    ).toBeTruthy();
+    expect(
+      document.querySelector("[data-slot='provider-account-detail-list']"),
+    ).toBeTruthy();
+    expect(
+      document.querySelector("[data-slot='provider-account-quota-list']"),
+    ).toBeTruthy();
     expect(screen.getByText("邮箱")).toBeInTheDocument();
     expect(screen.getByText("25 / 100")).toBeInTheDocument();
   });
@@ -419,11 +478,17 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={onRefreshQuota}
         onToggleStatus={onToggleStatus}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
-    await user.click(screen.getByRole("button", { name: m.providers_account_dialog_title() }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Refresh Quota" }));
+    await user.click(
+      screen.getByRole("button", { name: m.providers_account_dialog_title() }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Refresh Quota",
+      }),
+    );
 
     expect(onRefreshQuota).toHaveBeenCalledWith(rows[0]);
   });
@@ -436,7 +501,9 @@ describe("providers/providers-accounts-table", () => {
     const onSaveProxyUrl = vi.fn(async () => undefined);
     const onRefreshQuota = vi.fn(async () => undefined);
     const onToggleStatus = vi.fn(async () => undefined);
-    const rows = [{ ...buildRow(2), status: "disabled" as const, statusLabel: "Disabled" }];
+    const rows = [
+      { ...buildRow(2), status: "disabled" as const, statusLabel: "Disabled" },
+    ];
 
     render(
       <ProvidersAccountsTableSection
@@ -456,11 +523,17 @@ describe("providers/providers-accounts-table", () => {
         onRefreshQuota={onRefreshQuota}
         onToggleStatus={onToggleStatus}
         onToggleAutoRefresh={vi.fn(async () => undefined)}
-      />
+      />,
     );
 
-    await user.click(screen.getByRole("button", { name: m.providers_account_dialog_title() }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Enable" }));
+    await user.click(
+      screen.getByRole("button", { name: m.providers_account_dialog_title() }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Enable",
+      }),
+    );
 
     expect(onToggleStatus).toHaveBeenCalledWith(rows[0], "active");
   });

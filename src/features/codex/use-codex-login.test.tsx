@@ -11,7 +11,8 @@ import type {
 
 const apiMocks = vi.hoisted(() => {
   const startCodexLogin = vi.fn<() => Promise<CodexLoginStartResponse>>();
-  const pollCodexLogin = vi.fn<(state: string) => Promise<CodexLoginPollResponse>>();
+  const pollCodexLogin =
+    vi.fn<(state: string) => Promise<CodexLoginPollResponse>>();
   const toastSuccess = vi.fn<(message: string) => void>();
 
   return {
@@ -81,7 +82,7 @@ describe("codex/use-codex-login", () => {
     apiMocks.startCodexLogin.mockReturnValueOnce(
       new Promise<CodexLoginStartResponse>((resolve) => {
         resolveStart = resolve;
-      })
+      }),
     );
 
     const onRefresh = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -143,7 +144,7 @@ describe("codex/use-codex-login", () => {
     apiMocks.pollCodexLogin.mockReturnValueOnce(
       new Promise<CodexLoginPollResponse>((resolve) => {
         resolvePoll = resolve;
-      })
+      }),
     );
 
     const onRefresh = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -176,13 +177,15 @@ describe("codex/use-codex-login", () => {
 
   it("waits for the current poll before scheduling the next poll", async () => {
     vi.useFakeTimers();
-    let resolveFirstPoll: ((response: CodexLoginPollResponse) => void) | undefined;
+    let resolveFirstPoll:
+      | ((response: CodexLoginPollResponse) => void)
+      | undefined;
     apiMocks.startCodexLogin.mockResolvedValueOnce(LOGIN_START);
     apiMocks.pollCodexLogin
       .mockReturnValueOnce(
         new Promise<CodexLoginPollResponse>((resolve) => {
           resolveFirstPoll = resolve;
-        })
+        }),
       )
       .mockResolvedValue(LOGIN_PENDING);
 
@@ -245,18 +248,22 @@ describe("codex/use-codex-login", () => {
   });
 
   it("ignores an older start response after a newer login starts", async () => {
-    let resolveFirstStart: ((response: CodexLoginStartResponse) => void) | undefined;
-    let resolveSecondStart: ((response: CodexLoginStartResponse) => void) | undefined;
+    let resolveFirstStart:
+      | ((response: CodexLoginStartResponse) => void)
+      | undefined;
+    let resolveSecondStart:
+      | ((response: CodexLoginStartResponse) => void)
+      | undefined;
     apiMocks.startCodexLogin
       .mockReturnValueOnce(
         new Promise<CodexLoginStartResponse>((resolve) => {
           resolveFirstStart = resolve;
-        })
+        }),
       )
       .mockReturnValueOnce(
         new Promise<CodexLoginStartResponse>((resolve) => {
           resolveSecondStart = resolve;
-        })
+        }),
       );
 
     const onRefresh = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -291,7 +298,7 @@ describe("codex/use-codex-login", () => {
     const onRefresh = vi.fn<() => Promise<void>>().mockReturnValue(
       new Promise<void>((resolve) => {
         resolveRefresh = resolve;
-      })
+      }),
     );
     const onSelect = vi.fn<(accountId: string) => void>();
     const { result } = renderHook(() => useCodexLogin({ onRefresh, onSelect }));

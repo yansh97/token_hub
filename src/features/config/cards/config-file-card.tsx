@@ -30,7 +30,9 @@ export function ConfigFileCard({
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
             {m.config_file_location_label()}
           </p>
-          <p className="font-mono text-xs text-foreground/80">{configPath || "--"}</p>
+          <p className="font-mono text-xs text-foreground/80">
+            {configPath || "--"}
+          </p>
         </div>
         <Separator />
         <div className="space-y-1 text-sm text-muted-foreground">

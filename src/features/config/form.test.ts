@@ -23,35 +23,75 @@ describe("config/form", () => {
   });
 
   it("validates retryable failure cooldown as non-negative integer", () => {
-    expect(validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "-1" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "0" }).valid).toBe(true);
-    expect(validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "15" }).valid).toBe(true);
+    expect(
+      validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "-1" }).valid,
+    ).toBe(false);
+    expect(
+      validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "" }).valid,
+    ).toBe(false);
+    expect(
+      validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "0" }).valid,
+    ).toBe(true);
+    expect(
+      validate({ ...EMPTY_FORM, retryableFailureCooldownSecs: "15" }).valid,
+    ).toBe(true);
   });
 
   it("validates same-upstream retry count as integer 0..5", () => {
-    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "-1" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "6" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "0" }).valid).toBe(true);
-    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "1" }).valid).toBe(true);
-    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "5" }).valid).toBe(true);
+    expect(
+      validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "-1" }).valid,
+    ).toBe(false);
+    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "" }).valid).toBe(
+      false,
+    );
+    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "6" }).valid).toBe(
+      false,
+    );
+    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "0" }).valid).toBe(
+      true,
+    );
+    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "1" }).valid).toBe(
+      true,
+    );
+    expect(validate({ ...EMPTY_FORM, sameUpstreamRetryCount: "5" }).valid).toBe(
+      true,
+    );
   });
 
   it("validates stream first output timeout as integer >= 1", () => {
-    expect(validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "-1" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "0" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "1" }).valid).toBe(true);
-    expect(validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "60" }).valid).toBe(true);
+    expect(
+      validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "-1" }).valid,
+    ).toBe(false);
+    expect(
+      validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "" }).valid,
+    ).toBe(false);
+    expect(
+      validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "0" }).valid,
+    ).toBe(false);
+    expect(
+      validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "1" }).valid,
+    ).toBe(true);
+    expect(
+      validate({ ...EMPTY_FORM, streamFirstOutputTimeoutSecs: "60" }).valid,
+    ).toBe(true);
   });
 
   it("validates synchronous response timeout as integer >= 1", () => {
-    expect(validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "-1" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "0" }).valid).toBe(false);
-    expect(validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "1" }).valid).toBe(true);
-    expect(validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "300" }).valid).toBe(true);
+    expect(
+      validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "-1" }).valid,
+    ).toBe(false);
+    expect(validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "" }).valid).toBe(
+      false,
+    );
+    expect(
+      validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "0" }).valid,
+    ).toBe(false);
+    expect(
+      validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "1" }).valid,
+    ).toBe(true);
+    expect(
+      validate({ ...EMPTY_FORM, syncResponseTimeoutSecs: "300" }).valid,
+    ).toBe(true);
   });
 
   it("requires upstream id for enabled upstreams", () => {
@@ -92,9 +132,15 @@ describe("config/form", () => {
     antigravityUpstream.providers = ["antigravity"];
     antigravityUpstream.baseUrl = "";
 
-    expect(validate({ ...EMPTY_FORM, upstreams: [kiroUpstream] }).valid).toBe(true);
-    expect(validate({ ...EMPTY_FORM, upstreams: [codexUpstream] }).valid).toBe(true);
-    expect(validate({ ...EMPTY_FORM, upstreams: [antigravityUpstream] }).valid).toBe(true);
+    expect(validate({ ...EMPTY_FORM, upstreams: [kiroUpstream] }).valid).toBe(
+      true,
+    );
+    expect(validate({ ...EMPTY_FORM, upstreams: [codexUpstream] }).valid).toBe(
+      true,
+    );
+    expect(
+      validate({ ...EMPTY_FORM, upstreams: [antigravityUpstream] }).valid,
+    ).toBe(true);
   });
 
   it("treats disabled upstream as draft (still requires id)", () => {
@@ -112,7 +158,12 @@ describe("config/form", () => {
 
     expect(upstream.id).toBe("airouter.mxyhi.com");
     expect(upstream.baseUrl).toBe("https://airouter.mxyhi.com");
-    expect(upstream.providers).toEqual(["openai", "openai-response", "anthropic", "gemini"]);
+    expect(upstream.providers).toEqual([
+      "openai",
+      "openai-response",
+      "anthropic",
+      "gemini",
+    ]);
     expect(upstream.priority).toBe("19");
     expect(upstream.enabled).toBe(false);
     expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(true);
@@ -175,7 +226,10 @@ describe("config/form", () => {
     expect("openai_response_header_timeout_secs" in payload).toBe(false);
     expect("model_discovery_refresh_secs" in payload).toBe(false);
     expect(payload.upstreams[0]?.id).toBe("upstream-1");
-    expect(payload.upstreams[0]?.providers).toEqual(["openai", "openai-response"]);
+    expect(payload.upstreams[0]?.providers).toEqual([
+      "openai",
+      "openai-response",
+    ]);
     expect(payload.upstreams[0]?.base_url).toBe("https://example.com");
     expect(payload.upstreams[0]?.api_keys).toBeUndefined();
     // openai_chat 对 openai 是 native 格式，应被清理；unknown provider 也应被丢弃。
@@ -212,10 +266,16 @@ describe("config/form", () => {
 
     const form = toForm(source);
     expect(form.upstreams[0]?.availableModelsMode).toBe("selected");
-    expect(form.upstreams[0]?.availableModels).toEqual(["gpt-5.4", "gpt-5.4-mini"]);
+    expect(form.upstreams[0]?.availableModels).toEqual([
+      "gpt-5.4",
+      "gpt-5.4-mini",
+    ]);
 
     const payload = toPayload(form);
-    expect(payload.upstreams[0]?.available_models).toEqual(["gpt-5.4", "gpt-5.4-mini"]);
+    expect(payload.upstreams[0]?.available_models).toEqual([
+      "gpt-5.4",
+      "gpt-5.4-mini",
+    ]);
   });
 
   it("omits available models when all models are allowed", () => {
@@ -413,8 +473,14 @@ describe("config/form", () => {
       hasCodexAccount: true,
     });
 
-    expect(upstreams.map((item) => item.id)).toEqual(["kiro-default", "codex-default"]);
-    expect(upstreams.map((item) => item.providers)).toEqual([["kiro"], ["codex"]]);
+    expect(upstreams.map((item) => item.id)).toEqual([
+      "kiro-default",
+      "codex-default",
+    ]);
+    expect(upstreams.map((item) => item.providers)).toEqual([
+      ["kiro"],
+      ["codex"],
+    ]);
     expect(upstreams.every((item) => item.enabled)).toBe(true);
   });
 
@@ -480,7 +546,7 @@ describe("config/form", () => {
           dispatchType: "hedged",
           hedgeDelayMs: "0",
         },
-      }).valid
+      }).valid,
     ).toBe(false);
 
     expect(
@@ -491,7 +557,7 @@ describe("config/form", () => {
           dispatchType: "hedged",
           hedgeDelayMs: "1",
         },
-      }).valid
+      }).valid,
     ).toBe(true);
   });
 
@@ -504,7 +570,7 @@ describe("config/form", () => {
           dispatchType: "hedged",
           maxParallel: "1",
         },
-      }).valid
+      }).valid,
     ).toBe(false);
 
     expect(
@@ -515,7 +581,7 @@ describe("config/form", () => {
           dispatchType: "race",
           maxParallel: "1",
         },
-      }).valid
+      }).valid,
     ).toBe(false);
 
     expect(
@@ -526,7 +592,7 @@ describe("config/form", () => {
           dispatchType: "race",
           maxParallel: "2",
         },
-      }).valid
+      }).valid,
     ).toBe(true);
   });
   it("serializes openai compatibility upstream flags", () => {

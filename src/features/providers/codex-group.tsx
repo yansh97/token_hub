@@ -16,7 +16,10 @@ import { formatDateLabel } from "@/features/providers/date";
 import { useAutoCloseLoginDialog } from "@/features/providers/use-auto-close-login-dialog";
 import type { LoginStatus } from "@/features/providers/use-auto-close-login-dialog";
 import { m } from "@/paraglide/messages.js";
-import type { CodexAccountSummary, CodexQuotaItem } from "@/features/codex/types";
+import type {
+  CodexAccountSummary,
+  CodexQuotaItem,
+} from "@/features/codex/types";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat();
 
@@ -27,11 +30,22 @@ type CodexLoginSectionProps = {
   loginUrl: string;
 };
 
-function CodexLoginSection({ loading, onLogin, statusText, loginUrl }: CodexLoginSectionProps) {
+function CodexLoginSection({
+  loading,
+  onLogin,
+  statusText,
+  loginUrl,
+}: CodexLoginSectionProps) {
   return (
     <div data-slot="codex-login-section" className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="secondary" size="sm" onClick={onLogin} disabled={loading}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onLogin}
+          disabled={loading}
+        >
           {m.codex_login_button()}
         </Button>
       </div>
@@ -40,9 +54,13 @@ function CodexLoginSection({ loading, onLogin, statusText, loginUrl }: CodexLogi
       ) : null}
       {loginUrl ? (
         <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs">
-          <p className="font-medium text-foreground">{m.codex_login_url_title()}</p>
+          <p className="font-medium text-foreground">
+            {m.codex_login_url_title()}
+          </p>
           <p className="mt-2 break-all text-muted-foreground">{loginUrl}</p>
-          <p className="mt-2 text-muted-foreground">{m.codex_login_open_hint()}</p>
+          <p className="mt-2 text-muted-foreground">
+            {m.codex_login_open_hint()}
+          </p>
         </div>
       ) : null}
     </div>
@@ -140,14 +158,17 @@ function buildStatusSummary(accounts: CodexAccountSummary[]) {
     (acc, account) => {
       if (account.status === "expired") {
         acc.expired += 1;
-      } else if (account.status === "invalid" || account.status === "disabled") {
+      } else if (
+        account.status === "invalid" ||
+        account.status === "disabled"
+      ) {
         acc.inactive += 1;
       } else {
         acc.active += 1;
       }
       return acc;
     },
-    { active: 0, expired: 0, inactive: 0 }
+    { active: 0, expired: 0, inactive: 0 },
   );
 
   return m.providers_status_summary({
@@ -174,7 +195,13 @@ type CodexQuotaView = {
   error: string | null;
 };
 
-function CodexQuotaSection({ quota, loading }: { quota: CodexQuotaView | null; loading: boolean }) {
+function CodexQuotaSection({
+  quota,
+  loading,
+}: {
+  quota: CodexQuotaView | null;
+  loading: boolean;
+}) {
   if (quota?.error) {
     return (
       <Alert variant="destructive">
@@ -188,11 +215,19 @@ function CodexQuotaSection({ quota, loading }: { quota: CodexQuotaView | null; l
   }
 
   if (loading && !quota) {
-    return <p className="text-xs text-muted-foreground">{m.providers_quota_loading()}</p>;
+    return (
+      <p className="text-xs text-muted-foreground">
+        {m.providers_quota_loading()}
+      </p>
+    );
   }
 
   if (!quota || !quota.quotas.length) {
-    return <p className="text-xs text-muted-foreground">{m.providers_quota_empty()}</p>;
+    return (
+      <p className="text-xs text-muted-foreground">
+        {m.providers_quota_empty()}
+      </p>
+    );
   }
 
   return (
@@ -203,7 +238,9 @@ function CodexQuotaSection({ quota, loading }: { quota: CodexQuotaView | null; l
           <div key={item.name} className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-medium text-foreground">{formatQuotaLabel(item)}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {formatQuotaLabel(item)}
+                </p>
                 {showUsage ? (
                   <p className="text-xs text-muted-foreground">
                     {m.providers_quota_usage({
@@ -246,7 +283,8 @@ function CodexAccountRow({
   const accountLabel = formatAccountLabel(account);
   const statusLabel = formatAccountStatus(account);
   const expiresAt = formatDate(account.expires_at ?? null);
-  const statusVariant = account.status === "expired" ? "destructive" : "secondary";
+  const statusVariant =
+    account.status === "expired" ? "destructive" : "secondary";
   const handleLogout = () => {
     void onLogout(account.account_id).catch(() => undefined);
   };
@@ -258,13 +296,19 @@ function CodexAccountRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">{accountLabel}</p>
+            <p className="text-sm font-medium text-foreground">
+              {accountLabel}
+            </p>
             <Badge variant={statusVariant}>{statusLabel}</Badge>
-            {quota?.planType ? <Badge variant="outline">{quota.planType}</Badge> : null}
+            {quota?.planType ? (
+              <Badge variant="outline">{quota.planType}</Badge>
+            ) : null}
           </div>
           <p className="text-xs text-muted-foreground">
             {m.providers_account_id({ id: account.account_id })}
-            {expiresAt ? ` · ${m.providers_account_expires({ date: expiresAt })}` : ""}
+            {expiresAt
+              ? ` · ${m.providers_account_expires({ date: expiresAt })}`
+              : ""}
           </p>
         </div>
         <AccountDeleteAction
@@ -295,7 +339,10 @@ function CodexProviderHeader({
   onAddAccount,
 }: CodexProviderHeaderProps) {
   return (
-    <summary data-slot="codex-provider-header" className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-4 py-3">
+    <summary
+      data-slot="codex-provider-header"
+      className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg px-4 py-3"
+    >
       <div className="flex items-center gap-3">
         <ChevronDown
           className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
@@ -303,7 +350,9 @@ function CodexProviderHeader({
         />
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">{m.providers_codex_title()}</p>
+            <p className="text-sm font-medium text-foreground">
+              {m.providers_codex_title()}
+            </p>
             <Badge variant="outline">{accountsCount}</Badge>
           </div>
           <p className="text-xs text-muted-foreground">{statusSummary}</p>
@@ -322,7 +371,9 @@ function CodexProviderHeader({
           disabled={loading}
         >
           <RefreshCw
-            className={["size-4", loading ? "animate-spin" : ""].filter(Boolean).join(" ")}
+            className={["size-4", loading ? "animate-spin" : ""]
+              .filter(Boolean)
+              .join(" ")}
             aria-hidden="true"
           />
           <span className="sr-only">{m.common_refresh()}</span>
@@ -368,9 +419,14 @@ function CodexProviderBody({
   showAccounts,
 }: CodexProviderBodyProps) {
   return (
-    <div data-slot="codex-provider-body" className="border-t border-border/60 px-4 py-4">
+    <div
+      data-slot="codex-provider-body"
+      className="border-t border-border/60 px-4 py-4"
+    >
       {accountsLoading ? (
-        <p className="text-xs text-muted-foreground">{m.providers_accounts_loading()}</p>
+        <p className="text-xs text-muted-foreground">
+          {m.providers_accounts_loading()}
+        </p>
       ) : null}
       {accountsError || quotasError ? (
         <Alert variant="destructive" className="mt-3">
@@ -381,26 +437,24 @@ function CodexProviderBody({
           </div>
         </Alert>
       ) : null}
-      {showAccounts
-        ? accountsLoading
-          ? null
-          : filteredAccounts.length ? (
-            <div className="mt-4 space-y-3">
-              {filteredAccounts.map((account) => (
-                <CodexAccountRow
-                  key={account.account_id}
-                  account={account}
-                  quota={quotaMap.get(account.account_id) ?? null}
-                  loading={accountsLoading}
-                  quotaLoading={quotasLoading}
-                  onLogout={onLogout}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">{emptyMessage}</p>
-          )
-        : null}
+      {showAccounts ? (
+        accountsLoading ? null : filteredAccounts.length ? (
+          <div className="mt-4 space-y-3">
+            {filteredAccounts.map((account) => (
+              <CodexAccountRow
+                key={account.account_id}
+                account={account}
+                quota={quotaMap.get(account.account_id) ?? null}
+                loading={accountsLoading}
+                quotaLoading={quotasLoading}
+                onLogout={onLogout}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">{emptyMessage}</p>
+        )
+      ) : null}
     </div>
   );
 }
@@ -412,7 +466,12 @@ type CodexProviderDetailsProps = {
   bodyProps: CodexProviderBodyProps;
 };
 
-function CodexProviderDetails({ open, onToggle, headerProps, bodyProps }: CodexProviderDetailsProps) {
+function CodexProviderDetails({
+  open,
+  onToggle,
+  headerProps,
+  bodyProps,
+}: CodexProviderDetailsProps) {
   return (
     <details
       data-slot="codex-provider-details"
@@ -470,7 +529,11 @@ export function CodexProviderGroup({
   const open = hasToggled ? isOpen : accounts.length > 0;
 
   // Auto-close the dialog shortly after a successful login.
-  useAutoCloseLoginDialog({ open: loginOpen, status: loginStatus, setOpen: setLoginOpen });
+  useAutoCloseLoginDialog({
+    open: loginOpen,
+    status: loginStatus,
+    setOpen: setLoginOpen,
+  });
 
   const emptyMessage = accounts.length
     ? m.providers_accounts_empty_filtered()
@@ -500,7 +563,10 @@ export function CodexProviderGroup({
   };
 
   return (
-    <div data-slot="provider-group" className="rounded-lg border border-border/60 bg-muted/20">
+    <div
+      data-slot="provider-group"
+      className="rounded-lg border border-border/60 bg-muted/20"
+    >
       <CodexLoginDialog
         open={loginOpen}
         onOpenChange={setLoginOpen}
@@ -509,7 +575,12 @@ export function CodexProviderGroup({
         statusText={statusText}
         loginUrl={loginUrl}
       />
-      <CodexProviderDetails open={open} onToggle={handleToggle} headerProps={headerProps} bodyProps={bodyProps} />
+      <CodexProviderDetails
+        open={open}
+        onToggle={handleToggle}
+        headerProps={headerProps}
+        bodyProps={bodyProps}
+      />
     </div>
   );
 }

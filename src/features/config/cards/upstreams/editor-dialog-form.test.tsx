@@ -24,12 +24,16 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}
-      />
+      />,
     );
 
-    expect(screen.getByText(m.upstreams_section_connection())).toBeInTheDocument();
+    expect(
+      screen.getByText(m.upstreams_section_connection()),
+    ).toBeInTheDocument();
     expect(screen.getByText(m.upstreams_section_models())).toBeInTheDocument();
-    expect(screen.getByText(m.upstreams_section_advanced())).toBeInTheDocument();
+    expect(
+      screen.getByText(m.upstreams_section_advanced()),
+    ).toBeInTheDocument();
     expect(screen.getByText(m.available_models_all_desc())).toBeInTheDocument();
   });
 
@@ -46,12 +50,14 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
-      />
+      />,
     );
 
     await user.click(screen.getByText(m.available_models_selected()));
 
-    expect(onChangeDraft).toHaveBeenCalledWith({ availableModelsMode: "selected" });
+    expect(onChangeDraft).toHaveBeenCalledWith({
+      availableModelsMode: "selected",
+    });
   });
 
   it("removes a selected model from the allowlist", async () => {
@@ -69,7 +75,7 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
-      />
+      />,
     );
 
     await user.click(
@@ -101,7 +107,7 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
-      />
+      />,
     );
 
     await user.click(
@@ -134,7 +140,7 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={onChangeDraft}
-      />
+      />,
     );
 
     await user.type(
@@ -163,12 +169,14 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.queryByText(m.field_kiro_account())).not.toBeInTheDocument();
     expect(screen.queryByLabelText(m.field_base_url())).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(m.field_proxy_url())).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(m.field_proxy_url()),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText(m.field_id())).toBeDisabled();
     expect(screen.getByRole("button", { name: /kiro/i })).toBeDisabled();
   });
@@ -186,12 +194,14 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.queryByText(m.field_codex_account())).not.toBeInTheDocument();
     expect(screen.queryByLabelText(m.field_base_url())).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(m.field_proxy_url())).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(m.field_proxy_url()),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText(m.field_id())).toBeDisabled();
     expect(screen.getByRole("button", { name: /codex/i })).toBeDisabled();
   });
@@ -209,11 +219,13 @@ describe("upstreams/editor-dialog-form", () => {
         showApiKeys={false}
         onToggleApiKeys={vi.fn()}
         onChangeDraft={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.queryByLabelText(m.field_base_url())).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(m.field_proxy_url())).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(m.field_proxy_url()),
+    ).not.toBeInTheDocument();
     expect(screen.queryByLabelText(m.field_api_key())).not.toBeInTheDocument();
     expect(screen.getByLabelText(m.field_id())).toBeEnabled();
     expect(screen.getByRole("button", { name: /antigravity/i })).toBeEnabled();

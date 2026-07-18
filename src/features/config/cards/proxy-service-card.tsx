@@ -2,7 +2,10 @@ import { Loader2, Play, RefreshCw, RotateCcw, Square } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ProxyServiceRequestState, ProxyServiceStatus } from "@/features/config/types";
+import type {
+  ProxyServiceRequestState,
+  ProxyServiceStatus,
+} from "@/features/config/types";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages.js";
 
@@ -21,15 +24,27 @@ export type ProxyServiceViewProps = {
 function resolveBadge(status: ProxyServiceStatus | null, message: string) {
   const hasError = Boolean(message || status?.last_error);
   if (hasError) {
-    return { label: m.proxy_service_badge_error(), variant: "destructive" as const };
+    return {
+      label: m.proxy_service_badge_error(),
+      variant: "destructive" as const,
+    };
   }
   if (!status) {
-    return { label: m.proxy_service_badge_unknown(), variant: "outline" as const };
+    return {
+      label: m.proxy_service_badge_unknown(),
+      variant: "outline" as const,
+    };
   }
   if (status.state === "running") {
-    return { label: m.proxy_service_badge_running(), variant: "default" as const };
+    return {
+      label: m.proxy_service_badge_running(),
+      variant: "default" as const,
+    };
   }
-  return { label: m.proxy_service_badge_stopped(), variant: "secondary" as const };
+  return {
+    label: m.proxy_service_badge_stopped(),
+    variant: "secondary" as const,
+  };
 }
 
 type ProxyServiceContentProps = ProxyServiceViewProps & { className?: string };
@@ -43,11 +58,15 @@ function ProxyServiceStatusRow({ badge, addr }: ProxyServiceStatusRowProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
       <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">{m.proxy_service_state_label()}</span>
+        <span className="text-muted-foreground">
+          {m.proxy_service_state_label()}
+        </span>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">{m.proxy_service_addr_label()}</span>
+        <span className="text-muted-foreground">
+          {m.proxy_service_addr_label()}
+        </span>
         <span className="font-mono text-xs text-foreground/80">{addr}</span>
       </div>
     </div>
@@ -101,22 +120,50 @@ function ProxyServiceActions({
 }: ProxyServiceActionsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="icon" onClick={onRefresh} disabled={isWorking}>
-        <RefreshCw className={cn("size-4", isWorking && "animate-spin")} aria-hidden="true" />
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        onClick={onRefresh}
+        disabled={isWorking}
+      >
+        <RefreshCw
+          className={cn("size-4", isWorking && "animate-spin")}
+          aria-hidden="true"
+        />
       </Button>
       <Button type="button" onClick={onStart} disabled={isWorking || isRunning}>
-        {isWorking ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play aria-hidden="true" />}
+        {isWorking ? (
+          <Loader2 className="animate-spin" aria-hidden="true" />
+        ) : (
+          <Play aria-hidden="true" />
+        )}
         {m.proxy_service_start()}
       </Button>
-      <Button type="button" variant="outline" onClick={onStop} disabled={isWorking || !isRunning}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onStop}
+        disabled={isWorking || !isRunning}
+      >
         <Square aria-hidden="true" />
         {m.proxy_service_stop()}
       </Button>
-      <Button type="button" variant="outline" onClick={onRestart} disabled={isWorking || !isRunning || isDirty}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onRestart}
+        disabled={isWorking || !isRunning || isDirty}
+      >
         <RotateCcw aria-hidden="true" />
         {m.proxy_service_restart()}
       </Button>
-      <Button type="button" variant="outline" onClick={onReload} disabled={isWorking || isDirty}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onReload}
+        disabled={isWorking || isDirty}
+      >
         {m.proxy_service_reload_config()}
       </Button>
     </div>
@@ -178,12 +225,22 @@ function ProxyServiceContent({
 
 type ProxyServicePanelProps = ProxyServiceViewProps & { className?: string };
 
-export function ProxyServicePanel({ className, ...props }: ProxyServicePanelProps) {
+export function ProxyServicePanel({
+  className,
+  ...props
+}: ProxyServicePanelProps) {
   return (
-    <section data-slot="proxy-service-panel" className={cn("space-y-3", className)}>
+    <section
+      data-slot="proxy-service-panel"
+      className={cn("space-y-3", className)}
+    >
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-foreground">{m.proxy_service_title()}</p>
-        <p className="text-xs text-muted-foreground">{m.proxy_service_desc()}</p>
+        <p className="text-sm font-semibold text-foreground">
+          {m.proxy_service_title()}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {m.proxy_service_desc()}
+        </p>
       </div>
       <ProxyServiceContent {...props} />
     </section>

@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
@@ -36,7 +42,9 @@ describe("StorageUsageCard", () => {
     await waitFor(() => {
       expect(within(card).getByText("/tmp/token-proxy")).toBeInTheDocument();
     });
-    expect(within(card).getByText(m.storage_usage_database_label())).toBeInTheDocument();
+    expect(
+      within(card).getByText(m.storage_usage_database_label()),
+    ).toBeInTheDocument();
     expect(invokeMock).toHaveBeenCalledWith("read_data_storage_usage");
   });
 
@@ -57,12 +65,12 @@ describe("StorageUsageCard", () => {
 
     await waitFor(() => {
       expect(
-        within(card).getByText(m.storage_usage_error({ message: "disk busy" }))
+        within(card).getByText(m.storage_usage_error({ message: "disk busy" })),
       ).toBeInTheDocument();
     });
 
     await user.click(
-      within(card).getByRole("button", { name: m.storage_usage_refresh() })
+      within(card).getByRole("button", { name: m.storage_usage_refresh() }),
     );
 
     await waitFor(() => {

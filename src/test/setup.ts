@@ -43,7 +43,9 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi.fn<(options?: unknown) => Promise<unknown>>().mockResolvedValue(null),
+  open: vi
+    .fn<(options?: unknown) => Promise<unknown>>()
+    .mockResolvedValue(null),
 }));
 
 vi.mock("@tauri-apps/plugin-deep-link", () => ({
@@ -61,7 +63,9 @@ vi.mock("@tauri-apps/plugin-updater", () => ({
 }));
 
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({
-  writeText: vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined),
+  writeText: vi
+    .fn<(text: string) => Promise<void>>()
+    .mockResolvedValue(undefined),
   readText: vi.fn<() => Promise<string>>().mockResolvedValue(""),
 }));
 
@@ -80,7 +84,7 @@ function createMockStorage(): Storage {
       store.clear();
     },
     getItem(key) {
-      return store.has(key) ? store.get(key) ?? null : null;
+      return store.has(key) ? (store.get(key) ?? null) : null;
     },
     key(index) {
       return Array.from(store.keys())[index] ?? null;
@@ -97,12 +101,24 @@ function createMockStorage(): Storage {
 // Node 25 默认暴露了 `globalThis.localStorage`，但在未提供 `--localstorage-file` 时会输出 warning；
 // Paraglide 的 locale 策略也会直接访问 localStorage。为保证测试“安静且稳定”，这里无条件覆盖为内存版实现。
 const localStorageMock = createMockStorage();
-Object.defineProperty(globalThis, "localStorage", { value: localStorageMock, configurable: true });
-Object.defineProperty(window, "localStorage", { value: localStorageMock, configurable: true });
+Object.defineProperty(globalThis, "localStorage", {
+  value: localStorageMock,
+  configurable: true,
+});
+Object.defineProperty(window, "localStorage", {
+  value: localStorageMock,
+  configurable: true,
+});
 
 const sessionStorageMock = createMockStorage();
-Object.defineProperty(globalThis, "sessionStorage", { value: sessionStorageMock, configurable: true });
-Object.defineProperty(window, "sessionStorage", { value: sessionStorageMock, configurable: true });
+Object.defineProperty(globalThis, "sessionStorage", {
+  value: sessionStorageMock,
+  configurable: true,
+});
+Object.defineProperty(window, "sessionStorage", {
+  value: sessionStorageMock,
+  configurable: true,
+});
 
 function createMockMatchMedia(): Window["matchMedia"] {
   return (query) => {
@@ -110,8 +126,10 @@ function createMockMatchMedia(): Window["matchMedia"] {
     const noopWithReturnFalse = () => false;
 
     const addEventListener = vi.fn<MediaQueryList["addEventListener"]>(noop);
-    const removeEventListener = vi.fn<MediaQueryList["removeEventListener"]>(noop);
-    const dispatchEvent = vi.fn<MediaQueryList["dispatchEvent"]>(noopWithReturnFalse);
+    const removeEventListener =
+      vi.fn<MediaQueryList["removeEventListener"]>(noop);
+    const dispatchEvent =
+      vi.fn<MediaQueryList["dispatchEvent"]>(noopWithReturnFalse);
 
     // 兼容旧 API：很多库仍会调用 addListener/removeListener。
     const addListener = vi.fn<MediaQueryList["addListener"]>(noop);

@@ -11,7 +11,11 @@ import {
 } from "@/features/update/UpdateNotifier";
 import { UpdaterProvider, useUpdater } from "@/features/update/updater";
 
-type TauriEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
+type TauriEventHandler = (event: {
+  event: string;
+  id: number;
+  payload: unknown;
+}) => void;
 
 const {
   eventHandlers,
@@ -23,21 +27,27 @@ const {
   toastMock,
 } = vi.hoisted(() => ({
   eventHandlers: new Map<string, TauriEventHandler>(),
-  listenMock: vi.fn<(event: string, handler: TauriEventHandler) => Promise<() => void>>(),
+  listenMock:
+    vi.fn<(event: string, handler: TauriEventHandler) => Promise<() => void>>(),
   navigateMock: vi.fn<() => Promise<void>>(),
   toastDismissMock: vi.fn<(id?: string | number) => void>(),
-  toastErrorMock: vi.fn<(...args: unknown[]) => string>().mockReturnValue("error-toast"),
-  toastLoadingMock: vi.fn<(...args: unknown[]) => string>().mockReturnValue("loading-toast"),
-  toastMock: vi.fn<(...args: unknown[]) => string>().mockReturnValue("available-toast"),
+  toastErrorMock: vi
+    .fn<(...args: unknown[]) => string>()
+    .mockReturnValue("error-toast"),
+  toastLoadingMock: vi
+    .fn<(...args: unknown[]) => string>()
+    .mockReturnValue("loading-toast"),
+  toastMock: vi
+    .fn<(...args: unknown[]) => string>()
+    .mockReturnValue("available-toast"),
 }));
 
 let consoleInfoMock: ReturnType<typeof vi.spyOn>;
 
 async function createUpdateHandle(version: string) {
-  const { Update: ActualUpdate } =
-    await vi.importActual<typeof import("@tauri-apps/plugin-updater")>(
-      "@tauri-apps/plugin-updater"
-    );
+  const { Update: ActualUpdate } = await vi.importActual<
+    typeof import("@tauri-apps/plugin-updater")
+  >("@tauri-apps/plugin-updater");
   const update = new ActualUpdate({
     currentVersion: "0.1.0",
     date: "2026-05-17",
@@ -84,7 +94,9 @@ function UpdaterHarness() {
   return (
     <>
       <UpdateNotifier />
-      <output data-testid="update-ready">{state.appProxyUrlReady ? "ready" : "pending"}</output>
+      <output data-testid="update-ready">
+        {state.appProxyUrlReady ? "ready" : "pending"}
+      </output>
       <output data-testid="update-status">{state.status}</output>
     </>
   );
@@ -127,7 +139,9 @@ describe("update/UpdateNotifier", () => {
   beforeEach(() => {
     __resetUpdateNotifierAutoCheckForTests();
     eventHandlers.clear();
-    consoleInfoMock = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    consoleInfoMock = vi
+      .spyOn(console, "info")
+      .mockImplementation(() => undefined);
     navigateMock.mockReset();
     toastDismissMock.mockClear();
     toastErrorMock.mockClear();
@@ -163,7 +177,7 @@ describe("update/UpdateNotifier", () => {
     render(
       <UpdaterProvider>
         <UpdaterHarness />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
@@ -185,7 +199,7 @@ describe("update/UpdateNotifier", () => {
     render(
       <UpdaterProvider>
         <UpdateNotifier />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
@@ -201,7 +215,7 @@ describe("update/UpdateNotifier", () => {
     render(
       <UpdaterProvider>
         <UpdateNotifier />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
@@ -212,7 +226,7 @@ describe("update/UpdateNotifier", () => {
       expect.objectContaining({
         description: expect.stringContaining("0.2.0"),
         duration: Infinity,
-      })
+      }),
     );
   });
 
@@ -224,7 +238,7 @@ describe("update/UpdateNotifier", () => {
     render(
       <UpdaterProvider>
         <UpdateNotifier />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
@@ -243,24 +257,28 @@ describe("update/UpdateNotifier", () => {
       () =>
         new Promise((resolve) => {
           resolveConfig = resolve;
-        })
+        }),
     );
 
     render(
       <UpdaterProvider>
         <ProxyUrlStateHarness />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-proxy-url")).toHaveTextContent("http://127.0.0.1:7890");
+      expect(screen.getByTestId("app-proxy-url")).toHaveTextContent(
+        "http://127.0.0.1:7890",
+      );
     });
 
     expect(resolveConfig).not.toBeNull();
     resolveConfig!({ config: { app_proxy_url: "socks5h://127.0.0.1:9999" } });
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-proxy-url")).toHaveTextContent("http://127.0.0.1:7890");
+      expect(screen.getByTestId("app-proxy-url")).toHaveTextContent(
+        "http://127.0.0.1:7890",
+      );
     });
   });
 
@@ -272,13 +290,13 @@ describe("update/UpdateNotifier", () => {
       () =>
         new Promise<null>((resolve) => {
           resolveCheck = () => resolve(null);
-        })
+        }),
     );
 
     render(
       <UpdaterProvider>
         <UpdaterHarness />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
@@ -315,7 +333,7 @@ describe("update/UpdateNotifier", () => {
       () =>
         new Promise<null>((resolve) => {
           resolveCheck = () => resolve(null);
-        })
+        }),
     );
 
     function ManualCheckHarness() {
@@ -347,7 +365,7 @@ describe("update/UpdateNotifier", () => {
     render(
       <UpdaterProvider>
         <ManualCheckHarness />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
@@ -357,15 +375,19 @@ describe("update/UpdateNotifier", () => {
     if (vi.mocked(check).mock.calls.length > 0) {
       resolveCheck();
       await waitFor(() => {
-        expect(screen.getByTestId("manual-status")).toHaveTextContent("uptodate");
+        expect(screen.getByTestId("manual-status")).toHaveTextContent(
+          "uptodate",
+        );
       });
       vi.mocked(check).mockClear();
     }
 
     screen.getByRole("button", { name: "manual-check" }).click();
-    eventHandlers
-      .get(MAIN_WINDOW_VISIBLE_EVENT)
-      ?.({ event: MAIN_WINDOW_VISIBLE_EVENT, id: 1, payload: null });
+    eventHandlers.get(MAIN_WINDOW_VISIBLE_EVENT)?.({
+      event: MAIN_WINDOW_VISIBLE_EVENT,
+      id: 1,
+      payload: null,
+    });
 
     await waitFor(() => {
       expect(vi.mocked(check)).toHaveBeenCalledTimes(1);
@@ -387,13 +409,15 @@ describe("update/UpdateNotifier", () => {
     render(
       <UpdaterProvider>
         <ManualUpdateHarness statusTestId="available-status" />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     screen.getByRole("button", { name: "check-now" }).click();
 
     await waitFor(() => {
-      expect(screen.getByTestId("available-status")).toHaveTextContent("available");
+      expect(screen.getByTestId("available-status")).toHaveTextContent(
+        "available",
+      );
     });
 
     const handler = eventHandlers.get(MAIN_WINDOW_VISIBLE_EVENT);
@@ -405,7 +429,9 @@ describe("update/UpdateNotifier", () => {
     });
     expect(firstUpdate.close).toHaveBeenCalledTimes(1);
     expect(secondUpdate.close).not.toHaveBeenCalled();
-    expect(screen.getByTestId("available-status")).toHaveTextContent("available");
+    expect(screen.getByTestId("available-status")).toHaveTextContent(
+      "available",
+    );
   });
 
   it("dismisses stale available-update toast when a visible-window recheck finds no update", async () => {
@@ -416,7 +442,7 @@ describe("update/UpdateNotifier", () => {
     render(
       <UpdaterProvider>
         <UpdaterHarness />
-      </UpdaterProvider>
+      </UpdaterProvider>,
     );
 
     await waitFor(() => {
@@ -430,7 +456,9 @@ describe("update/UpdateNotifier", () => {
     }
 
     await waitFor(() => {
-      expect(screen.getByTestId("update-status")).toHaveTextContent("available");
+      expect(screen.getByTestId("update-status")).toHaveTextContent(
+        "available",
+      );
     });
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledTimes(1);

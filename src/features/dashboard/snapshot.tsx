@@ -1,86 +1,90 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { HelpCircle, Power, PowerOff, RefreshCcw } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react";
+import { HelpCircle, Power, PowerOff, RefreshCcw } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import {
   readDashboardSnapshot,
   refreshDashboardModelDiscovery,
-} from "@/features/dashboard/api"
+} from "@/features/dashboard/api";
 import {
   DASHBOARD_RANGE_OPTIONS,
   type DashboardTimeRange,
   resolveDashboardRange,
   toDashboardTimeRange,
-} from "@/features/dashboard/range"
+} from "@/features/dashboard/range";
 import type {
   DashboardAccountOption,
   DashboardRange,
   DashboardSnapshot,
   DashboardUpstreamOption,
-} from "@/features/dashboard/types"
-import { parseError } from "@/lib/error"
-import { m } from "@/paraglide/messages.js"
+} from "@/features/dashboard/types";
+import { parseError } from "@/lib/error";
+import { m } from "@/paraglide/messages.js";
 
-export const RECENT_PAGE_SIZE = 50
-const ALL_UPSTREAMS_VALUE = "__all_upstreams__"
-const ALL_ACCOUNTS_VALUE = "__all_accounts__"
-const PUBLIC_ACCOUNT_VALUE = "__public_account__"
+export const RECENT_PAGE_SIZE = 50;
+const ALL_UPSTREAMS_VALUE = "__all_upstreams__";
+const ALL_ACCOUNTS_VALUE = "__all_accounts__";
+const PUBLIC_ACCOUNT_VALUE = "__public_account__";
 
-type DashboardStatus = "idle" | "loading" | "error"
+type DashboardStatus = "idle" | "loading" | "error";
 
 type UseDashboardSnapshotOptions = {
-  refreshModelDiscoveryOnRefresh?: boolean
-}
+  refreshModelDiscoveryOnRefresh?: boolean;
+};
 
 function hasUpstreamOption(
   upstreams: DashboardUpstreamOption[],
-  upstreamId: string
+  upstreamId: string,
 ) {
-  return upstreams.some((item) => item.upstreamId === upstreamId)
+  return upstreams.some((item) => item.upstreamId === upstreamId);
 }
 
 function hasAccountOption(
   accounts: DashboardAccountOption[],
   accountId: string | null,
-  publicOnly: boolean
+  publicOnly: boolean,
 ) {
   if (publicOnly) {
-    return accounts.some((item) => item.accountId === null)
+    return accounts.some((item) => item.accountId === null);
   }
   if (accountId === null) {
-    return true
+    return true;
   }
-  return accounts.some((item) => item.accountId === accountId)
+  return accounts.some((item) => item.accountId === accountId);
 }
 
 function usePagination(totalRequests: number) {
-  const [page, setPage] = useState(1)
-  const totalPages = Math.max(1, Math.ceil(totalRequests / RECENT_PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(totalRequests / RECENT_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
 
   const resetPage = useCallback(() => {
-    setPage(1)
-  }, [])
+    setPage(1);
+  }, []);
 
   const onPrevPage = useCallback(() => {
-    setPage((current) => Math.max(1, current - 1))
-  }, [])
+    setPage((current) => Math.max(1, current - 1));
+  }, []);
 
   const onNextPage = useCallback(() => {
-    setPage((current) => current + 1)
-  }, [])
+    setPage((current) => current + 1);
+  }, []);
 
   return {
     page: currentPage,
@@ -89,43 +93,47 @@ function usePagination(totalRequests: number) {
     resetPage,
     onPrevPage,
     onNextPage,
-  }
+  };
 }
 
 export function useDashboardSnapshot({
   refreshModelDiscoveryOnRefresh = false,
 }: UseDashboardSnapshotOptions = {}) {
-  const [rangePreset, setRangePreset] = useState<DashboardTimeRange>("today")
-  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null)
-  const [selectedUpstreamId, setSelectedUpstreamId] = useState<string | null>(null)
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
-  const [selectedPublicOnly, setSelectedPublicOnly] = useState(false)
+  const [rangePreset, setRangePreset] = useState<DashboardTimeRange>("today");
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [selectedUpstreamId, setSelectedUpstreamId] = useState<string | null>(
+    null,
+  );
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    null,
+  );
+  const [selectedPublicOnly, setSelectedPublicOnly] = useState(false);
   const [activeRange, setActiveRange] = useState<DashboardRange>(() =>
-    resolveDashboardRange("today")
-  )
-  const [status, setStatus] = useState<DashboardStatus>("loading")
-  const [statusMessage, setStatusMessage] = useState("")
-  const totalRequests = snapshot?.summary.totalRequests ?? 0
+    resolveDashboardRange("today"),
+  );
+  const [status, setStatus] = useState<DashboardStatus>("loading");
+  const [statusMessage, setStatusMessage] = useState("");
+  const totalRequests = snapshot?.summary.totalRequests ?? 0;
   const { page, totalPages, resetPage, onPrevPage, onNextPage } =
-    usePagination(totalRequests)
-  const requestSeq = useRef(0)
+    usePagination(totalRequests);
+  const requestSeq = useRef(0);
 
   const loadSnapshot = useCallback(async () => {
     // Ignore out-of-order responses; only the latest request updates state.
-    const requestId = requestSeq.current + 1
-    requestSeq.current = requestId
+    const requestId = requestSeq.current + 1;
+    requestSeq.current = requestId;
     try {
-      const range = resolveDashboardRange(rangePreset)
-      const offset = (page - 1) * RECENT_PAGE_SIZE
+      const range = resolveDashboardRange(rangePreset);
+      const offset = (page - 1) * RECENT_PAGE_SIZE;
       const data = await readDashboardSnapshot({
         range,
         offset,
         upstreamId: selectedUpstreamId,
         accountId: selectedAccountId,
         publicOnly: selectedPublicOnly,
-      })
+      });
       if (requestSeq.current !== requestId) {
-        return
+        return;
       }
       // 时间范围变化后，已选上游可能不再出现在该范围内；先回退到“全部”，
       // 让下一个 effect 重新拉取一个合法快照，避免 Select 绑定到不存在的值。
@@ -133,92 +141,111 @@ export function useDashboardSnapshot({
         selectedUpstreamId !== null &&
         !hasUpstreamOption(data.upstreams, selectedUpstreamId)
       ) {
-        setSelectedUpstreamId(null)
-        setStatus("loading")
-        return
+        setSelectedUpstreamId(null);
+        setStatus("loading");
+        return;
       }
       const visibleAccountOptions =
-        selectedUpstreamId === null ? [] : data.accounts
+        selectedUpstreamId === null ? [] : data.accounts;
       if (
         selectedUpstreamId !== null &&
-        !hasAccountOption(visibleAccountOptions, selectedAccountId, selectedPublicOnly)
+        !hasAccountOption(
+          visibleAccountOptions,
+          selectedAccountId,
+          selectedPublicOnly,
+        )
       ) {
-        setSelectedAccountId(null)
-        setSelectedPublicOnly(false)
-        setStatus("loading")
-        return
+        setSelectedAccountId(null);
+        setSelectedPublicOnly(false);
+        setStatus("loading");
+        return;
       }
-      setSnapshot(data)
-      setActiveRange(range)
-      setStatus("idle")
+      setSnapshot(data);
+      setActiveRange(range);
+      setStatus("idle");
     } catch (error) {
       if (requestSeq.current !== requestId) {
-        return
+        return;
       }
-      setStatus("error")
-      setStatusMessage(parseError(error))
+      setStatus("error");
+      setStatusMessage(parseError(error));
     }
-  }, [page, rangePreset, selectedAccountId, selectedPublicOnly, selectedUpstreamId])
+  }, [
+    page,
+    rangePreset,
+    selectedAccountId,
+    selectedPublicOnly,
+    selectedUpstreamId,
+  ]);
 
   useEffect(() => {
     // 提交后一拍再启动请求，避免 effect 同步路径被误判为级联 setState。
     const timerId = window.setTimeout(() => {
-      void loadSnapshot()
-    }, 0)
-    return () => window.clearTimeout(timerId)
-  }, [loadSnapshot])
+      void loadSnapshot();
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [loadSnapshot]);
 
   const markLoading = useCallback(() => {
-    setStatus("loading")
-    setStatusMessage("")
-  }, [])
+    setStatus("loading");
+    setStatusMessage("");
+  }, []);
 
-  const handleRangeChange = useCallback((next: DashboardTimeRange) => {
-    markLoading()
-    setRangePreset(next)
-    resetPage()
-  }, [markLoading, resetPage])
+  const handleRangeChange = useCallback(
+    (next: DashboardTimeRange) => {
+      markLoading();
+      setRangePreset(next);
+      resetPage();
+    },
+    [markLoading, resetPage],
+  );
 
-  const handleUpstreamChange = useCallback((nextUpstreamId: string | null) => {
-    markLoading()
-    setSelectedUpstreamId(nextUpstreamId)
-    setSelectedAccountId(null)
-    setSelectedPublicOnly(false)
-    resetPage()
-  }, [markLoading, resetPage])
+  const handleUpstreamChange = useCallback(
+    (nextUpstreamId: string | null) => {
+      markLoading();
+      setSelectedUpstreamId(nextUpstreamId);
+      setSelectedAccountId(null);
+      setSelectedPublicOnly(false);
+      resetPage();
+    },
+    [markLoading, resetPage],
+  );
 
-  const handleAccountChange = useCallback((nextAccountId: string | null, nextPublicOnly: boolean) => {
-    markLoading()
-    setSelectedAccountId(nextAccountId)
-    setSelectedPublicOnly(nextPublicOnly)
-    resetPage()
-  }, [markLoading, resetPage])
+  const handleAccountChange = useCallback(
+    (nextAccountId: string | null, nextPublicOnly: boolean) => {
+      markLoading();
+      setSelectedAccountId(nextAccountId);
+      setSelectedPublicOnly(nextPublicOnly);
+      resetPage();
+    },
+    [markLoading, resetPage],
+  );
 
   const handlePrevPage = useCallback(() => {
-    markLoading()
-    onPrevPage()
-  }, [markLoading, onPrevPage])
+    markLoading();
+    onPrevPage();
+  }, [markLoading, onPrevPage]);
 
   const handleNextPage = useCallback(() => {
-    markLoading()
-    onNextPage()
-  }, [markLoading, onNextPage])
+    markLoading();
+    onNextPage();
+  }, [markLoading, onNextPage]);
 
   const refresh = useCallback(() => {
-    markLoading()
+    markLoading();
     void (async () => {
       if (refreshModelDiscoveryOnRefresh) {
         try {
-          await refreshDashboardModelDiscovery()
+          await refreshDashboardModelDiscovery();
         } catch (error) {
-          setStatus("error")
-          setStatusMessage(parseError(error))
-          return
+          setStatus("error");
+          setStatusMessage(parseError(error));
+          return;
         }
       }
-      await loadSnapshot()
-    })()
-  }, [loadSnapshot, markLoading, refreshModelDiscoveryOnRefresh])
+      await loadSnapshot();
+    })();
+  }, [loadSnapshot, markLoading, refreshModelDiscoveryOnRefresh]);
 
   return {
     snapshot,
@@ -230,7 +257,8 @@ export function useDashboardSnapshot({
     selectedAccountId,
     selectedPublicOnly,
     upstreamOptions: snapshot?.upstreams ?? [],
-    accountOptions: selectedUpstreamId === null ? [] : (snapshot?.accounts ?? []),
+    accountOptions:
+      selectedUpstreamId === null ? [] : (snapshot?.accounts ?? []),
     pagination: { page, totalPages, totalRequests },
     refresh,
     onRangeChange: handleRangeChange,
@@ -238,57 +266,60 @@ export function useDashboardSnapshot({
     onAccountChange: handleAccountChange,
     onPrevPage: handlePrevPage,
     onNextPage: handleNextPage,
-  }
+  };
 }
 
 function resolveUpstreamSelectValue(upstreamId: string | null) {
-  return upstreamId ?? ALL_UPSTREAMS_VALUE
+  return upstreamId ?? ALL_UPSTREAMS_VALUE;
 }
 
 function toUpstreamFilterValue(value: string) {
-  return value === ALL_UPSTREAMS_VALUE ? null : value
+  return value === ALL_UPSTREAMS_VALUE ? null : value;
 }
 
-function resolveAccountSelectValue(accountId: string | null, publicOnly: boolean) {
+function resolveAccountSelectValue(
+  accountId: string | null,
+  publicOnly: boolean,
+) {
   if (publicOnly) {
-    return PUBLIC_ACCOUNT_VALUE
+    return PUBLIC_ACCOUNT_VALUE;
   }
   if (accountId === null) {
-    return ALL_ACCOUNTS_VALUE
+    return ALL_ACCOUNTS_VALUE;
   }
-  return `account:${accountId}`
+  return `account:${accountId}`;
 }
 
 function toAccountFilterValue(value: string) {
   if (value === ALL_ACCOUNTS_VALUE) {
-    return { accountId: null, publicOnly: false }
+    return { accountId: null, publicOnly: false };
   }
   if (value === PUBLIC_ACCOUNT_VALUE) {
-    return { accountId: null, publicOnly: true }
+    return { accountId: null, publicOnly: true };
   }
-  return { accountId: value.replace(/^account:/, ""), publicOnly: false }
+  return { accountId: value.replace(/^account:/, ""), publicOnly: false };
 }
 
 type DashboardFiltersProps = {
-  range: DashboardTimeRange
-  upstreamId: string | null
-  upstreamOptions: DashboardUpstreamOption[]
-  accountId: string | null
-  publicOnly: boolean
-  accountOptions: DashboardAccountOption[]
-  loading: boolean
-  onRangeChange: (range: DashboardTimeRange) => void
-  onUpstreamChange: (upstreamId: string | null) => void
-  onAccountChange: (accountId: string | null, publicOnly: boolean) => void
-  onRefresh: () => void
+  range: DashboardTimeRange;
+  upstreamId: string | null;
+  upstreamOptions: DashboardUpstreamOption[];
+  accountId: string | null;
+  publicOnly: boolean;
+  accountOptions: DashboardAccountOption[];
+  loading: boolean;
+  onRangeChange: (range: DashboardTimeRange) => void;
+  onUpstreamChange: (upstreamId: string | null) => void;
+  onAccountChange: (accountId: string | null, publicOnly: boolean) => void;
+  onRefresh: () => void;
   /** 请求详情捕获相关，仅 LogsPanel 使用 */
   capture?: {
-    enabled: boolean
-    loading: boolean
-    statusText?: string
-    onToggle: (enabled: boolean) => void
-  }
-}
+    enabled: boolean;
+    loading: boolean;
+    statusText?: string;
+    onToggle: (enabled: boolean) => void;
+  };
+};
 
 export function DashboardFilters({
   range,
@@ -310,19 +341,19 @@ export function DashboardFilters({
       className="sticky top-0 z-20 px-4 lg:px-6"
     >
       <Card className="gap-0 rounded-lg border-border/70 bg-card/95 py-0 shadow-none">
-        <CardContent className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-2.5">
-              <Label className="text-xs font-medium text-muted-foreground">
+        <CardContent className="flex flex-wrap items-start justify-between gap-2 px-3 py-2">
+          <div className="flex flex-col items-start gap-0.5">
+            <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-0.5">
+              <Label className="whitespace-nowrap text-xs font-medium text-muted-foreground">
                 {m.dashboard_range_label()}
               </Label>
               <ToggleGroup
                 type="single"
                 value={range}
                 onValueChange={(value) => {
-                  const next = toDashboardTimeRange(value)
+                  const next = toDashboardTimeRange(value);
                   if (next) {
-                    onRangeChange(next)
+                    onRangeChange(next);
                   }
                 }}
                 variant="default"
@@ -343,8 +374,8 @@ export function DashboardFilters({
               </ToggleGroup>
             </div>
 
-            <div className="flex items-center gap-2.5 border-l border-border/70 pl-3">
-              <Label className="text-xs font-medium text-muted-foreground">
+            <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-0.5">
+              <Label className="whitespace-nowrap text-xs font-medium text-muted-foreground">
                 {m.dashboard_upstream_label()}
               </Label>
               <ToggleGroup
@@ -352,14 +383,14 @@ export function DashboardFilters({
                 value={resolveUpstreamSelectValue(upstreamId)}
                 onValueChange={(value) => {
                   if (value) {
-                    onUpstreamChange(toUpstreamFilterValue(value))
+                    onUpstreamChange(toUpstreamFilterValue(value));
                   }
                 }}
                 variant="default"
                 size="sm"
                 spacing={0}
                 aria-label={m.dashboard_upstream_label()}
-                className="max-w-full flex-wrap rounded-md bg-transparent"
+                className="min-w-0 max-w-full flex-wrap rounded-md bg-transparent"
               >
                 <ToggleGroupItem
                   value={ALL_UPSTREAMS_VALUE}
@@ -386,8 +417,8 @@ export function DashboardFilters({
               value={resolveAccountSelectValue(accountId, publicOnly)}
               disabled={upstreamId === null}
               onValueChange={(value) => {
-                const next = toAccountFilterValue(value)
-                onAccountChange(next.accountId, next.publicOnly)
+                const next = toAccountFilterValue(value);
+                onAccountChange(next.accountId, next.publicOnly);
               }}
             >
               <SelectTrigger id="dashboard-account" className="hidden">
@@ -419,11 +450,14 @@ export function DashboardFilters({
                 <span
                   className={cn(
                     "size-2 rounded-full",
-                    capture.enabled ? "bg-green-500" : "bg-muted-foreground/40"
+                    capture.enabled ? "bg-green-500" : "bg-muted-foreground/40",
                   )}
                   aria-hidden="true"
                 />
-                <Label htmlFor="logs-capture" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="logs-capture"
+                  className="text-xs text-muted-foreground"
+                >
                   {m.logs_capture_title()}
                 </Label>
                 <Tooltip>
@@ -431,7 +465,9 @@ export function DashboardFilters({
                     <HelpCircle className="size-3.5 text-muted-foreground cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs">
-                    {capture.enabled ? m.logs_capture_desc() : m.logs_capture_idle_desc()}
+                    {capture.enabled
+                      ? m.logs_capture_desc()
+                      : m.logs_capture_idle_desc()}
                   </TooltipContent>
                 </Tooltip>
                 {capture.enabled ? (
@@ -449,7 +485,9 @@ export function DashboardFilters({
                         <span className="sr-only">{m.logs_capture_stop()}</span>
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom">{m.logs_capture_stop()}</TooltipContent>
+                    <TooltipContent side="bottom">
+                      {m.logs_capture_stop()}
+                    </TooltipContent>
                   </Tooltip>
                 ) : (
                   <Tooltip>
@@ -465,10 +503,14 @@ export function DashboardFilters({
                         disabled={capture.loading}
                       >
                         <Power className="size-3.5" />
-                        <span className="sr-only">{m.logs_capture_start()}</span>
+                        <span className="sr-only">
+                          {m.logs_capture_start()}
+                        </span>
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom">{m.logs_capture_start()}</TooltipContent>
+                    <TooltipContent side="bottom">
+                      {m.logs_capture_start()}
+                    </TooltipContent>
                   </Tooltip>
                 )}
                 {capture.enabled && capture.statusText ? (
@@ -478,7 +520,13 @@ export function DashboardFilters({
                 ) : null}
               </div>
             ) : null}
-            <Button type="button" variant="outline" size="icon" onClick={onRefresh} disabled={loading}>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={onRefresh}
+              disabled={loading}
+            >
               <RefreshCcw className={cn("size-4", loading && "animate-spin")} />
               <span className="sr-only">{m.common_refresh()}</span>
             </Button>
@@ -486,5 +534,5 @@ export function DashboardFilters({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

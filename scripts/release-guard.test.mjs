@@ -9,15 +9,12 @@ import {
 test("parseReleaseCommitVersion 只接受 Token Hub release 提交标题", () => {
   assert.equal(
     parseReleaseCommitVersion("chore: token-hub release v0.1.63 (#199)"),
-    "0.1.63"
+    "0.1.63",
   );
-  assert.equal(
-    parseReleaseCommitVersion("chore: release v0.1.63 (#199)"),
-    ""
-  );
+  assert.equal(parseReleaseCommitVersion("chore: release v0.1.63 (#199)"), "");
   assert.equal(
     parseReleaseCommitVersion("fix stale gpt display-name test (#198)"),
-    ""
+    "",
   );
 });
 
@@ -33,7 +30,7 @@ test("evaluateReleaseGuard 对真正的 release merge commit 放行", () => {
       isPrerelease: false,
       isRelease: true,
       releaseCommitVersion: "0.1.63",
-    }
+    },
   );
 });
 
@@ -49,7 +46,7 @@ test("evaluateReleaseGuard 跳过普通 main push，即使版本号还领先最�
       isPrerelease: false,
       isRelease: false,
       releaseCommitVersion: "",
-    }
+    },
   );
 });
 
@@ -65,7 +62,7 @@ test("evaluateReleaseGuard 跳过上游的通用 release 提交", () => {
       isPrerelease: false,
       isRelease: false,
       releaseCommitVersion: "",
-    }
+    },
   );
 });
 
@@ -81,6 +78,6 @@ test("evaluateReleaseGuard 跳过标题和 package 版本不一致的提交", ()
       isPrerelease: false,
       isRelease: false,
       releaseCommitVersion: "0.1.64",
-    }
+    },
   );
 });

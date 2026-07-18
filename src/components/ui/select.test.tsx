@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import {
   Select,
@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 
 describe("SelectItem", () => {
   it("keeps the selected indicator compact", () => {
@@ -19,25 +19,25 @@ describe("SelectItem", () => {
         <SelectContent>
           <SelectItem value="today">Today</SelectItem>
         </SelectContent>
-      </Select>
-    )
+      </Select>,
+    );
 
-    const item = screen.getByRole("option", { name: "Today" })
-    expect(item).toHaveClass("pr-4")
-    expect(item).not.toHaveClass("pr-8")
+    const item = screen.getByRole("option", { name: "Today" });
+    expect(item).toHaveClass("pr-4");
+    expect(item).not.toHaveClass("pr-8");
 
-    const indicator = item.querySelector('[data-slot="select-item-indicator"]')
+    const indicator = item.querySelector('[data-slot="select-item-indicator"]');
     if (indicator === null) {
-      throw new Error("Select item indicator missing")
+      throw new Error("Select item indicator missing");
     }
 
-    expect(indicator).toHaveClass("size-2")
+    expect(indicator).toHaveClass("size-2");
 
-    const icon = indicator.querySelector("svg")
+    const icon = indicator.querySelector("svg");
     if (icon === null) {
-      throw new Error("Select item indicator icon missing")
+      throw new Error("Select item indicator icon missing");
     }
 
-    expect(icon).toHaveClass("size-2")
-  })
-})
+    expect(icon).toHaveClass("size-2");
+  });
+});

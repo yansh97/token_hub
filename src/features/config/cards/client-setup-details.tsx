@@ -15,7 +15,9 @@ export function ClaudeSetupDetails({ setup }: { setup: ClientSetupInfo }) {
             `ANTHROPIC_BASE_URL=${setup.claude_base_url}`,
             `ANTHROPIC_MODEL=${setup.claude_model}`,
             `ANTHROPIC_AUTH_TOKEN=${
-              setup.claude_auth_token_configured ? "••••••••" : m.client_setup_not_configured()
+              setup.claude_auth_token_configured
+                ? "••••••••"
+                : m.client_setup_not_configured()
             }`,
           ]}
         />
@@ -45,7 +47,9 @@ export function CodexSetupDetails({ setup }: { setup: ClientSetupInfo }) {
             `requires_openai_auth = ${setup.codex_provider_requires_openai_auth ? "true" : "false"}`,
             `wire_api = "${setup.codex_provider_wire_api}"`,
             `auth.json: OPENAI_API_KEY = "${
-              setup.codex_api_key_configured ? "••••••••" : m.client_setup_not_configured()
+              setup.codex_api_key_configured
+                ? "••••••••"
+                : m.client_setup_not_configured()
             }"`,
           ]}
         />

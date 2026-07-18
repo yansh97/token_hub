@@ -16,10 +16,17 @@ import { AccountDeleteAction } from "@/features/providers/account-delete-dialog"
 import { formatDateLabel } from "@/features/providers/date";
 import { useAutoCloseLoginDialog } from "@/features/providers/use-auto-close-login-dialog";
 import type { LoginStatus } from "@/features/providers/use-auto-close-login-dialog";
-import type { KiroAccountSummary, KiroLoginMethod, KiroQuotaItem } from "@/features/kiro/types";
+import type {
+  KiroAccountSummary,
+  KiroLoginMethod,
+  KiroQuotaItem,
+} from "@/features/kiro/types";
 import { m } from "@/paraglide/messages.js";
 
-const LOGIN_METHODS: ReadonlyArray<{ method: KiroLoginMethod; label: () => string }> = [
+const LOGIN_METHODS: ReadonlyArray<{
+  method: KiroLoginMethod;
+  label: () => string;
+}> = [
   { method: "aws", label: () => m.kiro_login_method_aws() },
   { method: "aws_authcode", label: () => m.kiro_login_method_aws_authcode() },
   { method: "google", label: () => m.kiro_login_method_google() },
@@ -88,7 +95,7 @@ function buildStatusSummary(accounts: KiroAccountSummary[]) {
       }
       return acc;
     },
-    { active: 0, expired: 0 }
+    { active: 0, expired: 0 },
   );
 
   return m.providers_status_summary({
@@ -141,10 +148,22 @@ function KiroLoginSection({
             {item.label()}
           </Button>
         ))}
-        <Button type="button" variant="outline" size="sm" onClick={onImport} disabled={loading}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onImport}
+          disabled={loading}
+        >
           {m.kiro_login_method_import()}
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={onImportKam} disabled={loading}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onImportKam}
+          disabled={loading}
+        >
           {m.kiro_login_method_import_kam()}
         </Button>
       </div>
@@ -153,10 +172,14 @@ function KiroLoginSection({
       ) : null}
       {deviceLink && deviceCode ? (
         <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs">
-          <p className="font-medium text-foreground">{m.kiro_device_code_title()}</p>
+          <p className="font-medium text-foreground">
+            {m.kiro_device_code_title()}
+          </p>
           <p className="mt-2 break-all text-muted-foreground">{deviceLink}</p>
           <p className="mt-1 font-mono text-sm text-foreground">{deviceCode}</p>
-          <p className="mt-2 text-muted-foreground">{m.kiro_login_open_hint()}</p>
+          <p className="mt-2 text-muted-foreground">
+            {m.kiro_login_open_hint()}
+          </p>
         </div>
       ) : null}
     </div>
@@ -208,7 +231,13 @@ function KiroLoginDialog({
   );
 }
 
-function KiroQuotaSection({ quota, loading }: { quota: KiroQuotaView | null; loading: boolean }) {
+function KiroQuotaSection({
+  quota,
+  loading,
+}: {
+  quota: KiroQuotaView | null;
+  loading: boolean;
+}) {
   if (quota?.error) {
     return (
       <Alert variant="destructive">
@@ -222,11 +251,19 @@ function KiroQuotaSection({ quota, loading }: { quota: KiroQuotaView | null; loa
   }
 
   if (loading && !quota) {
-    return <p className="text-xs text-muted-foreground">{m.providers_quota_loading()}</p>;
+    return (
+      <p className="text-xs text-muted-foreground">
+        {m.providers_quota_loading()}
+      </p>
+    );
   }
 
   if (!quota || !quota.quotas.length) {
-    return <p className="text-xs text-muted-foreground">{m.providers_quota_empty()}</p>;
+    return (
+      <p className="text-xs text-muted-foreground">
+        {m.providers_quota_empty()}
+      </p>
+    );
   }
 
   return (
@@ -244,8 +281,12 @@ function KiroQuotaSection({ quota, loading }: { quota: KiroQuotaView | null; loa
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-foreground">{Math.round(item.percentage)}%</p>
-              <p className="text-xs text-muted-foreground">{formatQuotaReset(item)}</p>
+              <p className="text-sm font-semibold text-foreground">
+                {Math.round(item.percentage)}%
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {formatQuotaReset(item)}
+              </p>
             </div>
           </div>
           <QuotaBar percentage={item.percentage} />
@@ -271,7 +312,8 @@ function ProviderAccountRow({
   const accountLabel = formatAccountLabel(account);
   const statusLabel = formatAccountStatus(account);
   const expiresAt = formatDate(account.expires_at);
-  const statusVariant = account.status === "expired" ? "destructive" : "secondary";
+  const statusVariant =
+    account.status === "expired" ? "destructive" : "secondary";
   const handleLogout = () => {
     void onLogout(account.account_id).catch(() => undefined);
   };
@@ -284,13 +326,19 @@ function ProviderAccountRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">{accountLabel}</p>
+            <p className="text-sm font-medium text-foreground">
+              {accountLabel}
+            </p>
             <Badge variant={statusVariant}>{statusLabel}</Badge>
-            {quota?.planType ? <Badge variant="outline">{quota.planType}</Badge> : null}
+            {quota?.planType ? (
+              <Badge variant="outline">{quota.planType}</Badge>
+            ) : null}
           </div>
           <p className="text-xs text-muted-foreground">
             {m.providers_account_id({ id: account.account_id })}
-            {expiresAt ? ` · ${m.providers_account_expires({ date: expiresAt })}` : ""}
+            {expiresAt
+              ? ` · ${m.providers_account_expires({ date: expiresAt })}`
+              : ""}
           </p>
         </div>
         <AccountDeleteAction
@@ -350,7 +398,9 @@ function KiroProviderHeader({
         />
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">{m.providers_kiro_title()}</p>
+            <p className="text-sm font-medium text-foreground">
+              {m.providers_kiro_title()}
+            </p>
             <Badge variant="outline">{accountsCount}</Badge>
           </div>
           <p className="text-xs text-muted-foreground">{statusSummary}</p>
@@ -369,7 +419,9 @@ function KiroProviderHeader({
           disabled={loading}
         >
           <RefreshCw
-            className={["size-4", loading ? "animate-spin" : ""].filter(Boolean).join(" ")}
+            className={["size-4", loading ? "animate-spin" : ""]
+              .filter(Boolean)
+              .join(" ")}
             aria-hidden="true"
           />
           <span className="sr-only">{m.common_refresh()}</span>
@@ -417,7 +469,9 @@ function KiroProviderBody({
   return (
     <div className="border-t border-border/60 px-4 py-4">
       {accountsLoading ? (
-        <p className="text-xs text-muted-foreground">{m.providers_accounts_loading()}</p>
+        <p className="text-xs text-muted-foreground">
+          {m.providers_accounts_loading()}
+        </p>
       ) : null}
       {accountsError || quotasError ? (
         <Alert variant="destructive" className="mt-3">
@@ -428,26 +482,24 @@ function KiroProviderBody({
           </div>
         </Alert>
       ) : null}
-      {showAccounts
-        ? accountsLoading
-          ? null
-          : filteredAccounts.length ? (
-            <div className="mt-4 space-y-3">
-              {filteredAccounts.map((account) => (
-                <ProviderAccountRow
-                  key={account.account_id}
-                  account={account}
-                  quota={quotaMap.get(account.account_id) ?? null}
-                  loading={accountsLoading || quotasLoading}
-                  quotaLoading={quotasLoading}
-                  onLogout={onLogout}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">{emptyMessage}</p>
-          )
-        : null}
+      {showAccounts ? (
+        accountsLoading ? null : filteredAccounts.length ? (
+          <div className="mt-4 space-y-3">
+            {filteredAccounts.map((account) => (
+              <ProviderAccountRow
+                key={account.account_id}
+                account={account}
+                quota={quotaMap.get(account.account_id) ?? null}
+                loading={accountsLoading || quotasLoading}
+                quotaLoading={quotasLoading}
+                onLogout={onLogout}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">{emptyMessage}</p>
+        )
+      ) : null}
     </div>
   );
 }
@@ -520,7 +572,11 @@ export function KiroProviderGroup({
   const open = hasToggled ? isOpen : accounts.length > 0;
 
   // Auto-close the dialog shortly after a successful login.
-  useAutoCloseLoginDialog({ open: loginOpen, status: loginStatus, setOpen: setLoginOpen });
+  useAutoCloseLoginDialog({
+    open: loginOpen,
+    status: loginStatus,
+    setOpen: setLoginOpen,
+  });
 
   const handleImport = async () => {
     try {
@@ -543,7 +599,9 @@ export function KiroProviderGroup({
     }
   };
 
-  const emptyMessage = accounts.length ? m.providers_accounts_empty_filtered() : m.providers_accounts_empty();
+  const emptyMessage = accounts.length
+    ? m.providers_accounts_empty_filtered()
+    : m.providers_accounts_empty();
   const bodyProps: KiroProviderBodyProps = {
     filteredAccounts,
     quotaMap,
@@ -555,10 +613,16 @@ export function KiroProviderGroup({
     onLogout,
     showAccounts,
   };
-  const handleToggle = (nextOpen: boolean) => { setHasToggled(true); setIsOpen(nextOpen); };
+  const handleToggle = (nextOpen: boolean) => {
+    setHasToggled(true);
+    setIsOpen(nextOpen);
+  };
 
   return (
-    <div data-slot="provider-group" className="rounded-lg border border-border/60 bg-muted/20">
+    <div
+      data-slot="provider-group"
+      className="rounded-lg border border-border/60 bg-muted/20"
+    >
       <KiroLoginDialog
         open={loginOpen}
         onOpenChange={setLoginOpen}

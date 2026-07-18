@@ -10,7 +10,9 @@ export async function readRequestDetailCapture() {
 }
 
 export async function setRequestDetailCapture(enabled: boolean) {
-  return await invoke<RequestDetailCaptureState>("set_request_detail_capture", { enabled });
+  return await invoke<RequestDetailCaptureState>("set_request_detail_capture", {
+    enabled,
+  });
 }
 
 export async function readRequestLogDetail(id: number) {

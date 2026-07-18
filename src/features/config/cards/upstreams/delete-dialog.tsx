@@ -18,9 +18,15 @@ type DeleteUpstreamDialogProps = {
   onConfirm: () => void;
 };
 
-export function DeleteUpstreamDialog({ dialog, onOpenChange, onConfirm }: DeleteUpstreamDialogProps) {
+export function DeleteUpstreamDialog({
+  dialog,
+  onOpenChange,
+  onConfirm,
+}: DeleteUpstreamDialogProps) {
   const description = dialog.open
-    ? m.upstreams_delete_description({ rowLabel: getUpstreamLabel(dialog.index) })
+    ? m.upstreams_delete_description({
+        rowLabel: getUpstreamLabel(dialog.index),
+      })
     : "";
   return (
     <AlertDialog open={dialog.open} onOpenChange={onOpenChange}>
