@@ -45,11 +45,13 @@ describe("dashboard/SectionCards", () => {
         errors: "2",
       }))
     ).toBeInTheDocument();
-    expect(screen.getByText("80%")).toBeInTheDocument();
+    expect(
+      screen.getByText(m.dashboard_hint_success_rate({ rate: "80%" }))
+    ).toBeInTheDocument();
     expect(screen.queryByText("20%")).not.toBeInTheDocument();
   });
 
-  it("renders logged cost as the second stat card", () => {
+  it("renders stats in request, token, latency, cost order", () => {
     renderCards();
 
     const labels = screen
@@ -58,11 +60,12 @@ describe("dashboard/SectionCards", () => {
 
     expect(labels).toEqual([
       m.dashboard_stat_requests(),
-      m.dashboard_stat_cost(),
       m.dashboard_stat_total_tokens(),
       m.dashboard_stat_latency_ms(),
+      m.dashboard_stat_cost(),
     ]);
     expect(screen.getByText("1.21")).toBeInTheDocument();
+    expect(screen.getByText("USD")).toBeInTheDocument();
     expect(screen.queryByText("$1.21")).not.toBeInTheDocument();
     expect(screen.queryByText("Logged")).not.toBeInTheDocument();
   });

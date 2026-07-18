@@ -1,12 +1,6 @@
+import type { ReactNode } from "react";
+
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   formatCompact,
   formatInteger,
@@ -18,6 +12,35 @@ import { m } from "@/paraglide/messages.js";
 type SectionCardsProps = {
   summary: DashboardSummary | null;
 };
+
+type MetricCardProps = {
+  label: ReactNode;
+  value: ReactNode;
+  badge?: ReactNode;
+  detail?: ReactNode;
+  className?: string;
+};
+
+function MetricCard({ label, value, badge, detail, className }: MetricCardProps) {
+  return (
+    <article className={`flex min-h-[112px] min-w-0 flex-col gap-2 px-4 py-4 ${className ?? ""}`}>
+      <div data-slot="card-description" className="text-xs font-medium text-muted-foreground">
+        {label}
+      </div>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="truncate text-[2rem] font-semibold leading-none tabular-nums tracking-[-0.02em]">
+          {value}
+        </div>
+        {badge ? <div className="shrink-0">{badge}</div> : null}
+      </div>
+      {detail ? (
+        <div className="truncate text-[13px] leading-5 text-foreground/80">
+          {detail}
+        </div>
+      ) : null}
+    </article>
+  );
+}
 
 const PERCENT_FORMAT = new Intl.NumberFormat(undefined, {
   style: "percent",
@@ -52,72 +75,63 @@ export function SectionCards({ summary }: SectionCardsProps) {
       });
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>{m.dashboard_stat_requests()}</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {formatCompact(totalRequests)}
-          </CardTitle>
-          <CardAction>
-            <Badge variant="outline">{PERCENT_FORMAT.format(successRate)}</Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 font-medium">
+    <section className="grid grid-cols-1 px-4 lg:px-6 @xl/main:grid-cols-12">
+      <MetricCard
+        className="@xl/main:col-span-3"
+        label={m.dashboard_stat_requests()}
+        value={formatCompact(totalRequests)}
+        badge={
+          <Badge variant="outline" className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium">
+            {m.dashboard_hint_success_rate({
+              rate: PERCENT_FORMAT.format(successRate),
+            })}
+          </Badge>
+        }
+        detail={
+          <div className="line-clamp-1">
             {m.dashboard_requests_footer({
               success: formatCompact(successRequests),
               errors: formatCompact(errorRequests),
             })}
           </div>
-        </CardFooter>
-      </Card>
+        }
+      />
 
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>{m.dashboard_stat_cost()}</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {formatNanoUsdCost(costNanoUsd)}
-          </CardTitle>
-        </CardHeader>
-      </Card>
+      <MetricCard
+        className="@xl/main:col-span-4"
+        label={m.dashboard_stat_total_tokens()}
+        value={formatCompact(totalTokens)}
+        badge={
+          cacheReadTokens ? (
+            <Badge variant="outline" className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium">
+              {m.dashboard_cache_hit_rate({
+                rate: PERCENT_FORMAT.format(cacheHitRate),
+              })}
+            </Badge>
+          ) : null
+        }
+        detail={<div className="line-clamp-1">{tokensHint}</div>}
+      />
 
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>{m.dashboard_stat_total_tokens()}</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {formatCompact(totalTokens)}
-          </CardTitle>
-          {cacheReadTokens ? (
-            <CardAction>
-              <Badge variant="outline">
-                {m.dashboard_cache_hit_rate({
-                  rate: PERCENT_FORMAT.format(cacheHitRate),
-                })}
-              </Badge>
-            </CardAction>
-          ) : null}
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 font-medium">{tokensHint}</div>
-        </CardFooter>
-      </Card>
-
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>{m.dashboard_stat_latency_ms()}</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {formatInteger(avgLatencyMs)}
-          </CardTitle>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 font-medium">
+      <MetricCard
+        className="@xl/main:col-span-3"
+        label={m.dashboard_stat_latency_ms()}
+        value={formatInteger(avgLatencyMs)}
+        detail={
+          <div className="line-clamp-1">
             {m.dashboard_latency_hint({
               median: formatInteger(medianLatencyMs),
             })}
           </div>
-        </CardFooter>
-      </Card>
-    </div>
+        }
+      />
+
+      <MetricCard
+        className="@xl/main:col-span-2"
+        label={m.dashboard_stat_cost()}
+        value={formatNanoUsdCost(costNanoUsd)}
+        detail="USD"
+      />
+    </section>
   );
 }

@@ -6,7 +6,6 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -39,13 +38,12 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-const BAR_ROW_PX = 36
-const CHART_MIN_HEIGHT_PX = 180
+const BAR_ROW_PX = 30
+const CHART_MIN_HEIGHT_PX = 196
 const Y_AXIS_WIDTH = 112
 
 type ChartUsageRankingProps = {
   title: string
-  description: string
   rows: RankingRow[]
 }
 
@@ -94,7 +92,7 @@ function RankingTooltip({
   )
 }
 
-function ChartUsageRanking({ title, description, rows }: ChartUsageRankingProps) {
+function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
   const chartData = React.useMemo(
     () =>
       rows.map((row) => ({
@@ -107,14 +105,13 @@ function ChartUsageRanking({ title, description, rows }: ChartUsageRankingProps)
   const height = resolveChartHeight(chartData.length)
 
   return (
-    <Card className="@container/card">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+    <Card className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
+      <CardHeader className="gap-1.5 px-4 py-3">
+      <CardTitle className="text-[15px] font-semibold leading-5">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="px-2 pt-0 sm:px-6">
+      <CardContent className="px-3 pb-3 pt-0 sm:px-4">
         {chartData.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-10 text-center">
+          <p className="py-10 text-center text-[13px] text-muted-foreground">
             {m.dashboard_no_data()}
           </p>
         ) : (
@@ -135,6 +132,7 @@ function ChartUsageRanking({ title, description, rows }: ChartUsageRankingProps)
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
+                tick={{ fontSize: 11 }}
                 tickFormatter={(value) => formatCompact(Number(value))}
               />
               <YAxis
@@ -144,6 +142,7 @@ function ChartUsageRanking({ title, description, rows }: ChartUsageRankingProps)
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
+                tick={{ fontSize: 11 }}
               />
               <ChartTooltip
                 cursor={false}
@@ -202,7 +201,6 @@ export function ChartModelUsage({ models }: ChartModelUsageProps) {
   return (
     <ChartUsageRanking
       title={m.dashboard_models_title()}
-      description={m.dashboard_models_desc()}
       rows={rows}
     />
   )

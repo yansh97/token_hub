@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 import {
   readDashboardSnapshot,
@@ -308,58 +309,77 @@ export function DashboardFilters({
       data-slot="dashboard-filters"
       className="sticky top-0 z-20 px-4 lg:px-6"
     >
-      <Card className="gap-0 border-border/60 bg-background/70 py-0">
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Label htmlFor="dashboard-range" className="text-xs text-muted-foreground">
-              {m.dashboard_range_label()}
-            </Label>
-            <Select
-              value={range}
-              onValueChange={(value) => {
-                const next = toDashboardTimeRange(value)
-                if (next) {
-                  onRangeChange(next)
-                }
-              }}
-            >
-              <SelectTrigger id="dashboard-range" className="h-9 w-[160px]">
-                <SelectValue placeholder={m.dashboard_range_placeholder()} />
-              </SelectTrigger>
-              <SelectContent>
+      <Card className="gap-0 rounded-lg border-border/70 bg-card/95 py-0 shadow-none">
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <Label className="text-xs font-medium text-muted-foreground">
+                {m.dashboard_range_label()}
+              </Label>
+              <ToggleGroup
+                type="single"
+                value={range}
+                onValueChange={(value) => {
+                  const next = toDashboardTimeRange(value)
+                  if (next) {
+                    onRangeChange(next)
+                  }
+                }}
+                variant="default"
+                size="sm"
+                spacing={0}
+                aria-label={m.dashboard_range_label()}
+                className="rounded-md bg-transparent"
+              >
                 {DASHBOARD_RANGE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
+                  <ToggleGroupItem
+                    key={option.value}
+                    value={option.value}
+                    className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                  >
                     {option.label()}
-                  </SelectItem>
+                  </ToggleGroupItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </ToggleGroup>
+            </div>
 
-            <Label htmlFor="dashboard-upstream" className="text-xs text-muted-foreground">
-              {m.dashboard_upstream_label()}
-            </Label>
-            <Select
-              value={resolveUpstreamSelectValue(upstreamId)}
-              onValueChange={(value) => {
-                onUpstreamChange(toUpstreamFilterValue(value))
-              }}
-            >
-              <SelectTrigger id="dashboard-upstream" className="h-9 w-[148px]">
-                <SelectValue placeholder={m.dashboard_upstream_placeholder()} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_UPSTREAMS_VALUE}>
+            <div className="flex items-center gap-2.5 border-l border-border/70 pl-3">
+              <Label className="text-xs font-medium text-muted-foreground">
+                {m.dashboard_upstream_label()}
+              </Label>
+              <ToggleGroup
+                type="single"
+                value={resolveUpstreamSelectValue(upstreamId)}
+                onValueChange={(value) => {
+                  if (value) {
+                    onUpstreamChange(toUpstreamFilterValue(value))
+                  }
+                }}
+                variant="default"
+                size="sm"
+                spacing={0}
+                aria-label={m.dashboard_upstream_label()}
+                className="max-w-full flex-wrap rounded-md bg-transparent"
+              >
+                <ToggleGroupItem
+                  value={ALL_UPSTREAMS_VALUE}
+                  className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                >
                   {m.dashboard_upstream_all()}
-                </SelectItem>
+                </ToggleGroupItem>
                 {upstreamOptions.map((option) => (
-                  <SelectItem key={option.upstreamId} value={option.upstreamId}>
+                  <ToggleGroupItem
+                    key={option.upstreamId}
+                    value={option.upstreamId}
+                    className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                  >
                     {option.upstreamId}
-                  </SelectItem>
+                  </ToggleGroupItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </ToggleGroup>
+            </div>
 
-            <Label htmlFor="dashboard-account" className="text-xs text-muted-foreground">
+            <Label htmlFor="dashboard-account" className="hidden">
               {m.dashboard_account_label()}
             </Label>
             <Select
@@ -370,7 +390,7 @@ export function DashboardFilters({
                 onAccountChange(next.accountId, next.publicOnly)
               }}
             >
-              <SelectTrigger id="dashboard-account" className="h-9 w-[148px]">
+              <SelectTrigger id="dashboard-account" className="hidden">
                 <SelectValue placeholder={m.dashboard_account_placeholder()} />
               </SelectTrigger>
               <SelectContent>

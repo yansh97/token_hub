@@ -29,7 +29,7 @@ function ChartAreaFallback() {
   return (
     <div
       aria-hidden="true"
-      className="h-[334px] rounded-lg border border-border/60 bg-muted/20"
+      className="h-full min-h-[250px] bg-muted/20"
     />
   )
 }
@@ -38,7 +38,7 @@ function ModelUsageFallback() {
   return (
     <div
       aria-hidden="true"
-      className="h-[280px] rounded-lg border border-border/60 bg-muted/20"
+      className="h-full min-h-[250px] bg-muted/20"
     />
   )
 }
@@ -64,7 +64,7 @@ export function DashboardPanel() {
   const isLoading = status === "loading"
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2.5">
       {status === "error" ? (
         <Alert variant="destructive" className="mx-4 lg:mx-6">
           <AlertCircle className="size-4" aria-hidden="true" />
@@ -91,16 +91,14 @@ export function DashboardPanel() {
 
       <SectionCards summary={snapshot?.summary ?? null} />
 
-      <div className="px-4 lg:px-6">
+      <div className="border-border/70 grid gap-2.5 border-t px-4 pb-3 pt-3 lg:auto-rows-[250px] lg:grid-cols-2 lg:px-6">
         <Suspense fallback={<ChartAreaFallback />}>
           <ChartAreaInteractive
             series={snapshot?.series ?? []}
             range={activeRange}
           />
         </Suspense>
-      </div>
 
-      <div className="px-4 lg:px-6">
         <Suspense fallback={<ModelUsageFallback />}>
           <ChartModelUsage models={snapshot?.models ?? []} />
         </Suspense>

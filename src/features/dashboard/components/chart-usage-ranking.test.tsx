@@ -19,7 +19,6 @@ describe("dashboard/chart-usage-ranking", () => {
     renderWithI18n(<ChartModelUsage models={[]} />);
 
     expect(screen.getByText(m.dashboard_models_title())).toBeTruthy();
-    expect(screen.getByText(m.dashboard_models_desc())).toBeTruthy();
     expect(screen.getByText(m.dashboard_no_data())).toBeTruthy();
   });
 

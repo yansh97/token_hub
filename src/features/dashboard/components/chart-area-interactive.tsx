@@ -135,15 +135,17 @@ function buildZeroSeries(range: DashboardRange) {
 
 function ChartHeader() {
   return (
-    <CardHeader>
-      <CardTitle>{m.dashboard_chart_title_usage_trend()}</CardTitle>
+    <CardHeader className="gap-0 px-4 py-3">
+      <CardTitle className="text-[15px] font-semibold leading-5">
+        {m.dashboard_chart_title_usage_trend()}
+      </CardTitle>
     </CardHeader>
   )
 }
 
 function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
   return (
-    <ChartContainer config={chartConfig} className="aspect-auto h-[250px] w-full">
+    <ChartContainer config={chartConfig} className="aspect-auto h-[196px] w-full">
       <LineChart data={data}>
         <CartesianGrid vertical={false} />
         <XAxis
@@ -152,6 +154,7 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
           axisLine={false}
           tickMargin={8}
           minTickGap={24}
+          tick={{ fontSize: 11 }}
           tickFormatter={(value) => formatTick(value, timeFormatter)}
         />
         <ChartTooltip
@@ -175,7 +178,7 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
             />
           )}
         />
-        <ChartLegend content={<ChartLegendContent />} />
+        <ChartLegend content={<ChartLegendContent className="gap-3 pt-2 text-[12px]" />} />
         <Line
           dataKey="inputTokens"
           type="monotone"
@@ -212,7 +215,7 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
 
 function ChartBody({ data, timeFormatter }: ChartBodyProps) {
   return (
-    <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+    <CardContent className="px-2 pb-3 pt-1 sm:px-4">
       <ChartCanvas data={data} timeFormatter={timeFormatter} />
     </CardContent>
   )
@@ -241,7 +244,7 @@ export function ChartAreaInteractive({ series, range }: ChartAreaInteractiveProp
   )
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
       <ChartHeader />
       <ChartBody data={chartData} timeFormatter={timeFormatter} />
     </Card>

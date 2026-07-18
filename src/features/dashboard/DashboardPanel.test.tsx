@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -544,11 +544,11 @@ describe("dashboard/DashboardPanel", () => {
       }
     );
 
+    const upstreamFilter = screen.getByRole("group", {
+      name: m.dashboard_upstream_label(),
+    });
     await user.click(
-      screen.getByRole("combobox", { name: m.dashboard_upstream_label() })
-    );
-    await user.click(
-      await screen.findByRole("option", { name: "alpha" })
+      within(upstreamFilter).getByRole("radio", { name: "alpha" })
     );
 
     await waitFor(() => {

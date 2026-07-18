@@ -17,7 +17,7 @@ export function AppShell({ title, children, actions }: AppShellProps) {
       className="h-full"
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 37.7143)",
+          "--sidebar-width": "10rem",
           "--header-height": "calc(var(--spacing) * 12)",
         } as CSSProperties
       }
@@ -29,11 +29,11 @@ export function AppShell({ title, children, actions }: AppShellProps) {
             className="flex-1 min-h-0"
             viewportClassName="[&>div]:!block [&>div]:!h-full"
           >
-            <div className="@container/main flex h-full min-h-0 flex-col gap-1">
+            <div className="@container/main mx-auto flex h-full min-h-0 w-full max-w-[1440px] flex-col gap-1">
               <SiteHeader title={title} actions={actions} />
               <div
                 data-slot="app-shell-content"
-                className="flex min-h-0 flex-1 flex-col gap-2.5 py-2.5 md:gap-3.5 md:py-3.5"
+                className="flex min-h-0 flex-1 flex-col gap-2.5 py-2.5 md:gap-3 md:py-3"
               >
                 {children}
               </div>
