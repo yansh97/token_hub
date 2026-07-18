@@ -27,6 +27,25 @@ export type DashboardProviderStat = {
   provider: string;
   requests: number;
   totalTokens: number;
+  costNanoUsd?: number;
+  cachedTokens: number;
+  uncachedInputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  cacheWrite5mTokens?: number;
+  cacheWrite1hTokens?: number;
+  imageInputTokens?: number;
+  imageOutputTokens?: number;
+};
+
+/** 按请求模型聚合的用量排行（客户端 model，空则 mapped_model）。 */
+export type DashboardModelStat = {
+  model: string;
+  requests: number;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  costNanoUsd: number;
   cachedTokens: number;
   uncachedInputTokens?: number;
   cacheReadTokens?: number;
@@ -88,6 +107,7 @@ export type DashboardSeriesPoint = {
   errorRequests: number;
   inputTokens: number;
   outputTokens: number;
+  costNanoUsd?: number;
   cachedTokens: number;
   uncachedInputTokens?: number;
   cacheReadTokens?: number;
@@ -138,6 +158,7 @@ export type DashboardRequestItem = {
 export type DashboardSnapshot = {
   summary: DashboardSummary;
   providers: DashboardProviderStat[];
+  models: DashboardModelStat[];
   upstreams: DashboardUpstreamOption[];
   accounts: DashboardAccountOption[];
   series: DashboardSeriesPoint[];

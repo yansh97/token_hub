@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use super::model_discovery::UpstreamModelProbe;
 
 const RECENT_PAGE_SIZE: u32 = 50;
+/// 模型用量排行上限；本地代理模型种类通常很少，20 足够扫一眼。
+const MODEL_USAGE_TOP_LIMIT: u32 = 20;
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +51,21 @@ pub struct DashboardProviderStat {
     pub provider: String,
     pub requests: u64,
     pub total_tokens: u64,
+    pub cost_nano_usd: u64,
+    #[serde(flatten)]
+    pub usage: DashboardUsageBreakdown,
+}
+
+/// 按客户端请求模型（空则回退 mapped_model）聚合的用量排行。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardModelStat {
+    pub model: String,
+    pub requests: u64,
+    pub total_tokens: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cost_nano_usd: u64,
     #[serde(flatten)]
     pub usage: DashboardUsageBreakdown,
 }
@@ -82,6 +99,7 @@ pub struct DashboardSeriesPoint {
     pub error_requests: u64,
     pub input_tokens: u64,
     pub output_tokens: u64,
+    pub cost_nano_usd: u64,
     #[serde(flatten)]
     pub usage: DashboardUsageBreakdown,
     pub total_tokens: u64,
@@ -130,6 +148,8 @@ pub struct DashboardRequestItem {
 pub struct DashboardSnapshot {
     pub summary: DashboardSummary,
     pub providers: Vec<DashboardProviderStat>,
+    /// 模型用量 Top N（按 total_tokens 降序）。
+    pub models: Vec<DashboardModelStat>,
     pub upstreams: Vec<DashboardUpstreamStat>,
     pub accounts: Vec<DashboardAccountStat>,
     pub series: Vec<DashboardSeriesPoint>,
@@ -181,6 +201,15 @@ pub async fn read_snapshot(
         public_only,
     )
     .await?;
+    let models = query_models(
+        &pool,
+        from_ts_ms,
+        to_ts_ms,
+        upstream_id,
+        account_id,
+        public_only,
+    )
+    .await?;
     // 选项列表只受时间范围限制，切换筛选时仍可看到同一范围内的其它上游。
     let upstreams = query_upstreams(&pool, from_ts_ms, to_ts_ms).await?;
     // 账户选项跟随上游收窄，但不受当前账户筛选影响。
@@ -210,6 +239,7 @@ pub async fn read_snapshot(
     Ok(DashboardSnapshot {
         summary,
         providers,
+        models,
         upstreams,
         accounts,
         series,
@@ -382,6 +412,7 @@ SELECT
     WHEN input_tokens IS NOT NULL OR output_tokens IS NOT NULL THEN COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
     ELSE 0
   END), 0) AS total_tokens,
+  COALESCE(SUM(COALESCE(cost_nano_usd, 0)), 0) AS cost_nano_usd,
   COALESCE(SUM(COALESCE(uncached_input_tokens, 0)), 0) AS uncached_input_tokens,
   COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
   COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
@@ -396,7 +427,7 @@ WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?4 IS NULL OR account_id = ?4)
   AND (?5 = 0 OR account_id IS NULL)
 GROUP BY provider
-ORDER BY total_tokens DESC;
+ORDER BY total_tokens DESC, requests DESC, provider ASC;
 "#,
     )
     .bind(from_ts_ms)
@@ -412,17 +443,103 @@ ORDER BY total_tokens DESC;
         let provider: String = row.try_get("provider").ok()?;
         let requests: i64 = row.try_get("requests").ok()?;
         let total_tokens: i64 = row.try_get("total_tokens").ok()?;
+        let cost_nano_usd: i64 = row.try_get("cost_nano_usd").ok()?;
         let usage = usage_breakdown_from_row(&row);
         Some(DashboardProviderStat {
             provider,
             requests: i64_to_u64(requests),
             total_tokens: i64_to_u64(total_tokens),
+            cost_nano_usd: i64_to_u64(cost_nano_usd),
             usage,
         })
     })
     .collect::<Vec<_>>();
 
     Ok(providers)
+}
+
+/// 按客户端请求模型聚合用量；空 model 回退 mapped_model，再 unknown。
+async fn query_models(
+    pool: &sqlx::SqlitePool,
+    from_ts_ms: Option<i64>,
+    to_ts_ms: Option<i64>,
+    upstream_id: Option<&str>,
+    account_id: Option<&str>,
+    public_only: bool,
+) -> Result<Vec<DashboardModelStat>, String> {
+    let models = sqlx::query(
+        r#"
+SELECT
+  COALESCE(
+    NULLIF(TRIM(model), ''),
+    NULLIF(TRIM(mapped_model), ''),
+    '(unknown)'
+  ) AS model_key,
+  COUNT(*) AS requests,
+  COALESCE(SUM(CASE
+    WHEN total_tokens IS NOT NULL THEN total_tokens
+    WHEN input_tokens IS NOT NULL OR output_tokens IS NOT NULL THEN COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+    ELSE 0
+  END), 0) AS total_tokens,
+  COALESCE(SUM(COALESCE(input_tokens, 0)), 0) AS input_tokens,
+  COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens,
+  COALESCE(SUM(COALESCE(cost_nano_usd, 0)), 0) AS cost_nano_usd,
+  COALESCE(SUM(COALESCE(uncached_input_tokens, 0)), 0) AS uncached_input_tokens,
+  COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
+  COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
+  COALESCE(SUM(COALESCE(cache_write_5m_tokens, 0)), 0) AS cache_write_5m_tokens,
+  COALESCE(SUM(COALESCE(cache_write_1h_tokens, 0)), 0) AS cache_write_1h_tokens,
+  COALESCE(SUM(COALESCE(image_input_tokens, 0)), 0) AS image_input_tokens,
+  COALESCE(SUM(COALESCE(image_output_tokens, 0)), 0) AS image_output_tokens
+FROM request_logs
+WHERE (?1 IS NULL OR ts_ms >= ?1)
+  AND (?2 IS NULL OR ts_ms <= ?2)
+  AND (?3 IS NULL OR upstream_id = ?3)
+  AND (?4 IS NULL OR account_id = ?4)
+  AND (?5 = 0 OR account_id IS NULL)
+GROUP BY model_key
+ORDER BY total_tokens DESC, requests DESC, model_key ASC
+LIMIT ?6;
+"#,
+    )
+    .bind(from_ts_ms)
+    .bind(to_ts_ms)
+    .bind(upstream_id)
+    .bind(account_id)
+    .bind(public_only)
+    .bind(i64::from(MODEL_USAGE_TOP_LIMIT))
+    .fetch_all(pool)
+    .await
+    .map_err(|err| {
+        tracing::warn!(error = %err, "dashboard model usage query failed");
+        format!("Failed to query model stats: {err}")
+    })?
+    .into_iter()
+    .filter_map(|row| {
+        let model: String = row.try_get("model_key").ok()?;
+        let requests: i64 = row.try_get("requests").ok()?;
+        let total_tokens: i64 = row.try_get("total_tokens").ok()?;
+        let input_tokens: i64 = row.try_get("input_tokens").ok()?;
+        let output_tokens: i64 = row.try_get("output_tokens").ok()?;
+        let cost_nano_usd: i64 = row.try_get("cost_nano_usd").ok()?;
+        let usage = usage_breakdown_from_row(&row);
+        Some(DashboardModelStat {
+            model,
+            requests: i64_to_u64(requests),
+            total_tokens: i64_to_u64(total_tokens),
+            input_tokens: i64_to_u64(input_tokens),
+            output_tokens: i64_to_u64(output_tokens),
+            cost_nano_usd: i64_to_u64(cost_nano_usd),
+            usage,
+        })
+    })
+    .collect::<Vec<_>>();
+
+    tracing::debug!(
+        model_count = models.len(),
+        "dashboard model usage aggregation ready"
+    );
+    Ok(models)
 }
 
 async fn query_upstreams(
@@ -552,6 +669,7 @@ SELECT
   COALESCE(SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END), 0) AS error_requests,
   COALESCE(SUM(COALESCE(input_tokens, 0)), 0) AS input_tokens,
   COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens,
+  COALESCE(SUM(COALESCE(cost_nano_usd, 0)), 0) AS cost_nano_usd,
   COALESCE(SUM(COALESCE(uncached_input_tokens, 0)), 0) AS uncached_input_tokens,
   COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
   COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
@@ -590,6 +708,7 @@ ORDER BY bucket_ts_ms ASC;
         let error_requests: i64 = row.try_get("error_requests").ok()?;
         let input_tokens: i64 = row.try_get("input_tokens").ok()?;
         let output_tokens: i64 = row.try_get("output_tokens").ok()?;
+        let cost_nano_usd: i64 = row.try_get("cost_nano_usd").ok()?;
         let usage = usage_breakdown_from_row(&row);
         let total_tokens: i64 = row.try_get("total_tokens").ok()?;
         Some(DashboardSeriesPoint {
@@ -598,6 +717,7 @@ ORDER BY bucket_ts_ms ASC;
             error_requests: i64_to_u64(error_requests),
             input_tokens: i64_to_u64(input_tokens),
             output_tokens: i64_to_u64(output_tokens),
+            cost_nano_usd: i64_to_u64(cost_nano_usd),
             usage,
             total_tokens: i64_to_u64(total_tokens),
         })
@@ -662,6 +782,7 @@ fn fill_series_buckets(
                 error_requests: 0,
                 input_tokens: 0,
                 output_tokens: 0,
+                cost_nano_usd: 0,
                 usage: DashboardUsageBreakdown::default(),
                 total_tokens: 0,
             });

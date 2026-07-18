@@ -31,6 +31,18 @@ vi.mock("@/features/dashboard/components/chart-area-interactive", () => ({
   ),
 }));
 
+vi.mock("@/features/dashboard/components/chart-usage-ranking", () => ({
+  ChartModelUsage: ({
+    models,
+  }: {
+    models: Array<{ model: string; totalTokens: number }>;
+  }) => (
+    <div data-testid="dashboard-model-usage">
+      {models.map((item) => item.model).join(",") || "empty"}
+    </div>
+  ),
+}));
+
 const { readDashboardSnapshotMock, refreshDashboardModelDiscoveryMock } = vi.hoisted(() => ({
   readDashboardSnapshotMock: vi.fn(),
   refreshDashboardModelDiscoveryMock: vi.fn(),
@@ -82,6 +94,7 @@ describe("dashboard/DashboardPanel", () => {
                 cachedTokens: 5,
               },
             ],
+            models: [],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -176,6 +189,7 @@ describe("dashboard/DashboardPanel", () => {
                 cachedTokens: 5,
               },
             ],
+            models: [],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -276,6 +290,7 @@ describe("dashboard/DashboardPanel", () => {
                 cachedTokens: 1,
               },
             ],
+            models: [],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -398,6 +413,26 @@ describe("dashboard/DashboardPanel", () => {
               cachedTokens: 1,
             },
           ],
+          models: [
+            {
+              model: "gpt-5.4",
+              requests: 2,
+              totalTokens: 400,
+              inputTokens: 300,
+              outputTokens: 100,
+              costNanoUsd: 3000,
+              cachedTokens: 0,
+            },
+            {
+              model: "claude-4",
+              requests: 1,
+              totalTokens: 15,
+              inputTokens: 10,
+              outputTokens: 5,
+              costNanoUsd: 100,
+              cachedTokens: 0,
+            },
+          ],
           upstreams: [
             {
               upstreamId: "alpha",
@@ -484,11 +519,16 @@ describe("dashboard/DashboardPanel", () => {
       );
     });
     const chart = await screen.findByTestId("dashboard-chart-total");
+    const modelUsage = await screen.findByTestId("dashboard-model-usage");
     const upstreamModelsTitle = await screen.findByText(m.dashboard_upstream_models_title());
     expect(chart).toHaveTextContent("42");
+    expect(modelUsage).toHaveTextContent("gpt-5.4,claude-4");
     expect(upstreamModelsTitle).toBeInTheDocument();
     expect(
-      chart.compareDocumentPosition(upstreamModelsTitle) &
+      chart.compareDocumentPosition(modelUsage) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      modelUsage.compareDocumentPosition(upstreamModelsTitle) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(screen.getByText("gpt-5.5")).toBeInTheDocument();

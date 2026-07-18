@@ -23,6 +23,7 @@ describe("dashboard/api", () => {
         medianLatencyMs: 0,
       },
       providers: [],
+      models: [],
       upstreams: [],
       accounts: [],
       series: [],

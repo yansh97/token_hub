@@ -34,6 +34,7 @@ function createSnapshot(
       { provider: "openai", requests: 1, totalTokens: 30, cachedTokens: 5 },
       { provider: "anthropic", requests: 1, totalTokens: 7, cachedTokens: 0 },
     ],
+    models: [],
     upstreams: [
       {
         upstreamId: "alpha",
