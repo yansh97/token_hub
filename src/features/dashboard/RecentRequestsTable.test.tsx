@@ -38,7 +38,7 @@ describe("dashboard/RecentRequestsTable", () => {
     setLocale("en", { reload: false });
   });
 
-  it("shows account id in provider column when request is bound to an account", () => {
+  it("shows only the provider id in the provider column", () => {
     render(
       <I18nProvider>
         <RecentRequestsTable
@@ -72,8 +72,7 @@ describe("dashboard/RecentRequestsTable", () => {
     );
 
     expect(screen.getByText(/alpha/)).toBeInTheDocument();
-    expect(screen.getByText(/codex/)).toBeInTheDocument();
-    expect(screen.getByText(/codex-a\.json/)).toBeInTheDocument();
+    expect(screen.queryByText(/codex-a\.json/)).toBeNull();
   });
 
   it("shows only clock time in the time column and keeps the full timestamp in tooltip", async () => {
@@ -193,7 +192,7 @@ describe("dashboard/RecentRequestsTable", () => {
       "Status",
       "Tokens",
       "Cost",
-      "Upstream response headers (ms)",
+      "Response latency",
     ]);
 
     const rows = table.querySelectorAll(
@@ -247,7 +246,7 @@ describe("dashboard/RecentRequestsTable", () => {
     );
     expect(
       screen
-        .getAllByText((content) => content.includes("(ms)"))[0]
+        .getAllByText("Response latency")[0]
         ?.closest("div"),
     ).toHaveClass("text-left");
 
@@ -258,7 +257,7 @@ describe("dashboard/RecentRequestsTable", () => {
     expect(headerGrid?.className).not.toContain("1fr");
   });
 
-  it("allows horizontal overflow and lets the body height come from the viewport", () => {
+  it("keeps the table body in an internal scroll container", () => {
     render(
       <I18nProvider>
         <RecentRequestsTable
@@ -309,19 +308,19 @@ describe("dashboard/RecentRequestsTable", () => {
       '[data-slot="recent-requests-table-header"]',
     );
     expect(header).toHaveClass("sticky", "top-0", "z-10");
-    expect(header?.className).toContain("85px_79px_140px_99px");
+    expect(header?.className).toContain("10fr_8fr_15fr_10fr_18fr");
 
     const rowsLayer = table.querySelector(
       '[data-slot="recent-requests-table-rows-layer"]',
     ) as HTMLElement | null;
     expect(rowsLayer?.previousElementSibling).toBe(header);
-    expect(rowsLayer?.style.height).toBe("44px");
-    expect(widthTrack?.style.height).toBe("78px");
+    expect(rowsLayer).toHaveClass("relative");
+    expect(widthTrack?.style.height).toBe("");
 
     const firstRow = table.querySelector(
       '[data-slot="recent-requests-table-row"]',
     ) as HTMLElement | null;
-    expect(firstRow?.style.transform).toBe("translateY(0px)");
+    expect(firstRow?.style.transform).toBe("");
 
     expect(
       table.querySelector('[data-slot="recent-requests-table-body"]'),
@@ -369,7 +368,7 @@ describe("dashboard/RecentRequestsTable", () => {
     );
 
     expect(
-      screen.getByText("Upstream response headers (ms)"),
+      screen.getByText("Response latency"),
     ).toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
     expect(screen.queryByText("30")).toBeNull();
@@ -522,13 +521,19 @@ describe("dashboard/RecentRequestsTable", () => {
       </I18nProvider>,
     );
 
-    const localProxyLabel = "本地代理";
-    expect(screen.getByText(localProxyLabel)).toBeInTheDocument();
+    const localProxyId = "local";
+    const providerCell = screen
+      .getByTestId("recent-requests-table")
+      .querySelector('[data-slot="recent-requests-table-row"]')
+      ?.children.item(3);
+    expect(providerCell).toHaveTextContent(localProxyId);
     expect(screen.queryByText("local · proxy")).toBeNull();
 
-    await user.hover(screen.getByText(localProxyLabel));
+    await user.hover(
+      providerCell?.querySelector('[data-slot="tooltip-trigger"]') as HTMLElement,
+    );
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      localProxyLabel,
+      "本地代理",
     );
   });
 });

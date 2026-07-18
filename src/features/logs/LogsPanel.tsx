@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/sheet";
 import {
   DashboardFilters,
-  RECENT_PAGE_SIZE,
   useDashboardSnapshot,
 } from "@/features/dashboard/snapshot";
 import {
@@ -47,9 +46,10 @@ const REQUEST_DETAIL_CAPTURE_EVENT = "request-detail-capture-changed";
 const CAPTURE_COUNTDOWN_TICK_MS = 1_000;
 const DETAIL_FIELD_ROW_CLASS =
   "grid grid-cols-[11rem_minmax(0,1fr)] items-start gap-x-3 py-1";
-const DETAIL_FIELD_LABEL_CLASS = "text-xs leading-snug text-muted-foreground";
+const DETAIL_FIELD_LABEL_CLASS =
+  "text-[12px] leading-snug text-muted-foreground";
 const DETAIL_FIELD_VALUE_CLASS =
-  "min-w-0 text-sm text-foreground justify-self-start";
+  "min-w-0 text-[13px] text-foreground justify-self-start";
 const IDLE_CAPTURE_STATE: RequestDetailCaptureState = {
   enabled: false,
   expiresAtMs: null,
@@ -142,7 +142,7 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-foreground">
+      <p className="text-[15px] font-semibold leading-5 text-foreground">
         {m.logs_detail_basic_info()}
       </p>
       <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-1">
@@ -163,11 +163,11 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
             {m.dashboard_table_model()}
           </span>
           <div className="flex min-w-0 flex-col items-start">
-            <span className="w-full truncate text-sm text-foreground">
+            <span className="w-full truncate text-[13px] text-foreground">
               {detail.model?.trim() || DETAIL_PLACEHOLDER}
             </span>
             {hasMappedModel ? (
-              <span className="w-full truncate text-xs text-muted-foreground">
+              <span className="w-full truncate text-[12px] text-muted-foreground">
                 {detail.mappedModel}
               </span>
             ) : null}
@@ -245,7 +245,9 @@ function DetailSection({ title, value }: DetailSectionProps) {
   const content = value?.trim() ? value : null;
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="text-[15px] font-semibold leading-5 text-foreground">
+        {title}
+      </p>
       {content ? (
         <pre className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs whitespace-pre-wrap break-words">
           {content}
@@ -450,7 +452,7 @@ function RequestDetailSheet({
         <ScrollArea className="flex-1">
           <div className="space-y-4 px-4 pb-6">
             {status === "loading" ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {m.logs_detail_loading()}
               </p>
             ) : null}
@@ -671,7 +673,7 @@ export function LogsPanel() {
   return (
     <div
       data-testid="logs-panel"
-      className="flex min-h-0 flex-1 flex-col gap-4"
+      className="flex h-full min-h-0 flex-1 flex-col gap-4"
     >
       {status === "error" ? (
         <Alert variant="destructive" className="mx-4 lg:mx-6">
@@ -703,10 +705,7 @@ export function LogsPanel() {
         items={snapshot?.recent ?? []}
         page={pagination.page}
         totalPages={pagination.totalPages}
-        totalRequests={pagination.totalRequests}
-        pageSize={RECENT_PAGE_SIZE}
         loading={isLoading}
-        scrollKey={`${rangePreset}-${pagination.page}`}
         onPrevPage={onPrevPage}
         onNextPage={onNextPage}
         onSelectItem={(item) => handleSelectItem(item.id)}

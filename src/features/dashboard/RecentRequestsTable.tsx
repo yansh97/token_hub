@@ -1,7 +1,6 @@
-import { useEffect, useRef, type ReactElement } from "react";
+import type { ReactElement } from "react";
 
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import {
   flexRender,
   getCoreRowModel,
@@ -32,12 +31,10 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages.js";
 
-const ROW_HEIGHT_PX = 44;
 const HEADER_HEIGHT_PX = 34;
-const OVERSCAN = 6;
 
 // 固定列宽避免虚拟列表行在状态、费用、延迟文本变化时抖动。
-const GRID_COLS = "grid-cols-[85px_79px_140px_99px_104px_64px_82px_60px_104px]";
+const GRID_COLS = "grid-cols-[10fr_8fr_15fr_10fr_18fr_8fr_13fr_7fr_11fr]";
 const TABLE_MIN_WIDTH_PX = 817;
 const CELL_PLACEHOLDER = "—";
 const TOOLTIP_CONTENT_CLASS = "max-w-[560px] whitespace-pre-wrap break-words";
@@ -145,7 +142,7 @@ function providerColumn(): ColumnDef<DashboardRequestItem> {
       return (
         <CellTooltip content={full}>
           <span className="block truncate text-xs text-muted-foreground">
-            {full}
+            {row.original.upstreamId}
           </span>
         </CellTooltip>
       );
@@ -289,7 +286,7 @@ function costColumn(): ColumnDef<DashboardRequestItem> {
 function latencyColumn(): ColumnDef<DashboardRequestItem> {
   return {
     id: "latency",
-    header: m.logs_timing_upstream_response_headers_ms(),
+    header: m.logs_timing_upstream_response_headers(),
     cell: ({ row }) => {
       const item = row.original;
       const latencyText = formatInteger(item.latencyMs);
@@ -363,7 +360,7 @@ function rowCellClass(columnId: string) {
 
 type RecentRequestsTableProps = {
   items: DashboardRequestItem[];
-  scrollKey: string;
+  scrollKey?: string;
   onSelectItem?: (item: DashboardRequestItem) => void;
 };
 
@@ -376,7 +373,7 @@ function RecentRequestsHeader({
     <div
       data-slot="recent-requests-table-header"
       className={cn(
-        "sticky top-0 z-10 grid items-center justify-start bg-muted/50 text-xs text-muted-foreground",
+        "sticky top-0 z-10 grid items-center justify-start border-b border-border/60 bg-background text-[12px] text-muted-foreground",
         GRID_COLS,
       )}
       style={{ height: HEADER_HEIGHT_PX }}
@@ -397,47 +394,14 @@ function RecentRequestsHeader({
   );
 }
 
-function useRecentRowVirtualizer(
-  rows: Row<DashboardRequestItem>[],
-  scrollKey: string,
-) {
-  "use no memo";
-
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT_PX,
-    overscan: OVERSCAN,
-  });
-
-  useEffect(() => {
-    rowVirtualizer.scrollToOffset(0);
-    scrollRef.current?.scrollTo({ top: 0 });
-  }, [rowVirtualizer, scrollKey]);
-
-  return {
-    scrollRef,
-    rowVirtualizer,
-    virtualRows: rowVirtualizer.getVirtualItems(),
-  };
-}
-
 function RecentRequestsRows({
   rows,
-  virtualRows,
   onSelectItem,
 }: {
   rows: Row<DashboardRequestItem>[];
-  virtualRows: VirtualItem[];
   onSelectItem?: (item: DashboardRequestItem) => void;
 }) {
-  return virtualRows.map((virtualRow) => {
-    const row = rows[virtualRow.index];
-    if (!row) {
-      return null;
-    }
+  return rows.map((row) => {
     const isInteractive = Boolean(onSelectItem);
 
     return (
@@ -445,14 +409,10 @@ function RecentRequestsRows({
         key={row.id}
         data-slot="recent-requests-table-row"
         className={cn(
-          "absolute inset-x-0 grid justify-start items-center border-t border-border/60 bg-background/70 text-sm hover:bg-accent/30",
+          "relative grid min-h-11 justify-start items-center border-t border-border/60 bg-background text-[13px] hover:bg-accent/30",
           GRID_COLS,
           isInteractive && "cursor-pointer",
         )}
-        style={{
-          transform: `translateY(${virtualRow.start}px)`,
-          height: `${virtualRow.size}px`,
-        }}
         role={isInteractive ? "button" : undefined}
         tabIndex={isInteractive ? 0 : undefined}
         onClick={isInteractive ? () => onSelectItem?.(row.original) : undefined}
@@ -479,45 +439,25 @@ function RecentRequestsRows({
 function RecentRequestsScrollArea({
   table,
   rows,
-  scrollKey,
   onSelectItem,
 }: {
   table: Table<DashboardRequestItem>;
   rows: Row<DashboardRequestItem>[];
-  scrollKey: string;
   onSelectItem?: (item: DashboardRequestItem) => void;
 }) {
-  const { scrollRef, rowVirtualizer, virtualRows } = useRecentRowVirtualizer(
-    rows,
-    scrollKey,
-  );
-  const rowsHeight = rowVirtualizer.getTotalSize();
-
   return (
     <div
-      ref={scrollRef}
       data-slot="recent-requests-table-scroll-area"
       className="min-h-0 flex-1 overflow-auto"
     >
       <div
         data-slot="recent-requests-table-width-track"
         className="relative min-h-full"
-        style={{
-          minWidth: TABLE_MIN_WIDTH_PX,
-          height: HEADER_HEIGHT_PX + rowsHeight,
-        }}
+        style={{ minWidth: TABLE_MIN_WIDTH_PX }}
       >
         <RecentRequestsHeader table={table} />
-        <div
-          data-slot="recent-requests-table-rows-layer"
-          className="relative"
-          style={{ height: rowsHeight }}
-        >
-          <RecentRequestsRows
-            rows={rows}
-            virtualRows={virtualRows}
-            onSelectItem={onSelectItem}
-          />
+        <div data-slot="recent-requests-table-rows-layer" className="relative">
+          <RecentRequestsRows rows={rows} onSelectItem={onSelectItem} />
         </div>
       </div>
     </div>
@@ -526,7 +466,6 @@ function RecentRequestsScrollArea({
 
 export function RecentRequestsTable({
   items,
-  scrollKey,
   onSelectItem,
 }: RecentRequestsTableProps) {
   "use no memo";
@@ -547,12 +486,11 @@ export function RecentRequestsTable({
       <div
         data-slot="recent-requests-table"
         data-testid="recent-requests-table"
-        className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/60"
+        className="flex h-full min-h-0 flex-1 overflow-hidden"
       >
         <RecentRequestsScrollArea
           table={table}
           rows={table.getRowModel().rows}
-          scrollKey={scrollKey}
           onSelectItem={onSelectItem}
         />
       </div>
