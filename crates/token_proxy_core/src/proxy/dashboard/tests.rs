@@ -215,7 +215,7 @@ async fn insert_request_with_client_ip(pool: &SqlitePool, ts_ms: i64, client_ip:
 #[tokio::test]
 async fn median_latency_empty_table_returns_zero() {
     let pool = setup_test_db().await;
-    let result = query_median_latency(&pool, None, None, None, None, false)
+    let result = query_median_latency(&pool, None, None, None, None, false, None)
         .await
         .unwrap();
     assert_eq!(result, 0, "Empty table should return 0");
@@ -226,7 +226,7 @@ async fn median_latency_single_value() {
     let pool = setup_test_db().await;
     insert_latency(&pool, 100).await;
 
-    let result = query_median_latency(&pool, None, None, None, None, false)
+    let result = query_median_latency(&pool, None, None, None, None, false, None)
         .await
         .unwrap();
     assert_eq!(result, 100, "Single value should be the median");
@@ -240,7 +240,7 @@ async fn median_latency_odd_count() {
     insert_latency(&pool, 30).await;
     insert_latency(&pool, 20).await;
 
-    let result = query_median_latency(&pool, None, None, None, None, false)
+    let result = query_median_latency(&pool, None, None, None, None, false, None)
         .await
         .unwrap();
     assert_eq!(result, 20, "Odd count median should be middle value");
@@ -255,7 +255,7 @@ async fn median_latency_even_count() {
     insert_latency(&pool, 20).await;
     insert_latency(&pool, 30).await;
 
-    let result = query_median_latency(&pool, None, None, None, None, false)
+    let result = query_median_latency(&pool, None, None, None, None, false, None)
         .await
         .unwrap();
     assert_eq!(
@@ -271,7 +271,7 @@ async fn median_latency_even_count_rounds_down() {
     insert_latency(&pool, 10).await;
     insert_latency(&pool, 21).await;
 
-    let result = query_median_latency(&pool, None, None, None, None, false)
+    let result = query_median_latency(&pool, None, None, None, None, false, None)
         .await
         .unwrap();
     assert_eq!(result, 15, "Median should use integer division");
@@ -304,13 +304,13 @@ async fn median_latency_with_time_range_filter() {
     .unwrap();
 
     // 只查询 ts_ms 在 150-250 范围内的数据，应该只有 latency_ms=100 的记录
-    let result = query_median_latency(&pool, Some(150), Some(250), None, None, false)
+    let result = query_median_latency(&pool, Some(150), Some(250), None, None, false, None)
         .await
         .unwrap();
     assert_eq!(result, 100, "Should filter by time range");
 
     // 查询所有数据，中位数应为 100
-    let result_all = query_median_latency(&pool, None, None, None, None, false)
+    let result_all = query_median_latency(&pool, None, None, None, None, false, None)
         .await
         .unwrap();
     assert_eq!(result_all, 100, "All data median should be 100");
@@ -372,6 +372,7 @@ async fn read_snapshot_filters_by_upstream_and_keeps_merged_upstream_and_account
         Some(String::from("alpha")),
         None,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -473,6 +474,7 @@ async fn read_snapshot_sums_logged_costs_and_returns_recent_pricing_fields() {
         Some(String::from("alpha")),
         None,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -555,6 +557,7 @@ async fn read_snapshot_groups_models_with_fallback_and_filters() {
         None,
         None,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -583,6 +586,7 @@ async fn read_snapshot_groups_models_with_fallback_and_filters() {
         Some(String::from("alpha")),
         None,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -590,6 +594,114 @@ async fn read_snapshot_groups_models_with_fallback_and_filters() {
     assert_eq!(filtered.models.len(), 3);
     assert!(filtered.models.iter().all(|item| item.model != "claude-4"));
     assert_eq!(filtered.models[0].model, "gpt-5.4");
+    // 无上游筛选时，时间范围内全部模型均出现在选项中。
+    assert!(all.model_options.contains(&String::from("claude-4")));
+    assert!(all.model_options.contains(&String::from("gpt-5.4")));
+    assert!(all.model_options.contains(&String::from("fallback-model")));
+    assert!(all.model_options.contains(&String::from("(unknown)")));
+    // 上游筛选会收窄模型选项，但不影响“全部模型”以外的切换能力。
+    assert_eq!(filtered.model_options.len(), 3);
+    assert!(!filtered.model_options.iter().any(|item| item == "claude-4"));
+}
+
+#[tokio::test]
+async fn read_snapshot_filters_by_model_key_and_keeps_model_options() {
+    let pool = setup_test_db().await;
+    sqlx::query(
+        r#"
+        INSERT INTO request_logs (
+          ts_ms, path, provider, upstream_id, model, mapped_model, stream, status,
+          input_tokens, output_tokens, total_tokens, latency_ms, cost_nano_usd
+        ) VALUES
+          (100, '/test', 'openai', 'alpha', 'gpt-5.4', 'gpt-5.4-mapped', 0, 200, 100, 50, 150, 30, 1000),
+          (110, '/test', 'openai', 'alpha', '', 'fallback-model', 0, 200, 40, 10, 50, 30, 500),
+          (120, '/test', 'anthropic', 'beta', 'claude-4', 'claude-4', 0, 200, 10, 5, 15, 30, 100),
+          (130, '/test', 'openai', 'alpha', NULL, NULL, 0, 200, 1, 1, 2, 30, 10)
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("insert model filter rows");
+
+    // 显式 model
+    let by_model = read_snapshot(
+        &pool,
+        DashboardRange {
+            from_ts_ms: None,
+            to_ts_ms: None,
+        },
+        Some(0),
+        None,
+        None,
+        false,
+        Some(String::from("gpt-5.4")),
+    )
+    .await
+    .expect("filter by model");
+
+    assert_eq!(by_model.summary.total_requests, 1);
+    assert_eq!(by_model.summary.total_tokens, 150);
+    assert_eq!(by_model.models.len(), 1);
+    assert_eq!(by_model.models[0].model, "gpt-5.4");
+    assert_eq!(by_model.recent.len(), 1);
+    assert_eq!(by_model.recent[0].model.as_deref(), Some("gpt-5.4"));
+    // 选项不受当前 model 筛选影响，仍可切换到其它模型。
+    assert_eq!(by_model.model_options.len(), 4);
+    assert!(by_model.model_options.iter().any(|item| item == "fallback-model"));
+    assert!(by_model.model_options.iter().any(|item| item == "claude-4"));
+
+    // 空 model 回退 mapped_model
+    let by_fallback = read_snapshot(
+        &pool,
+        DashboardRange {
+            from_ts_ms: None,
+            to_ts_ms: None,
+        },
+        Some(0),
+        None,
+        None,
+        false,
+        Some(String::from("fallback-model")),
+    )
+    .await
+    .expect("filter by fallback model");
+    assert_eq!(by_fallback.summary.total_requests, 1);
+    assert_eq!(by_fallback.summary.total_tokens, 50);
+
+    // unknown key
+    let by_unknown = read_snapshot(
+        &pool,
+        DashboardRange {
+            from_ts_ms: None,
+            to_ts_ms: None,
+        },
+        Some(0),
+        None,
+        None,
+        false,
+        Some(String::from("(unknown)")),
+    )
+    .await
+    .expect("filter by unknown model");
+    assert_eq!(by_unknown.summary.total_requests, 1);
+    assert_eq!(by_unknown.summary.total_tokens, 2);
+
+    // 空串视为未筛选
+    let empty_model = read_snapshot(
+        &pool,
+        DashboardRange {
+            from_ts_ms: None,
+            to_ts_ms: None,
+        },
+        Some(0),
+        None,
+        None,
+        false,
+        Some(String::from("   ")),
+    )
+    .await
+    .expect("empty model means no filter");
+    assert_eq!(empty_model.summary.total_requests, 4);
 }
 
 #[tokio::test]
@@ -628,6 +740,7 @@ async fn read_snapshot_round_trips_precise_usage_components() {
         None,
         None,
         false,
+        None,
     )
     .await
     .expect("read dashboard snapshot");
@@ -668,6 +781,7 @@ async fn read_snapshot_returns_recent_client_ip() {
         None,
         None,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -733,6 +847,7 @@ async fn read_snapshot_filters_by_account_and_public_requests() {
         Some(String::from("alpha")),
         Some(String::from("codex-a.json")),
         false,
+        None,
     )
     .await
     .unwrap();
@@ -754,6 +869,7 @@ async fn read_snapshot_filters_by_account_and_public_requests() {
         Some(String::from("alpha")),
         None,
         true,
+        None,
     )
     .await
     .unwrap();

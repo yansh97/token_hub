@@ -35,6 +35,7 @@ function createSnapshot(
       { provider: "anthropic", requests: 1, totalTokens: 7, cachedTokens: 0 },
     ],
     models: [],
+    modelOptions: [],
     upstreams: [
       {
         upstreamId: "alpha",
@@ -212,6 +213,7 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: null,
         accountId: null,
         publicOnly: false,
+        model: null,
       })
     })
 
@@ -232,6 +234,7 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: "alpha",
         accountId: null,
         publicOnly: false,
+        model: null,
       })
     })
 
@@ -252,6 +255,7 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: "alpha",
         accountId: "codex-a.json",
         publicOnly: false,
+        model: null,
       })
     })
 

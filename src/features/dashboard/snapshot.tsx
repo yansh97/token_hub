@@ -3,6 +3,7 @@ import { HelpCircle, Power, PowerOff, RefreshCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -20,8 +21,12 @@ import {
 import {
   DASHBOARD_RANGE_OPTIONS,
   type DashboardTimeRange,
+  datetimeLocalValueToTsMs,
+  defaultCustomRange,
+  normalizeCustomRange,
   resolveDashboardRange,
   toDashboardTimeRange,
+  tsMsToDatetimeLocalValue,
 } from "@/features/dashboard/range"
 import type {
   DashboardAccountOption,
@@ -36,6 +41,7 @@ export const RECENT_PAGE_SIZE = 50
 const ALL_UPSTREAMS_VALUE = "__all_upstreams__"
 const ALL_ACCOUNTS_VALUE = "__all_accounts__"
 const PUBLIC_ACCOUNT_VALUE = "__public_account__"
+const ALL_MODELS_VALUE = "__all_models__"
 
 type DashboardStatus = "idle" | "loading" | "error"
 
@@ -62,6 +68,10 @@ function hasAccountOption(
     return true
   }
   return accounts.some((item) => item.accountId === accountId)
+}
+
+function hasModelOption(modelOptions: string[], model: string) {
+  return modelOptions.includes(model)
 }
 
 function usePagination(totalRequests: number) {
@@ -95,10 +105,14 @@ export function useDashboardSnapshot({
   refreshModelDiscoveryOnRefresh = false,
 }: UseDashboardSnapshotOptions = {}) {
   const [rangePreset, setRangePreset] = useState<DashboardTimeRange>("today")
+  const [customRange, setCustomRange] = useState<DashboardRange>(() =>
+    defaultCustomRange()
+  )
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null)
   const [selectedUpstreamId, setSelectedUpstreamId] = useState<string | null>(null)
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [selectedPublicOnly, setSelectedPublicOnly] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [activeRange, setActiveRange] = useState<DashboardRange>(() =>
     resolveDashboardRange("today")
   )
@@ -114,7 +128,7 @@ export function useDashboardSnapshot({
     const requestId = requestSeq.current + 1
     requestSeq.current = requestId
     try {
-      const range = resolveDashboardRange(rangePreset)
+      const range = resolveDashboardRange(rangePreset, customRange)
       const offset = (page - 1) * RECENT_PAGE_SIZE
       const data = await readDashboardSnapshot({
         range,
@@ -122,6 +136,7 @@ export function useDashboardSnapshot({
         upstreamId: selectedUpstreamId,
         accountId: selectedAccountId,
         publicOnly: selectedPublicOnly,
+        model: selectedModel,
       })
       if (requestSeq.current !== requestId) {
         return
@@ -147,6 +162,15 @@ export function useDashboardSnapshot({
         setStatus("loading")
         return
       }
+      // 上游/时间变化后模型选项会收窄；已选模型不在列表时回退到全部。
+      if (
+        selectedModel !== null &&
+        !hasModelOption(data.modelOptions, selectedModel)
+      ) {
+        setSelectedModel(null)
+        setStatus("loading")
+        return
+      }
       setSnapshot(data)
       setActiveRange(range)
       setStatus("idle")
@@ -157,7 +181,15 @@ export function useDashboardSnapshot({
       setStatus("error")
       setStatusMessage(parseError(error))
     }
-  }, [page, rangePreset, selectedAccountId, selectedPublicOnly, selectedUpstreamId])
+  }, [
+    customRange,
+    page,
+    rangePreset,
+    selectedAccountId,
+    selectedModel,
+    selectedPublicOnly,
+    selectedUpstreamId,
+  ])
 
   useEffect(() => {
     // 提交后一拍再启动请求，避免 effect 同步路径被误判为级联 setState。
@@ -174,7 +206,28 @@ export function useDashboardSnapshot({
 
   const handleRangeChange = useCallback((next: DashboardTimeRange) => {
     markLoading()
+    // 切入自定义时，用当前预设解析结果种子，避免空白区间。
+    if (next === "custom") {
+      const seed = resolveDashboardRange(rangePreset, customRange)
+      if (seed.fromTsMs != null || seed.toTsMs != null) {
+        setCustomRange(
+          normalizeCustomRange({
+            fromTsMs: seed.fromTsMs ?? defaultCustomRange().fromTsMs,
+            toTsMs: seed.toTsMs ?? Date.now(),
+          })
+        )
+      } else {
+        setCustomRange(defaultCustomRange())
+      }
+    }
     setRangePreset(next)
+    resetPage()
+  }, [customRange, markLoading, rangePreset, resetPage])
+
+  const handleCustomRangeChange = useCallback((next: DashboardRange) => {
+    markLoading()
+    setRangePreset("custom")
+    setCustomRange(normalizeCustomRange(next))
     resetPage()
   }, [markLoading, resetPage])
 
@@ -183,6 +236,8 @@ export function useDashboardSnapshot({
     setSelectedUpstreamId(nextUpstreamId)
     setSelectedAccountId(null)
     setSelectedPublicOnly(false)
+    // 上游切换后模型集合会变，先清模型避免短暂请求到无效组合。
+    setSelectedModel(null)
     resetPage()
   }, [markLoading, resetPage])
 
@@ -190,6 +245,13 @@ export function useDashboardSnapshot({
     markLoading()
     setSelectedAccountId(nextAccountId)
     setSelectedPublicOnly(nextPublicOnly)
+    setSelectedModel(null)
+    resetPage()
+  }, [markLoading, resetPage])
+
+  const handleModelChange = useCallback((nextModel: string | null) => {
+    markLoading()
+    setSelectedModel(nextModel)
     resetPage()
   }, [markLoading, resetPage])
 
@@ -225,16 +287,21 @@ export function useDashboardSnapshot({
     statusMessage,
     activeRange,
     rangePreset,
+    customRange,
     selectedUpstreamId,
     selectedAccountId,
     selectedPublicOnly,
+    selectedModel,
     upstreamOptions: snapshot?.upstreams ?? [],
     accountOptions: selectedUpstreamId === null ? [] : (snapshot?.accounts ?? []),
+    modelOptions: snapshot?.modelOptions ?? [],
     pagination: { page, totalPages, totalRequests },
     refresh,
     onRangeChange: handleRangeChange,
+    onCustomRangeChange: handleCustomRangeChange,
     onUpstreamChange: handleUpstreamChange,
     onAccountChange: handleAccountChange,
+    onModelChange: handleModelChange,
     onPrevPage: handlePrevPage,
     onNextPage: handleNextPage,
   }
@@ -268,17 +335,30 @@ function toAccountFilterValue(value: string) {
   return { accountId: value.replace(/^account:/, ""), publicOnly: false }
 }
 
+function resolveModelSelectValue(model: string | null) {
+  return model ?? ALL_MODELS_VALUE
+}
+
+function toModelFilterValue(value: string) {
+  return value === ALL_MODELS_VALUE ? null : value
+}
+
 type DashboardFiltersProps = {
   range: DashboardTimeRange
+  customRange: DashboardRange
   upstreamId: string | null
   upstreamOptions: DashboardUpstreamOption[]
   accountId: string | null
   publicOnly: boolean
   accountOptions: DashboardAccountOption[]
+  model: string | null
+  modelOptions: string[]
   loading: boolean
   onRangeChange: (range: DashboardTimeRange) => void
+  onCustomRangeChange: (range: DashboardRange) => void
   onUpstreamChange: (upstreamId: string | null) => void
   onAccountChange: (accountId: string | null, publicOnly: boolean) => void
+  onModelChange: (model: string | null) => void
   onRefresh: () => void
   /** 请求详情捕获相关，仅 LogsPanel 使用 */
   capture?: {
@@ -289,17 +369,29 @@ type DashboardFiltersProps = {
   }
 }
 
+function resolveDatetimeLocalDisplay(tsMs: number | null) {
+  if (tsMs == null) {
+    return ""
+  }
+  return tsMsToDatetimeLocalValue(tsMs)
+}
+
 export function DashboardFilters({
   range,
+  customRange,
   upstreamId,
   upstreamOptions,
   accountId,
   publicOnly,
   accountOptions,
+  model,
+  modelOptions,
   loading,
   onRangeChange,
+  onCustomRangeChange,
   onUpstreamChange,
   onAccountChange,
+  onModelChange,
   onRefresh,
   capture,
 }: DashboardFiltersProps) {
@@ -334,6 +426,57 @@ export function DashboardFilters({
                 ))}
               </SelectContent>
             </Select>
+
+            {range === "custom" ? (
+              <>
+                <Label
+                  htmlFor="dashboard-range-from"
+                  className="text-xs text-muted-foreground"
+                >
+                  {m.dashboard_range_from()}
+                </Label>
+                <Input
+                  id="dashboard-range-from"
+                  type="datetime-local"
+                  className="h-9 w-[190px]"
+                  value={resolveDatetimeLocalDisplay(customRange.fromTsMs)}
+                  disabled={loading}
+                  onChange={(event) => {
+                    const fromTsMs = datetimeLocalValueToTsMs(event.target.value)
+                    if (fromTsMs == null) {
+                      return
+                    }
+                    onCustomRangeChange({
+                      fromTsMs,
+                      toTsMs: customRange.toTsMs,
+                    })
+                  }}
+                />
+                <Label
+                  htmlFor="dashboard-range-to"
+                  className="text-xs text-muted-foreground"
+                >
+                  {m.dashboard_range_to()}
+                </Label>
+                <Input
+                  id="dashboard-range-to"
+                  type="datetime-local"
+                  className="h-9 w-[190px]"
+                  value={resolveDatetimeLocalDisplay(customRange.toTsMs)}
+                  disabled={loading}
+                  onChange={(event) => {
+                    const toTsMs = datetimeLocalValueToTsMs(event.target.value)
+                    if (toTsMs == null) {
+                      return
+                    }
+                    onCustomRangeChange({
+                      fromTsMs: customRange.fromTsMs,
+                      toTsMs,
+                    })
+                  }}
+                />
+              </>
+            ) : null}
 
             <Label htmlFor="dashboard-upstream" className="text-xs text-muted-foreground">
               {m.dashboard_upstream_label()}
@@ -390,6 +533,30 @@ export function DashboardFilters({
                       {option.accountId}
                     </SelectItem>
                   ))}
+              </SelectContent>
+            </Select>
+
+            <Label htmlFor="dashboard-model" className="text-xs text-muted-foreground">
+              {m.dashboard_model_label()}
+            </Label>
+            <Select
+              value={resolveModelSelectValue(model)}
+              onValueChange={(value) => {
+                onModelChange(toModelFilterValue(value))
+              }}
+            >
+              <SelectTrigger id="dashboard-model" className="h-9 w-[160px]">
+                <SelectValue placeholder={m.dashboard_model_placeholder()} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_MODELS_VALUE}>
+                  {m.dashboard_model_all()}
+                </SelectItem>
+                {modelOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

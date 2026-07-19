@@ -95,6 +95,7 @@ describe("dashboard/DashboardPanel", () => {
               },
             ],
             models: [],
+            modelOptions: [],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -190,6 +191,7 @@ describe("dashboard/DashboardPanel", () => {
               },
             ],
             models: [],
+            modelOptions: [],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -291,6 +293,7 @@ describe("dashboard/DashboardPanel", () => {
               },
             ],
             models: [],
+            modelOptions: [],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -433,6 +436,7 @@ describe("dashboard/DashboardPanel", () => {
               cachedTokens: 0,
             },
           ],
+          modelOptions: ["gpt-5.4", "claude-4"],
           upstreams: [
             {
               upstreamId: "alpha",
@@ -541,6 +545,7 @@ describe("dashboard/DashboardPanel", () => {
         upstreamId: null,
         accountId: null,
         publicOnly: false,
+        model: null,
       }
     );
 
@@ -564,6 +569,7 @@ describe("dashboard/DashboardPanel", () => {
         upstreamId: "alpha",
         accountId: null,
         publicOnly: false,
+        model: null,
       }
     );
 
@@ -587,6 +593,7 @@ describe("dashboard/DashboardPanel", () => {
         upstreamId: "alpha",
         accountId: "codex-a.json",
         publicOnly: false,
+        model: null,
       }
     );
   });

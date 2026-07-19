@@ -24,6 +24,7 @@ describe("dashboard/api", () => {
       },
       providers: [],
       models: [],
+      modelOptions: [],
       upstreams: [],
       accounts: [],
       series: [],
@@ -39,6 +40,7 @@ describe("dashboard/api", () => {
       upstreamId: "alpha",
       accountId: "codex-a.json",
       publicOnly: false,
+      model: null,
     });
 
     expect(invokeMock).toHaveBeenCalledWith("read_dashboard_snapshot", {
@@ -47,6 +49,7 @@ describe("dashboard/api", () => {
       upstreamId: "alpha",
       accountId: "codex-a.json",
       publicOnly: false,
+      model: null,
     });
   });
 

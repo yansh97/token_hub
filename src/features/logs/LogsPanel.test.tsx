@@ -185,6 +185,7 @@ describe("logs/LogsPanel", () => {
           ],
           series: [],
           models: [],
+          modelOptions: [],
           modelProbes: [],
           truncated: false,
         };
@@ -417,6 +418,7 @@ describe("logs/LogsPanel", () => {
         upstreamId: "alpha",
         accountId: null,
         publicOnly: false,
+        model: null,
       }
     );
   });
@@ -503,6 +505,7 @@ describe("logs/LogsPanel", () => {
         upstreamId: "alpha",
         accountId: "codex-a.json",
         publicOnly: false,
+        model: null,
       });
     });
     expect(screen.getByTestId("logs-items")).not.toHaveTextContent("openai-response");

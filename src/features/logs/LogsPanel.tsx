@@ -433,16 +433,21 @@ export function LogsPanel() {
     status,
     statusMessage,
     rangePreset,
+    customRange,
     selectedUpstreamId,
     selectedAccountId,
     selectedPublicOnly,
+    selectedModel,
     upstreamOptions,
     accountOptions,
+    modelOptions,
     pagination,
     refresh,
     onRangeChange,
+    onCustomRangeChange,
     onUpstreamChange,
     onAccountChange,
+    onModelChange,
     onPrevPage,
     onNextPage,
   } = useDashboardSnapshot();
@@ -612,15 +617,20 @@ export function LogsPanel() {
 
       <DashboardFilters
         range={rangePreset}
+        customRange={customRange}
         upstreamId={selectedUpstreamId}
         upstreamOptions={upstreamOptions}
         accountId={selectedAccountId}
         publicOnly={selectedPublicOnly}
         accountOptions={accountOptions}
+        model={selectedModel}
+        modelOptions={modelOptions}
         loading={isLoading}
         onRangeChange={onRangeChange}
+        onCustomRangeChange={onCustomRangeChange}
         onUpstreamChange={onUpstreamChange}
         onAccountChange={onAccountChange}
+        onModelChange={onModelChange}
         onRefresh={refresh}
         capture={{
           enabled: captureEnabled,
