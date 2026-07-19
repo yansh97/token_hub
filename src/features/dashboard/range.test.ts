@@ -12,6 +12,7 @@ describe("dashboard/range", () => {
 
   it("parses dashboard time range values", () => {
     expect(toDashboardTimeRange("7d")).toBe("7d");
+    expect(toDashboardTimeRange("yesterday")).toBe("yesterday");
     expect(toDashboardTimeRange("unknown")).toBeNull();
   });
 
@@ -35,6 +36,16 @@ describe("dashboard/range", () => {
     expect(resolveDashboardRange("7d")).toEqual({
       fromTsMs: now - 7 * 24 * 60 * 60 * 1000,
       toTsMs: now,
+    });
+  });
+
+  it("resolves yesterday as the full previous local day", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 28, 15, 30));
+
+    expect(resolveDashboardRange("yesterday")).toEqual({
+      fromTsMs: new Date(2026, 0, 27, 0, 0, 0, 0).getTime(),
+      toTsMs: new Date(2026, 0, 27, 23, 59, 59, 999).getTime(),
     });
   });
 });

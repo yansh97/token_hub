@@ -214,6 +214,7 @@ describe("logs/LogsPanel", () => {
           ],
           series: [],
           models: [],
+          modelOptions: ["gpt-5", "claude"],
           modelProbes: [],
           truncated: false,
         };
@@ -451,6 +452,25 @@ describe("logs/LogsPanel", () => {
       upstreamId: "alpha",
       accountId: null,
       publicOnly: false,
+      model: null,
+    });
+
+    const modelFilter = screen.getByRole("group", {
+      name: m.dashboard_model_label(),
+    });
+    await user.click(
+      within(modelFilter).getByRole("radio", { name: "gpt-5" }),
+    );
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
+        range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
+        offset: 0,
+        upstreamId: "alpha",
+        accountId: null,
+        publicOnly: false,
+        model: "gpt-5",
+      });
     });
   });
 

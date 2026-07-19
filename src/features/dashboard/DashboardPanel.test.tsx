@@ -102,6 +102,7 @@ describe("dashboard/DashboardPanel", () => {
               },
             ],
             models: [],
+            modelOptions: ["gpt-5.4", "claude-4"],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -197,6 +198,7 @@ describe("dashboard/DashboardPanel", () => {
               },
             ],
             models: [],
+            modelOptions: ["gpt-5.4", "claude-4"],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -298,6 +300,7 @@ describe("dashboard/DashboardPanel", () => {
               },
             ],
             models: [],
+            modelOptions: ["gpt-5.4", "claude-4"],
             upstreams: [
               {
                 upstreamId: "alpha",
@@ -440,6 +443,7 @@ describe("dashboard/DashboardPanel", () => {
               cachedTokens: 0,
             },
           ],
+          modelOptions: ["gpt-5.4", "claude-4"],
           upstreams: [
             {
               upstreamId: "alpha",
@@ -550,6 +554,7 @@ describe("dashboard/DashboardPanel", () => {
       upstreamId: null,
       accountId: null,
       publicOnly: false,
+      model: null,
     });
 
     const upstreamFilter = screen.getByRole("group", {
@@ -571,6 +576,25 @@ describe("dashboard/DashboardPanel", () => {
       upstreamId: "alpha",
       accountId: null,
       publicOnly: false,
+      model: null,
+    });
+
+    const modelFilter = screen.getByRole("group", {
+      name: m.dashboard_model_label(),
+    });
+    await user.click(
+      within(modelFilter).getByRole("radio", { name: "gpt-5.4" }),
+    );
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
+        range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
+        offset: 0,
+        upstreamId: "alpha",
+        accountId: null,
+        publicOnly: false,
+        model: "gpt-5.4",
+      });
     });
   });
 

@@ -500,11 +500,14 @@ export function LogsPanel() {
     statusMessage,
     rangePreset,
     selectedUpstreamId,
+    selectedModel,
     upstreamOptions,
+    modelOptions,
     pagination,
     refresh,
     onRangeChange,
     onUpstreamChange,
+    onModelChange,
     onPrevPage,
     onNextPage,
   } = useDashboardSnapshot();
@@ -689,9 +692,12 @@ export function LogsPanel() {
         range={rangePreset}
         upstreamId={selectedUpstreamId}
         upstreamOptions={upstreamOptions}
+        model={selectedModel}
+        modelOptions={modelOptions}
         loading={isLoading}
         onRangeChange={onRangeChange}
         onUpstreamChange={onUpstreamChange}
+        onModelChange={onModelChange}
         onRefresh={refresh}
         capture={{
           enabled: captureEnabled,

@@ -159,6 +159,8 @@ export type DashboardSnapshot = {
   summary: DashboardSummary;
   providers: DashboardProviderStat[];
   models: DashboardModelStat[];
+  /** 模型筛选选项（时间/上游/账户收窄，不受当前 model 筛选影响）。 */
+  modelOptions: string[];
   upstreams: DashboardUpstreamOption[];
   accounts: DashboardAccountOption[];
   series: DashboardSeriesPoint[];
@@ -173,4 +175,6 @@ export type DashboardSnapshotQuery = {
   upstreamId?: string | null;
   accountId?: string | null;
   publicOnly?: boolean;
+  /** 客户端请求模型 key（空 model 回退 mapped_model，再 (unknown)）。 */
+  model?: string | null;
 };

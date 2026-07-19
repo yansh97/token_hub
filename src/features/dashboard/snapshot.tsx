@@ -31,6 +31,7 @@ import { m } from "@/paraglide/messages.js";
 
 export const RECENT_PAGE_SIZE = 50;
 const ALL_UPSTREAMS_VALUE = "__all_upstreams__";
+const ALL_MODELS_VALUE = "__all_models__";
 
 type DashboardStatus = "idle" | "loading" | "error";
 
@@ -43,6 +44,10 @@ function hasUpstreamOption(
   upstreamId: string,
 ) {
   return upstreams.some((item) => item.upstreamId === upstreamId);
+}
+
+function hasModelOption(modelOptions: string[], model: string) {
+  return modelOptions.includes(model);
 }
 
 function usePagination(totalRequests: number) {
@@ -80,6 +85,7 @@ export function useDashboardSnapshot({
   const [selectedUpstreamId, setSelectedUpstreamId] = useState<string | null>(
     null,
   );
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [activeRange, setActiveRange] = useState<DashboardRange>(() =>
     resolveDashboardRange("today"),
   );
@@ -103,17 +109,26 @@ export function useDashboardSnapshot({
         upstreamId: selectedUpstreamId,
         accountId: null,
         publicOnly: false,
+        model: selectedModel,
       });
       if (requestSeq.current !== requestId) {
         return;
       }
       // 时间范围变化后，已选上游可能不再出现在该范围内；先回退到“全部”，
-      // 让下一个 effect 重新拉取一个合法快照，避免 Select 绑定到不存在的值。
+      // 让下一个 effect 重新拉取一个合法快照，避免筛选控件绑定到不存在的值。
       if (
         selectedUpstreamId !== null &&
         !hasUpstreamOption(data.upstreams, selectedUpstreamId)
       ) {
         setSelectedUpstreamId(null);
+        setStatus("loading");
+        return;
+      }
+      if (
+        selectedModel !== null &&
+        !hasModelOption(data.modelOptions, selectedModel)
+      ) {
+        setSelectedModel(null);
         setStatus("loading");
         return;
       }
@@ -127,7 +142,7 @@ export function useDashboardSnapshot({
       setStatus("error");
       setStatusMessage(parseError(error));
     }
-  }, [page, rangePreset, selectedUpstreamId]);
+  }, [page, rangePreset, selectedModel, selectedUpstreamId]);
 
   useEffect(() => {
     // 提交后一拍再启动请求，避免 effect 同步路径被误判为级联 setState。
@@ -155,6 +170,16 @@ export function useDashboardSnapshot({
     (nextUpstreamId: string | null) => {
       markLoading();
       setSelectedUpstreamId(nextUpstreamId);
+      setSelectedModel(null);
+      resetPage();
+    },
+    [markLoading, resetPage],
+  );
+
+  const handleModelChange = useCallback(
+    (nextModel: string | null) => {
+      markLoading();
+      setSelectedModel(nextModel);
       resetPage();
     },
     [markLoading, resetPage],
@@ -193,11 +218,14 @@ export function useDashboardSnapshot({
     activeRange,
     rangePreset,
     selectedUpstreamId,
+    selectedModel,
     upstreamOptions: snapshot?.upstreams ?? [],
+    modelOptions: snapshot?.modelOptions ?? [],
     pagination: { page, totalPages, totalRequests },
     refresh,
     onRangeChange: handleRangeChange,
     onUpstreamChange: handleUpstreamChange,
+    onModelChange: handleModelChange,
     onPrevPage: handlePrevPage,
     onNextPage: handleNextPage,
   };
@@ -211,13 +239,24 @@ function toUpstreamFilterValue(value: string) {
   return value === ALL_UPSTREAMS_VALUE ? null : value;
 }
 
+function resolveModelFilterValue(model: string | null) {
+  return model ?? ALL_MODELS_VALUE;
+}
+
+function toModelFilterValue(value: string) {
+  return value === ALL_MODELS_VALUE ? null : value;
+}
+
 type DashboardFiltersProps = {
   range: DashboardTimeRange;
   upstreamId: string | null;
   upstreamOptions: DashboardUpstreamOption[];
+  model: string | null;
+  modelOptions: string[];
   loading: boolean;
   onRangeChange: (range: DashboardTimeRange) => void;
   onUpstreamChange: (upstreamId: string | null) => void;
+  onModelChange: (model: string | null) => void;
   onRefresh: () => void;
   className?: string;
   /** 请求详情捕获相关，仅 LogsPanel 使用 */
@@ -233,9 +272,12 @@ export function DashboardFilters({
   range,
   upstreamId,
   upstreamOptions,
+  model,
+  modelOptions,
   loading,
   onRangeChange,
   onUpstreamChange,
+  onModelChange,
   onRefresh,
   className,
   capture,
@@ -310,6 +352,42 @@ export function DashboardFilters({
                     className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
                   >
                     {option.upstreamId}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+
+            <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-start gap-0.5">
+              <Label className="pt-2 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                {m.dashboard_model_label()}
+              </Label>
+              <ToggleGroup
+                type="single"
+                value={resolveModelFilterValue(model)}
+                onValueChange={(value) => {
+                  if (value) {
+                    onModelChange(toModelFilterValue(value));
+                  }
+                }}
+                variant="default"
+                size="sm"
+                spacing={0}
+                aria-label={m.dashboard_model_label()}
+                className="min-w-0 max-w-full flex-wrap justify-start rounded-md bg-transparent"
+              >
+                <ToggleGroupItem
+                  value={ALL_MODELS_VALUE}
+                  className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                >
+                  {m.dashboard_model_all()}
+                </ToggleGroupItem>
+                {modelOptions.map((option) => (
+                  <ToggleGroupItem
+                    key={option}
+                    value={option}
+                    className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                  >
+                    {option}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>

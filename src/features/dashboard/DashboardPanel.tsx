@@ -51,10 +51,13 @@ export function DashboardPanel() {
     activeRange,
     rangePreset,
     selectedUpstreamId,
+    selectedModel,
     upstreamOptions,
+    modelOptions,
     refresh,
     onRangeChange,
     onUpstreamChange,
+    onModelChange,
   } = useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true });
 
   const isLoading = status === "loading";
@@ -75,9 +78,12 @@ export function DashboardPanel() {
         range={rangePreset}
         upstreamId={selectedUpstreamId}
         upstreamOptions={upstreamOptions}
+        model={selectedModel}
+        modelOptions={modelOptions}
         loading={isLoading}
         onRangeChange={onRangeChange}
         onUpstreamChange={onUpstreamChange}
+        onModelChange={onModelChange}
         onRefresh={refresh}
         className="mb-2.5"
       />

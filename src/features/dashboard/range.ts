@@ -3,6 +3,7 @@ import { m } from "@/paraglide/messages.js";
 
 export const DASHBOARD_RANGE_OPTIONS = [
   { value: "today", label: () => m.dashboard_range_today() },
+  { value: "yesterday", label: () => m.dashboard_range_yesterday() },
   { value: "7d", label: () => m.dashboard_range_7d() },
   { value: "30d", label: () => m.dashboard_range_30d() },
   { value: "all", label: () => m.dashboard_range_all() },
@@ -34,6 +35,15 @@ export function resolveDashboardRange(
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     return { fromTsMs: start.getTime(), toTsMs: now };
+  }
+
+  if (range === "yesterday") {
+    const start = new Date();
+    start.setDate(start.getDate() - 1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(23, 59, 59, 999);
+    return { fromTsMs: start.getTime(), toTsMs: end.getTime() };
   }
 
   const days = range === "7d" ? 7 : 30;

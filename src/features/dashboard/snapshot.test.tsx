@@ -42,6 +42,7 @@ function createSnapshot(
       { provider: "anthropic", requests: 1, totalTokens: 7, cachedTokens: 0 },
     ],
     models: [],
+    modelOptions: ["gpt-5", "claude"],
     upstreams: [
       {
         upstreamId: "alpha",
@@ -88,12 +89,19 @@ function createSnapshot(
 }
 
 function HookHarness() {
-  const { snapshot, selectedUpstreamId, onUpstreamChange, refresh } =
-    useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true });
+  const {
+    snapshot,
+    selectedUpstreamId,
+    selectedModel,
+    onUpstreamChange,
+    onModelChange,
+    refresh,
+  } = useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true });
 
   return (
     <div>
       <div data-testid="selected-upstream">{selectedUpstreamId ?? "all"}</div>
+      <div data-testid="selected-model">{selectedModel ?? "all"}</div>
       <div data-testid="upstream-options">
         {snapshot?.upstreams.map((item) => item.upstreamId).join(",") ?? ""}
       </div>
@@ -102,6 +110,9 @@ function HookHarness() {
       </button>
       <button type="button" onClick={refresh}>
         refresh-dashboard
+      </button>
+      <button type="button" onClick={() => onModelChange("gpt-5")}>
+        filter-gpt-5
       </button>
     </div>
   );
@@ -197,6 +208,7 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: null,
         accountId: null,
         publicOnly: false,
+        model: null,
       });
     });
 
@@ -217,10 +229,39 @@ describe("dashboard/useDashboardSnapshot", () => {
         upstreamId: "alpha",
         accountId: null,
         publicOnly: false,
+        model: null,
       });
     });
 
     expect(screen.getByTestId("selected-upstream")).toHaveTextContent("alpha");
+  });
+
+  it("refetches with the selected model", async () => {
+    readDashboardSnapshotMock
+      .mockResolvedValueOnce(createSnapshot())
+      .mockResolvedValueOnce(createSnapshot());
+
+    render(<HookHarness />);
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "filter-gpt-5" }));
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
+        range: {
+          fromTsMs: expect.any(Number),
+          toTsMs: expect.any(Number),
+        },
+        offset: 0,
+        upstreamId: null,
+        accountId: null,
+        publicOnly: false,
+        model: "gpt-5",
+      });
+    });
+    expect(screen.getByTestId("selected-model")).toHaveTextContent("gpt-5");
   });
 
   it("runs model discovery only from dashboard refresh", async () => {
