@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HelpCircle, Power, PowerOff, RefreshCcw } from "lucide-react";
+import { Power, PowerOff, RefreshCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -288,110 +295,114 @@ export function DashboardFilters({
       className={cn("sticky top-2.5 z-20 px-4 lg:px-6", className)}
     >
       <Card className="gap-0 rounded-lg border-border/70 bg-card/95 py-0 shadow-none">
-        <CardContent className="flex flex-wrap items-start justify-between gap-2 px-3 py-2">
-          <div className="flex flex-col items-start gap-0.5">
-            <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-0.5">
-              <Label className="whitespace-nowrap text-xs font-medium text-muted-foreground">
-                {m.dashboard_range_label()}
-              </Label>
-              <ToggleGroup
-                type="single"
-                value={range}
-                onValueChange={(value) => {
-                  const next = toDashboardTimeRange(value);
-                  if (next) {
-                    onRangeChange(next);
-                  }
-                }}
-                variant="default"
-                size="sm"
-                spacing={0}
-                aria-label={m.dashboard_range_label()}
-                className="rounded-md bg-transparent"
-              >
-                {DASHBOARD_RANGE_OPTIONS.map((option) => (
-                  <ToggleGroupItem
-                    key={option.value}
-                    value={option.value}
-                    className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
-                  >
-                    {option.label()}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </div>
-
-            <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-0.5">
-              <Label className="whitespace-nowrap text-xs font-medium text-muted-foreground">
-                {m.dashboard_upstream_label()}
-              </Label>
-              <ToggleGroup
-                type="single"
-                value={resolveUpstreamSelectValue(upstreamId)}
-                onValueChange={(value) => {
-                  if (value) {
-                    onUpstreamChange(toUpstreamFilterValue(value));
-                  }
-                }}
-                variant="default"
-                size="sm"
-                spacing={0}
-                aria-label={m.dashboard_upstream_label()}
-                className="min-w-0 max-w-full flex-wrap rounded-md bg-transparent"
-              >
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+          <div className="flex min-w-0 flex-nowrap items-center gap-2">
+            <Label className="whitespace-nowrap text-[13px] font-medium text-muted-foreground">
+              {m.dashboard_range_label()}
+            </Label>
+            <ToggleGroup
+              type="single"
+              value={range}
+              onValueChange={(value) => {
+                const next = toDashboardTimeRange(value);
+                if (next) {
+                  onRangeChange(next);
+                }
+              }}
+              variant="default"
+              size="sm"
+              spacing={0}
+              aria-label={m.dashboard_range_label()}
+              className="overflow-hidden rounded-md border border-border/60 bg-transparent"
+            >
+              {DASHBOARD_RANGE_OPTIONS.map((option) => (
                 <ToggleGroupItem
+                  key={option.value}
+                  value={option.value}
+                  className="border-r border-border/60 px-2.5 text-[13px] font-normal last:border-r-0 data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                >
+                  {option.label()}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+
+            <Label
+              htmlFor="dashboard-upstream"
+              className="whitespace-nowrap text-[13px] font-medium text-muted-foreground"
+            >
+              {m.dashboard_upstream_label()}
+            </Label>
+            <Select
+              value={resolveUpstreamSelectValue(upstreamId)}
+              onValueChange={(value) => {
+                onUpstreamChange(toUpstreamFilterValue(value));
+              }}
+            >
+              <SelectTrigger
+                id="dashboard-upstream"
+                size="sm"
+                className="w-28 text-[13px] font-normal"
+                aria-label={m.dashboard_upstream_label()}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-[13px]">
+                <SelectItem
                   value={ALL_UPSTREAMS_VALUE}
-                  className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                  className="text-[13px] font-normal"
                 >
                   {m.dashboard_upstream_all()}
-                </ToggleGroupItem>
+                </SelectItem>
                 {upstreamOptions.map((option) => (
-                  <ToggleGroupItem
+                  <SelectItem
                     key={option.upstreamId}
                     value={option.upstreamId}
-                    className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                    className="text-[13px] font-normal"
                   >
                     {option.upstreamId}
-                  </ToggleGroupItem>
+                  </SelectItem>
                 ))}
-              </ToggleGroup>
-            </div>
+              </SelectContent>
+            </Select>
 
-            <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-start gap-0.5">
-              <Label className="pt-2 whitespace-nowrap text-xs font-medium text-muted-foreground">
-                {m.dashboard_model_label()}
-              </Label>
-              <ToggleGroup
-                type="single"
-                value={resolveModelFilterValue(model)}
-                onValueChange={(value) => {
-                  if (value) {
-                    onModelChange(toModelFilterValue(value));
-                  }
-                }}
-                variant="default"
+            <Label
+              htmlFor="dashboard-model"
+              className="whitespace-nowrap text-[13px] font-medium text-muted-foreground"
+            >
+              {m.dashboard_model_label()}
+            </Label>
+            <Select
+              value={resolveModelFilterValue(model)}
+              onValueChange={(value) => {
+                onModelChange(toModelFilterValue(value));
+              }}
+            >
+              <SelectTrigger
+                id="dashboard-model"
                 size="sm"
-                spacing={0}
+                className="w-28 text-[13px] font-normal"
                 aria-label={m.dashboard_model_label()}
-                className="min-w-0 max-w-full flex-wrap justify-start rounded-md bg-transparent"
               >
-                <ToggleGroupItem
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-[13px]">
+                <SelectItem
                   value={ALL_MODELS_VALUE}
-                  className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                  className="text-[13px] font-normal"
                 >
                   {m.dashboard_model_all()}
-                </ToggleGroupItem>
+                </SelectItem>
                 {modelOptions.map((option) => (
-                  <ToggleGroupItem
+                  <SelectItem
                     key={option}
                     value={option}
-                    className="px-2.5 text-[13px] font-normal data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                    className="text-[13px] font-normal"
                   >
                     {option}
-                  </ToggleGroupItem>
+                  </SelectItem>
                 ))}
-              </ToggleGroup>
-            </div>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-3">
             {capture ? (
@@ -403,22 +414,6 @@ export function DashboardFilters({
                   )}
                   aria-hidden="true"
                 />
-                <Label
-                  htmlFor="logs-capture"
-                  className="text-xs text-muted-foreground"
-                >
-                  {m.logs_capture_title()}
-                </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <HelpCircle className="size-3.5 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs">
-                    {capture.enabled
-                      ? m.logs_capture_desc()
-                      : m.logs_capture_idle_desc()}
-                  </TooltipContent>
-                </Tooltip>
                 {capture.enabled ? (
                   <Tooltip>
                     <TooltipTrigger asChild>

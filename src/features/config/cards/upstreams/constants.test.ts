@@ -17,8 +17,8 @@ describe("upstreams/constants", () => {
 
     expect(idColumn?.headerClassName).toBe("w-[16%]");
     expect(idColumn?.cellClassName).toBe("w-[16%]");
-    expect(providerColumn?.headerClassName).toBe("w-[46%]");
-    expect(providerColumn?.cellClassName).toBe("w-[46%]");
+    expect(providerColumn?.headerClassName).toBe("w-[42%]");
+    expect(providerColumn?.cellClassName).toBe("w-[42%]");
     expect(priorityColumn?.headerClassName).toBe("w-[10%]");
     expect(priorityColumn?.cellClassName).toBe("w-[10%]");
   });

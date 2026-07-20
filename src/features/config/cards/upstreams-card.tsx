@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   mergeProviderOptions,
   UPSTREAM_COLUMNS,
@@ -230,12 +236,17 @@ export function UpstreamsCard({
   return (
     <Card
       data-slot="upstreams-card"
-      className="mt-2.5 gap-0 rounded-none border-0 bg-transparent py-0 shadow-none"
+      className="max-h-full min-h-0 gap-0 overflow-hidden rounded-none border-0 bg-transparent py-0 shadow-none"
     >
-      <CardContent className="space-y-4 px-4">
-        <h2 className="text-[15px] font-semibold leading-5">
+      <CardHeader className="shrink-0 gap-0 px-4 py-3">
+        <CardTitle className="text-[15px] font-semibold leading-5">
           {m.upstreams_title()}
-        </h2>
+        </CardTitle>
+        <CardAction>
+          <UpstreamsToolbar onAddClick={openCreateDialog} />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-0">
         {upstreams.length ? (
           <UpstreamsTable
             upstreams={upstreams}
@@ -257,7 +268,6 @@ export function UpstreamsCard({
         ) : (
           <p className="text-sm text-muted-foreground">{m.upstreams_empty()}</p>
         )}
-        <UpstreamsToolbar onAddClick={openCreateDialog} />
       </CardContent>
 
       <UpstreamEditorDialog

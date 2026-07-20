@@ -11,8 +11,8 @@ export const UPSTREAM_COLUMNS: readonly UpstreamColumnDefinition[] = [
   {
     id: "provider",
     label: () => m.upstreams_column_provider(),
-    headerClassName: "w-[46%]",
-    cellClassName: "w-[46%]",
+    headerClassName: "w-[42%]",
+    cellClassName: "w-[42%]",
   },
   {
     id: "priority",

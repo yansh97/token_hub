@@ -121,72 +121,76 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-3 pt-0 sm:px-4">
-        {chartData.length === 0 ? (
-          <p className="py-10 text-center text-[13px] text-muted-foreground">
-            {m.dashboard_no_data()}
-          </p>
-        ) : (
-          <ChartContainer
-            config={chartConfig}
-            className="aspect-auto w-full"
-            style={{ height }}
-          >
-            <BarChart
-              data={chartData}
-              layout="vertical"
-              margin={{ left: 4, right: 12, top: 4, bottom: 4 }}
+        <div
+          className="flex w-full items-center justify-center overflow-hidden rounded-md border border-border/60"
+          style={{ height }}
+        >
+          {chartData.length === 0 ? (
+            <p className="text-center text-[13px] text-muted-foreground">
+              {m.dashboard_no_data()}
+            </p>
+          ) : (
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-auto h-full w-full"
             >
-              <CartesianGrid horizontal={false} />
-              <XAxis
-                type="number"
-                dataKey="totalTokens"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tick={{ fontSize: 11 }}
-                tickFormatter={(value) => formatCompact(Number(value))}
-              />
-              <YAxis
-                type="category"
-                dataKey="tickLabel"
-                width={Y_AXIS_WIDTH}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                tick={{ fontSize: 11 }}
-              />
-              <ChartTooltip
-                cursor={false}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) {
-                    return null;
-                  }
-                  const row = payload[0]?.payload as RankingRow | undefined;
-                  if (!row) {
-                    return null;
-                  }
-                  // 自定义 tooltip，避免 ChartTooltipContent 单值 formatter 套娃。
-                  return (
-                    <div className="border-border/50 bg-background rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
-                      <RankingTooltip
-                        label={row.label}
-                        requests={row.requests}
-                        totalTokens={row.totalTokens}
-                        costNanoUsd={row.costNanoUsd}
-                      />
-                    </div>
-                  );
-                }}
-              />
-              <Bar
-                dataKey="totalTokens"
-                fill="var(--color-totalTokens)"
-                radius={4}
-                maxBarSize={28}
-              />
-            </BarChart>
-          </ChartContainer>
-        )}
+              <BarChart
+                data={chartData}
+                layout="vertical"
+                margin={{ left: 4, right: 12, top: 4, bottom: 4 }}
+              >
+                <CartesianGrid horizontal={false} />
+                <XAxis
+                  type="number"
+                  dataKey="totalTokens"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(value) => formatCompact(Number(value))}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="tickLabel"
+                  width={Y_AXIS_WIDTH}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tick={{ fontSize: 11 }}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) {
+                      return null;
+                    }
+                    const row = payload[0]?.payload as RankingRow | undefined;
+                    if (!row) {
+                      return null;
+                    }
+                    // 自定义 tooltip，避免 ChartTooltipContent 单值 formatter 套娃。
+                    return (
+                      <div className="border-border/50 bg-background rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
+                        <RankingTooltip
+                          label={row.label}
+                          requests={row.requests}
+                          totalTokens={row.totalTokens}
+                          costNanoUsd={row.costNanoUsd}
+                        />
+                      </div>
+                    );
+                  }}
+                />
+                <Bar
+                  dataKey="totalTokens"
+                  fill="var(--color-totalTokens)"
+                  radius={4}
+                  maxBarSize={28}
+                />
+              </BarChart>
+            </ChartContainer>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -35,6 +35,35 @@ function buildUpstream(): UpstreamForm {
 }
 
 describe("upstreams/table", () => {
+  it("renders an outer border around the list", () => {
+    render(
+      <UpstreamsTable
+        upstreams={[buildUpstream()]}
+        columns={UPSTREAM_COLUMNS}
+        disableDelete={false}
+        onEdit={() => undefined}
+        onCopy={() => undefined}
+        onToggleEnabled={() => undefined}
+        onDelete={() => undefined}
+      />,
+    );
+
+    const scrollArea = screen.getByRole("table").parentElement;
+    expect(scrollArea).toHaveClass(
+      "rounded-md",
+      "border",
+      "border-border/60",
+      "min-h-0",
+      "max-h-full",
+      "overflow-x-hidden",
+      "overflow-y-auto",
+      "overscroll-none",
+    );
+    const headerGroup = screen.getAllByRole("rowgroup")[0];
+    expect(headerGroup).toHaveClass("sticky", "top-0");
+    expect(headerGroup?.firstElementChild).toHaveClass("bg-background/40");
+  });
+
   it("shows tooltip for truncated id cells on hover", async () => {
     const user = userEvent.setup();
 
@@ -55,7 +84,7 @@ describe("upstreams/table", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent(LONG_ID);
   });
 
-  it("keeps the actions column pinned to the right", () => {
+  it("keeps the actions column in the normal table layer", () => {
     render(
       <UpstreamsTable
         upstreams={[buildUpstream()]}
@@ -74,9 +103,20 @@ describe("upstreams/table", () => {
     });
     const actionCell = actionButton.closest("td");
 
-    expect(header).toHaveClass("sticky", "right-0");
+    expect(header).not.toHaveClass("sticky", "right-0", "z-20");
+    expect(header).toHaveClass("text-left");
+    expect(header).toHaveClass("w-[20%]", "min-w-[10rem]");
+    expect(header).not.toHaveClass("text-right");
     expect(actionCell).not.toBeNull();
-    expect(actionCell).toHaveClass("sticky", "right-0");
+    expect(actionCell).not.toHaveClass(
+      "sticky",
+      "right-0",
+      "z-10",
+      "bg-background",
+    );
+    expect(actionCell?.firstElementChild).toHaveClass("justify-start");
+    expect(actionCell?.firstElementChild).not.toHaveClass("justify-end");
+    expect(actionCell).toHaveClass("w-[20%]", "min-w-[10rem]");
   });
 
   it("disables delete for account-backed special upstream rows", () => {

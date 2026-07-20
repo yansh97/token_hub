@@ -59,6 +59,7 @@ type ChartAreaInteractiveProps = {
 type ChartBodyProps = {
   data: ChartPoint[];
   timeFormatter: Intl.DateTimeFormat;
+  hasData?: boolean;
 };
 
 const FALLBACK_RANGE_DAYS = 7;
@@ -157,7 +158,7 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
   return (
     <ChartContainer
       config={chartConfig}
-      className="aspect-auto h-[196px] w-full"
+      className="aspect-auto h-full w-full"
     >
       <LineChart data={data}>
         <CartesianGrid vertical={false} />
@@ -234,10 +235,18 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
   );
 }
 
-function ChartBody({ data, timeFormatter }: ChartBodyProps) {
+function ChartBody({ data, timeFormatter, hasData }: ChartBodyProps) {
   return (
     <CardContent className="px-2 pb-3 pt-1 sm:px-4">
-      <ChartCanvas data={data} timeFormatter={timeFormatter} />
+      <div className="flex h-[196px] w-full items-center justify-center overflow-hidden rounded-md border border-border/60">
+        {hasData ? (
+          <ChartCanvas data={data} timeFormatter={timeFormatter} />
+        ) : (
+          <p className="text-center text-[13px] text-muted-foreground">
+            {m.dashboard_no_data()}
+          </p>
+        )}
+      </div>
     </CardContent>
   );
 }
@@ -267,7 +276,11 @@ export function ChartAreaInteractive({
   return (
     <Card className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
       <ChartHeader />
-      <ChartBody data={chartData} timeFormatter={timeFormatter} />
+      <ChartBody
+        data={chartData}
+        timeFormatter={timeFormatter}
+        hasData={series.some((item) => item.totalRequests > 0)}
+      />
     </Card>
   );
 }

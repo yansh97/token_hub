@@ -35,7 +35,6 @@ const HEADER_HEIGHT_PX = 34;
 
 // 固定列宽避免虚拟列表行在状态、费用、延迟文本变化时抖动。
 const GRID_COLS = "grid-cols-[10fr_8fr_15fr_10fr_18fr_8fr_13fr_7fr_11fr]";
-const TABLE_MIN_WIDTH_PX = 817;
 const CELL_PLACEHOLDER = "—";
 const TOOLTIP_CONTENT_CLASS = "max-w-[560px] whitespace-pre-wrap break-words";
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
@@ -373,7 +372,7 @@ function RecentRequestsHeader({
     <div
       data-slot="recent-requests-table-header"
       className={cn(
-        "sticky top-0 z-10 grid items-center justify-start border-b border-border/60 bg-background text-[12px] text-muted-foreground",
+        "sticky top-0 z-10 grid items-center justify-start border-b border-border/60 bg-background/40 text-[12px] text-muted-foreground",
         GRID_COLS,
       )}
       style={{ height: HEADER_HEIGHT_PX }}
@@ -448,12 +447,11 @@ function RecentRequestsScrollArea({
   return (
     <div
       data-slot="recent-requests-table-scroll-area"
-      className="min-h-0 flex-1 overflow-auto"
+      className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-none"
     >
       <div
         data-slot="recent-requests-table-width-track"
         className="relative min-h-full"
-        style={{ minWidth: TABLE_MIN_WIDTH_PX }}
       >
         <RecentRequestsHeader table={table} />
         <div data-slot="recent-requests-table-rows-layer" className="relative">
@@ -486,7 +484,7 @@ export function RecentRequestsTable({
       <div
         data-slot="recent-requests-table"
         data-testid="recent-requests-table"
-        className="flex h-full min-h-0 flex-1 overflow-hidden"
+        className="flex h-fit min-h-0 max-h-full overflow-hidden rounded-md border border-border/60"
       >
         <RecentRequestsScrollArea
           table={table}

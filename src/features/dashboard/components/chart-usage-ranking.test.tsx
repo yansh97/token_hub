@@ -19,7 +19,15 @@ describe("dashboard/chart-usage-ranking", () => {
     renderWithI18n(<ChartModelUsage models={[]} />);
 
     expect(screen.getByText(m.dashboard_models_title())).toBeTruthy();
-    expect(screen.getByText(m.dashboard_no_data())).toBeTruthy();
+    const emptyState = screen.getByText(m.dashboard_no_data());
+    expect(emptyState).toBeTruthy();
+    expect(emptyState.parentElement).toHaveClass(
+      "items-center",
+      "justify-center",
+      "rounded-md",
+      "border",
+      "border-border/60",
+    );
   });
 
   it("renders model ranking chart when data exists", () => {
@@ -41,6 +49,14 @@ describe("dashboard/chart-usage-ranking", () => {
 
     const card = container.querySelector('[data-slot="card"]');
     expect(card).toBeTruthy();
+    expect(card).toHaveClass("rounded-none", "border-0");
+    const chart = container.querySelector('[data-slot="chart"]');
+    expect(chart).toBeTruthy();
+    expect(chart?.parentElement).toHaveClass(
+      "rounded-md",
+      "border",
+      "border-border/60",
+    );
     expect(
       within(card as HTMLElement).getByText(m.dashboard_models_title()),
     ).toBeTruthy();
@@ -48,7 +64,6 @@ describe("dashboard/chart-usage-ranking", () => {
       within(card as HTMLElement).queryByText(m.dashboard_no_data()),
     ).toBeNull();
     // recharts 挂载在 ChartContainer 上。
-    expect(container.querySelector('[data-slot="chart"]')).toBeTruthy();
   });
 
   it("limits model usage to the top five models", () => {

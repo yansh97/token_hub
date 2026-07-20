@@ -3,7 +3,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -557,12 +556,10 @@ describe("dashboard/DashboardPanel", () => {
       model: null,
     });
 
-    const upstreamFilter = screen.getByRole("group", {
+    await user.click(screen.getByRole("combobox", {
       name: m.dashboard_upstream_label(),
-    });
-    await user.click(
-      within(upstreamFilter).getByRole("radio", { name: "alpha" }),
-    );
+    }));
+    await user.click(await screen.findByRole("option", { name: "alpha" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
@@ -579,11 +576,11 @@ describe("dashboard/DashboardPanel", () => {
       model: null,
     });
 
-    const modelFilter = screen.getByRole("group", {
+    await user.click(screen.getByRole("combobox", {
       name: m.dashboard_model_label(),
-    });
+    }));
     await user.click(
-      within(modelFilter).getByRole("radio", { name: "gpt-5.4" }),
+      await screen.findByRole("option", { name: "gpt-5.4" }),
     );
 
     await waitFor(() => {

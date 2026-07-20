@@ -86,12 +86,12 @@ export function SectionCards({ summary }: SectionCardsProps) {
       });
 
   return (
-    <section className="grid grid-cols-1 px-4 lg:px-6 @xl/main:grid-cols-12">
+    <section className="grid grid-cols-1 px-4 lg:px-6 @xl/main:grid-cols-[3fr_4fr_2.5fr_2.5fr]">
       <MetricCard
-        className="@xl/main:col-span-3"
         label={m.dashboard_stat_requests()}
         value={formatCompact(totalRequests)}
         badge={
+          totalRequests > 0 ? (
           <Badge
             variant="outline"
             className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium"
@@ -100,6 +100,7 @@ export function SectionCards({ summary }: SectionCardsProps) {
               rate: PERCENT_FORMAT.format(successRate),
             })}
           </Badge>
+          ) : null
         }
         detail={
           <div className="line-clamp-1">
@@ -112,7 +113,6 @@ export function SectionCards({ summary }: SectionCardsProps) {
       />
 
       <MetricCard
-        className="@xl/main:col-span-4"
         label={m.dashboard_stat_total_tokens()}
         value={formatCompact(totalTokens)}
         badge={
@@ -131,7 +131,6 @@ export function SectionCards({ summary }: SectionCardsProps) {
       />
 
       <MetricCard
-        className="@xl/main:col-span-3"
         label={m.dashboard_stat_latency_ms()}
         value={formatInteger(avgLatencyMs)}
         detail={
@@ -144,7 +143,6 @@ export function SectionCards({ summary }: SectionCardsProps) {
       />
 
       <MetricCard
-        className="@xl/main:col-span-2"
         label={m.dashboard_stat_cost()}
         value={formatNanoUsdCost(costNanoUsd)}
         detail="USD"

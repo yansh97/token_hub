@@ -97,4 +97,23 @@ describe("dashboard/SectionCards", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("hides success rate when the range has no requests", () => {
+    render(
+      <I18nProvider>
+        <SectionCards
+          summary={{
+            ...summary,
+            totalRequests: 0,
+            successRequests: 0,
+            errorRequests: 0,
+          }}
+        />
+      </I18nProvider>,
+    );
+
+    expect(
+      screen.queryByText(m.dashboard_hint_success_rate({ rate: "0%" })),
+    ).not.toBeInTheDocument();
+  });
 });

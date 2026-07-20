@@ -26,6 +26,20 @@ vi.mock("@tanstack/react-virtual", () => ({
 }));
 
 describe("dashboard/RecentRequestsTable", () => {
+  it("renders an outer border around the list", () => {
+    render(
+      <I18nProvider>
+        <RecentRequestsTable items={[]} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByTestId("recent-requests-table")).toHaveClass(
+      "rounded-md",
+      "border",
+      "border-border/60",
+    );
+  });
+
   beforeAll(() => {
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,
@@ -291,23 +305,39 @@ describe("dashboard/RecentRequestsTable", () => {
     );
 
     const table = screen.getByTestId("recent-requests-table");
-    expect(table).toHaveClass("flex", "min-h-0", "flex-1", "overflow-hidden");
+    expect(table).toHaveClass(
+      "flex",
+      "h-fit",
+      "min-h-0",
+      "max-h-full",
+      "overflow-hidden",
+    );
+    expect(table).not.toHaveClass("h-full", "flex-1");
 
     const scrollArea = table.querySelector(
       '[data-slot="recent-requests-table-scroll-area"]',
     );
-    expect(scrollArea).toHaveClass("min-h-0", "flex-1", "overflow-auto");
+    expect(scrollArea).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "overflow-x-hidden",
+      "overflow-y-auto",
+      "overscroll-none",
+    );
+    expect(scrollArea).not.toHaveClass("overflow-x-auto", "overflow-auto");
 
     const widthTrack = table.querySelector(
       '[data-slot="recent-requests-table-width-track"]',
     ) as HTMLElement | null;
-    expect(widthTrack?.style.minWidth).toBe("817px");
+    expect(widthTrack?.style.minWidth).toBe("");
     expect(widthTrack?.parentElement).toBe(scrollArea);
 
     const header = table.querySelector(
       '[data-slot="recent-requests-table-header"]',
     );
     expect(header).toHaveClass("sticky", "top-0", "z-10");
+    expect(header).toHaveClass("bg-background/40");
+    expect(header).not.toHaveClass("bg-background");
     expect(header?.className).toContain("10fr_8fr_15fr_10fr_18fr");
 
     const rowsLayer = table.querySelector(

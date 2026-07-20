@@ -70,8 +70,8 @@ type UpstreamsTableHeaderProps = {
 
 function UpstreamsTableHeader({ columns }: UpstreamsTableHeaderProps) {
   return (
-    <thead>
-      <tr className="border-b border-border/60">
+    <thead className="sticky top-0 z-10">
+      <tr className="border-b border-border/60 bg-background/40">
         {columns.map((column) => (
           <th
             key={column.id}
@@ -85,7 +85,7 @@ function UpstreamsTableHeader({ columns }: UpstreamsTableHeaderProps) {
             {column.label()}
           </th>
         ))}
-        <th className="sticky right-0 z-20 w-[16%] min-w-[8rem] bg-background px-3 py-2 text-right text-[12px] font-medium text-muted-foreground">
+        <th className="w-[20%] min-w-[10rem] px-3 py-2 text-left text-[12px] font-medium text-muted-foreground">
           {m.common_actions()}
         </th>
       </tr>
@@ -183,8 +183,8 @@ function UpstreamRowActions({
   onDelete,
 }: UpstreamRowActionsProps) {
   return (
-    <td className="sticky right-0 z-10 w-[16%] min-w-[8rem] bg-background px-3 py-2 align-top group-hover:bg-muted/50">
-      <div className="flex justify-end gap-0.5">
+    <td className="w-[20%] min-w-[10rem] px-3 py-2 align-top">
+      <div className="flex justify-start gap-0.5">
         <Button
           type="button"
           variant="ghost"
@@ -356,7 +356,7 @@ export function UpstreamsTable({
   const sortedUpstreams = sortUpstreamsByPriority(upstreams);
   return (
     <TooltipProvider>
-      <div className="overflow-x-auto">
+      <div className="min-h-0 max-h-full overflow-x-hidden overflow-y-auto overscroll-none rounded-md border border-border/60">
         <table className="w-full table-fixed border-collapse text-[13px]">
           <UpstreamsTableHeader columns={columns} />
           <tbody>

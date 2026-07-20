@@ -4,7 +4,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -436,12 +435,10 @@ describe("logs/LogsPanel", () => {
       );
     });
 
-    const upstreamFilter = screen.getByRole("group", {
+    await user.click(screen.getByRole("combobox", {
       name: m.dashboard_upstream_label(),
-    });
-    await user.click(
-      within(upstreamFilter).getByRole("radio", { name: "alpha" }),
-    );
+    }));
+    await user.click(await screen.findByRole("option", { name: "alpha" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("logs-items")).toHaveTextContent("alpha");
@@ -455,12 +452,10 @@ describe("logs/LogsPanel", () => {
       model: null,
     });
 
-    const modelFilter = screen.getByRole("group", {
+    await user.click(screen.getByRole("combobox", {
       name: m.dashboard_model_label(),
-    });
-    await user.click(
-      within(modelFilter).getByRole("radio", { name: "gpt-5" }),
-    );
+    }));
+    await user.click(await screen.findByRole("option", { name: "gpt-5" }));
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
@@ -517,6 +512,7 @@ describe("logs/LogsPanel", () => {
     await waitFor(() => {
       expect(screen.getByTestId("logs-items")).toHaveTextContent("alpha");
     });
+    expect(screen.queryByText(m.logs_capture_title())).not.toBeInTheDocument();
     expect(screen.queryByText("Permanent")).not.toBeInTheDocument();
     expect(screen.queryByText("永久")).not.toBeInTheDocument();
 
