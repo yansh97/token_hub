@@ -15,7 +15,7 @@ use super::super::response::{
 use super::super::sse::SseEventParser;
 use super::super::token_rate::RequestTokenTracker;
 use super::super::usage::SseUsageCollector;
-use super::extract_tool_name_map_from_request_body;
+use super::{extract_tool_name_map_from_request_body, RestoredToolName};
 
 const CODEX_STREAM_INVALID_EVENT_LIMIT: usize = 1024;
 
@@ -48,7 +48,7 @@ struct CodexToChatState<S> {
     sent_done: bool,
     logged: bool,
     upstream_ended: bool,
-    tool_name_map: HashMap<String, String>,
+    tool_name_map: HashMap<String, RestoredToolName>,
     response_body_buf: String,
 }
 
@@ -257,7 +257,7 @@ where
         let restored = self
             .tool_name_map
             .get(name)
-            .map(String::as_str)
+            .map(|identity| identity.name.as_str())
             .unwrap_or(name);
         let arguments = item.get("arguments").and_then(Value::as_str).unwrap_or("");
         let id = item
@@ -382,7 +382,7 @@ struct CodexToResponsesState<S> {
     sent_done: bool,
     logged: bool,
     upstream_ended: bool,
-    tool_name_map: HashMap<String, String>,
+    tool_name_map: HashMap<String, RestoredToolName>,
     response_id: String,
     created: i64,
     model: String,
@@ -831,7 +831,10 @@ fn stream_responses_compatible_incomplete_sse(
     ))
 }
 
-fn restore_tool_names_in_event(value: &mut Value, tool_name_map: &HashMap<String, String>) {
+fn restore_tool_names_in_event(
+    value: &mut Value,
+    tool_name_map: &HashMap<String, RestoredToolName>,
+) {
     if tool_name_map.is_empty() {
         return;
     }
@@ -848,7 +851,7 @@ fn restore_tool_names_in_event(value: &mut Value, tool_name_map: &HashMap<String
 
 fn restore_tool_names_in_response(
     response: &mut Map<String, Value>,
-    tool_name_map: &HashMap<String, String>,
+    tool_name_map: &HashMap<String, RestoredToolName>,
 ) {
     let Some(output) = response.get_mut("output").and_then(Value::as_array_mut) else {
         return;
@@ -863,7 +866,7 @@ fn restore_tool_names_in_response(
 
 fn restore_tool_names_in_item(
     item: &mut Map<String, Value>,
-    tool_name_map: &HashMap<String, String>,
+    tool_name_map: &HashMap<String, RestoredToolName>,
 ) {
     if item.get("type").and_then(Value::as_str) != Some("function_call") {
         return;
@@ -874,7 +877,10 @@ fn restore_tool_names_in_item(
     let Some(restored) = tool_name_map.get(name) else {
         return;
     };
-    item.insert("name".to_string(), Value::String(restored.clone()));
+    item.insert("name".to_string(), Value::String(restored.name.clone()));
+    if let Some(namespace) = restored.namespace.as_ref() {
+        item.insert("namespace".to_string(), Value::String(namespace.clone()));
+    }
 }
 
 fn extract_output_token_delta(value: &Value) -> Option<&str> {

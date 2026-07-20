@@ -9,6 +9,7 @@ use super::{request::split_path_query, AttemptOutcome};
 const OPENAI_CHAT_PATH: &str = "/v1/chat/completions";
 const OPENAI_RESPONSES_PATH: &str = "/v1/responses";
 const ANTHROPIC_COUNT_TOKENS_PATH: &str = "/v1/messages/count_tokens";
+const ANTHROPIC_MESSAGES_PATH: &str = "/v1/messages";
 const REQUEST_MODEL_MAPPING_LIMIT_BYTES: usize = 4 * 1024 * 1024;
 const REQUEST_REASONING_LIMIT_BYTES: usize = 100 * 1024 * 1024;
 const REQUEST_FILTER_LIMIT_BYTES: usize = 20 * 1024 * 1024;
@@ -90,6 +91,7 @@ async fn build_json_transformed_body(
 
     let mut changed = false;
     let body_len = bytes.len();
+    changed |= normalize_anthropic_model(provider, upstream_path, object, meta, body_len);
     changed |= rewrite_model_mapping(object, meta, body_len);
     changed |= apply_reasoning_effort(provider, upstream_path, object, meta, body_len);
     changed |= filter_openai_responses_fields(provider, upstream, upstream_path, object, body_len);
@@ -122,6 +124,9 @@ fn json_transform_read_limit(
     if meta.model_override().is_some() && meta.mapped_model.is_some() {
         limit = limit.max(REQUEST_MODEL_MAPPING_LIMIT_BYTES);
     }
+    if should_normalize_anthropic_model(provider, upstream_path, meta) {
+        limit = limit.max(REQUEST_MODEL_MAPPING_LIMIT_BYTES);
+    }
     if should_apply_reasoning_effort(provider, upstream_path, meta) {
         limit = limit.max(REQUEST_REASONING_LIMIT_BYTES);
     }
@@ -151,12 +156,62 @@ fn needs_json_transform(
     codex_openai_device_id: Option<&str>,
 ) -> bool {
     (meta.model_override().is_some() && meta.mapped_model.is_some())
+        || should_normalize_anthropic_model(provider, upstream_path, meta)
         || should_apply_reasoning_effort(provider, upstream_path, meta)
         || should_filter_openai_responses_fields(provider, upstream, upstream_path)
         || should_strip_openai_responses_sampling_params(provider, upstream_path, meta)
         || should_rewrite_developer_roles(upstream, upstream_path)
         || should_filter_anthropic_count_tokens_request(provider, upstream_path)
         || should_inject_codex_installation_id(provider, codex_openai_device_id)
+}
+
+fn should_normalize_anthropic_model(
+    provider: &str,
+    upstream_path: &str,
+    meta: &RequestMeta,
+) -> bool {
+    provider == "anthropic"
+        && (upstream_path == ANTHROPIC_MESSAGES_PATH
+            || upstream_path.starts_with(&format!("{ANTHROPIC_MESSAGES_PATH}/")))
+        && meta.mapped_model.is_none()
+        && meta.original_model.is_some()
+}
+
+fn normalize_anthropic_model(
+    provider: &str,
+    upstream_path: &str,
+    object: &mut Map<String, Value>,
+    meta: &RequestMeta,
+    body_len: usize,
+) -> bool {
+    if body_len > REQUEST_MODEL_MAPPING_LIMIT_BYTES
+        || !should_normalize_anthropic_model(provider, upstream_path, meta)
+    {
+        return false;
+    }
+    let Some(normalized_model) = meta.original_model.as_deref() else {
+        return false;
+    };
+    let Some(body_model) = object
+        .get("model")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
+        return false;
+    };
+    if body_model == normalized_model {
+        return false;
+    }
+    object.insert(
+        "model".to_string(),
+        Value::String(normalized_model.to_string()),
+    );
+    tracing::debug!(
+        body_model,
+        normalized_model,
+        "normalized Anthropic upstream model"
+    );
+    true
 }
 
 fn rewrite_model_mapping(

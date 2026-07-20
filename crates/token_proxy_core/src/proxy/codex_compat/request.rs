@@ -1,8 +1,13 @@
 use axum::body::Bytes;
 use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use sha2::{Digest, Sha256};
+use std::{borrow::Cow, collections::HashMap};
 
-use super::tool_names::ToolNameMap;
+use super::{
+    namespace::{collect_tool_identities, flatten_responses_namespaces},
+    tool_names::ToolNameMap,
+    RestoredToolName,
+};
 use crate::proxy::codex_tool_types::is_codex_tool_call_output_item_type;
 
 const CODEX_DEFAULT_INSTRUCTIONS: &str = "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.";
@@ -10,17 +15,66 @@ const GPT5_1_DEFAULT_INSTRUCTIONS: &str =
     "You are GPT-5.1 running in the Codex CLI, a terminal-based coding assistant.";
 const GPT5_2_DEFAULT_INSTRUCTIONS: &str =
     "You are GPT-5.2 running in the Codex CLI, a terminal-based coding assistant.";
+const CODEX_CALL_ID_MAX_BYTES: usize = 64;
+const CODEX_CALL_ID_PREFIX: &str = "fc_";
 
-pub(crate) fn extract_tool_name_map(body: &Bytes) -> Option<HashMap<String, String>> {
+fn normalize_codex_call_id(id: &str) -> String {
+    let candidate = match id {
+        "" => return String::new(),
+        value if value.starts_with("fc") => Cow::Borrowed(value),
+        value if value.starts_with("call_") => {
+            Cow::Owned(format!("{CODEX_CALL_ID_PREFIX}{}", &value["call_".len()..]))
+        }
+        value => Cow::Owned(format!("{CODEX_CALL_ID_PREFIX}{value}")),
+    };
+    if candidate.len() <= CODEX_CALL_ID_MAX_BYTES {
+        return id.to_string();
+    }
+
+    // 同一 canonical ID 生成相同摘要，使 call 与 output 在压缩后仍能配对。
+    let mut hasher = Sha256::new();
+    hasher.update(b"token-proxy:codex-call-id:v1:");
+    hasher.update(candidate.as_bytes());
+    let digest = format!("{:x}", hasher.finalize());
+    let suffix_bytes = CODEX_CALL_ID_MAX_BYTES - CODEX_CALL_ID_PREFIX.len();
+    let normalized = format!("{CODEX_CALL_ID_PREFIX}{}", &digest[..suffix_bytes]);
+    tracing::debug!(
+        original_bytes = id.len(),
+        normalized_bytes = normalized.len(),
+        "compacted overlong Codex call_id"
+    );
+    normalized
+}
+
+fn normalize_codex_call_id_field(object: &mut Map<String, Value>) {
+    let Some(call_id) = object.get("call_id").and_then(Value::as_str) else {
+        return;
+    };
+    let normalized = normalize_codex_call_id(call_id);
+    if normalized != call_id {
+        object.insert("call_id".to_string(), Value::String(normalized));
+    }
+}
+
+pub(crate) fn extract_tool_name_map(body: &Bytes) -> Option<HashMap<String, RestoredToolName>> {
     let value: Value = serde_json::from_slice(body).ok()?;
     let object = value.as_object()?;
     let tools = object.get("tools")?;
-    let names = collect_function_tool_names(tools);
-    if names.is_empty() {
+    let identities = collect_tool_identities(tools);
+    if identities.is_empty() {
         return None;
     }
+    let names = identities
+        .iter()
+        .map(|(flat_name, _)| flat_name.clone())
+        .collect::<Vec<_>>();
     let map = ToolNameMap::from_names(&names);
-    Some(map.original_by_short)
+    Some(
+        identities
+            .into_iter()
+            .map(|(flat_name, identity)| (map.shorten(&flat_name), identity))
+            .collect(),
+    )
 }
 
 #[cfg(test)]
@@ -142,6 +196,7 @@ fn transform_responses_request_to_codex(
         strip_reasoning_include,
         prompt_cache_key,
     );
+    flatten_responses_namespaces(&mut object)?;
     let model = object
         .get("model")
         .and_then(Value::as_str)
@@ -291,6 +346,7 @@ fn map_chat_messages_to_input(messages: &[Value], tool_map: &ToolNameMap) -> Vec
 
 fn map_tool_message(message: &Value) -> Option<Value> {
     let call_id = message.get("tool_call_id").and_then(Value::as_str)?;
+    let call_id = normalize_codex_call_id(call_id);
     let empty = Value::String(String::new());
     let content = message.get("content").unwrap_or(&empty);
     Some(json!({
@@ -359,7 +415,8 @@ fn map_tool_calls(message: &Value, tool_map: &ToolNameMap, input: &mut Vec<Value
         if call.get("type").and_then(Value::as_str) != Some("function") {
             continue;
         }
-        let call_id = call.get("id").and_then(Value::as_str).unwrap_or_default();
+        let call_id =
+            normalize_codex_call_id(call.get("id").and_then(Value::as_str).unwrap_or_default());
         let name = call
             .get("function")
             .and_then(|value| value.get("name"))
@@ -730,6 +787,7 @@ fn reject_codex_spark_non_text_features(
     }
     if value_contains_image_generation_tool(object.get("tools"))
         || input_contains_additional_image_generation_tool(object.get("input"))
+        || tool_choice_selects_image_generation(object.get("tool_choice"))
     {
         return Err(
             "gpt-5.3-codex-spark is text-only and does not support image generation tools."
@@ -768,16 +826,59 @@ fn value_contains_image_generation_tool(value: Option<&Value>) -> bool {
             .any(|item| value_contains_image_generation_tool(Some(item))),
         Value::Object(object) => {
             let item_type = object.get("type").and_then(Value::as_str);
-            matches!(item_type, Some("image_generation" | "image_generation_call"))
-                // Codex /image 以 namespace 声明图片工具，不使用标准 image_generation 类型。
-                || (item_type == Some("namespace")
-                    && object.get("name").and_then(Value::as_str) == Some("image_gen"))
-                || object
+            matches!(
+                item_type,
+                Some("image_generation" | "image_generation_call")
+            ) || object
                 .values()
                 .any(|item| value_contains_image_generation_tool(Some(item)))
         }
         _ => false,
     }
+}
+
+fn tool_choice_selects_image_generation(choice: Option<&Value>) -> bool {
+    let Some(choice) = choice else {
+        return false;
+    };
+    if choice
+        .as_str()
+        .is_some_and(|value| matches!(value, "image_generation" | "image_generation_call"))
+    {
+        return true;
+    }
+    let Some(object) = choice.as_object() else {
+        return false;
+    };
+    let choice_type = object.get("type").and_then(Value::as_str);
+    if matches!(
+        choice_type,
+        Some("image_generation" | "image_generation_call")
+    ) {
+        return true;
+    }
+    if choice_type == Some("namespace")
+        && matches!(
+            object
+                .get("name")
+                .or_else(|| object.get("namespace"))
+                .and_then(Value::as_str),
+            Some("image_gen")
+        )
+    {
+        return true;
+    }
+    object
+        .get("tool")
+        .is_some_and(|tool| tool_choice_selects_image_generation(Some(tool)))
+        || object
+            .get("function")
+            .is_some_and(|function| tool_choice_selects_image_generation(Some(function)))
+        || (object.get("namespace").and_then(Value::as_str) == Some("image_gen")
+            && matches!(
+                object.get("name").and_then(Value::as_str),
+                Some("imagegen" | "image_gen.imagegen" | "image_gen__imagegen")
+            ))
 }
 
 fn input_contains_additional_image_generation_tool(input: Option<&Value>) -> bool {
@@ -1021,12 +1122,14 @@ fn sanitize_responses_input_item_for_codex(item: &Value) -> Value {
         {
             sanitized.remove("id");
         }
+        normalize_codex_call_id_field(&mut sanitized);
         return Value::Object(sanitized);
     }
     if !is_codex_tool_call_output_item_type(item_type) {
         return item.clone();
     }
     let mut sanitized = object.clone();
+    normalize_codex_call_id_field(&mut sanitized);
     // Claude -> Responses may carry structured tool output in `output_parts`.
     // Codex only needs the flattened `output` string here; forwarding the extra field
     // breaks composition without adding value.
@@ -1041,14 +1144,14 @@ fn map_responses_tool_role_message(object: &Map<String, Value>) -> Value {
         .or_else(|| object.get("tool_call_id").and_then(Value::as_str))
         .or_else(|| object.get("id").and_then(Value::as_str))
         .unwrap_or_default()
-        .trim()
-        .to_string();
+        .trim();
     if call_id.is_empty() {
         let mut fallback = object.clone();
         fallback.insert("role".to_string(), Value::String("user".to_string()));
         fallback.remove("tool_call_id");
         return Value::Object(fallback);
     }
+    let call_id = normalize_codex_call_id(call_id);
 
     let output = extract_text_from_content(object.get("content"))
         .or_else(|| object.get("output").map(value_to_string))

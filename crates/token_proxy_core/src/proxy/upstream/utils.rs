@@ -131,6 +131,7 @@ pub(super) fn is_retryable_status(status: StatusCode) -> bool {
             | StatusCode::FORBIDDEN
             | StatusCode::NOT_FOUND
             | StatusCode::REQUEST_TIMEOUT
+            | StatusCode::PAYLOAD_TOO_LARGE
             | StatusCode::UNPROCESSABLE_ENTITY
             | StatusCode::TOO_MANY_REQUESTS
             | StatusCode::TEMPORARY_REDIRECT

@@ -97,6 +97,15 @@ pub(crate) async fn parse_request_meta_best_effort(
         .and_then(Value::as_str)
         .map(|value| value.to_string())
         .or(model_from_path);
+    if is_anthropic_path(path) {
+        if let Some(model) = original_model.as_deref() {
+            let normalized = normalize_anthropic_one_meg_model_suffix(model);
+            if normalized != model {
+                tracing::debug!(model, normalized, "normalized Anthropic [1m] model suffix");
+                original_model = Some(normalized);
+            }
+        }
+    }
 
     // KISS: only support the explicit `-reasoning-<effort>` suffix to avoid ambiguity.
     // This mirrors new-api behavior: strip the suffix from `model` and translate it into
@@ -126,6 +135,17 @@ pub(crate) async fn parse_request_meta_best_effort(
         response_format,
         estimated_input_tokens,
     }
+}
+
+fn normalize_anthropic_one_meg_model_suffix(model: &str) -> String {
+    let mut normalized = model.trim();
+    while normalized
+        .get(normalized.len().saturating_sub(4)..)
+        .is_some_and(|suffix| suffix.eq_ignore_ascii_case("[1m]"))
+    {
+        normalized = normalized[..normalized.len() - 4].trim_end();
+    }
+    normalized.to_string()
 }
 
 pub(crate) fn parse_openai_reasoning_effort_from_model_suffix(

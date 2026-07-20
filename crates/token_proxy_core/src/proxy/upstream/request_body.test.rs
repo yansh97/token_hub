@@ -30,6 +30,46 @@ fn test_upstream(
 }
 
 #[tokio::test]
+async fn normalizes_anthropic_one_meg_model_suffix_in_upstream_body() {
+    let upstream = test_upstream(false, false, false);
+    let meta = RequestMeta {
+        client_ip: None,
+        stream: false,
+        original_model: Some("claude-opus-4-6".to_string()),
+        mapped_model: None,
+        reasoning_effort: None,
+        response_format: None,
+        estimated_input_tokens: None,
+    };
+    let body = ReplayableBody::from_bytes(Bytes::from_static(
+        br#"{"model":"claude-opus-4-6[1M][1m]","messages":[]}"#,
+    ));
+
+    let rewritten = match build_json_transformed_body(
+        "anthropic",
+        &upstream,
+        "/v1/messages",
+        &body,
+        &meta,
+        None,
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(_) => panic!("rewrite result"),
+    }
+    .expect("should normalize model");
+    let bytes = rewritten
+        .read_bytes_if_small(1024)
+        .await
+        .expect("read")
+        .expect("bytes");
+    let value: Value = serde_json::from_slice(&bytes).expect("json");
+
+    assert_eq!(value["model"], "claude-opus-4-6");
+}
+
+#[tokio::test]
 async fn filters_prompt_cache_retention_for_openai_responses_upstream() {
     let upstream = test_upstream(true, false, false);
     let body = ReplayableBody::from_bytes(Bytes::from_static(

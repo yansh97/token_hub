@@ -969,6 +969,112 @@ fn responses_request_to_codex_uses_top_level_tool_name() {
 }
 
 #[test]
+fn responses_request_to_codex_flattens_namespace_declaration_history_and_choice() {
+    let input = json!({
+        "model": "gpt-5.5",
+        "input": [
+            { "type": "function_call", "call_id": "call_1", "name": "spawn_agent", "namespace": "collaboration", "arguments": "{}" },
+            { "type": "message", "role": "user", "content": "hi", "name": "spawn_agent", "namespace": "collaboration" }
+        ],
+        "tools": [
+            { "type": "function", "name": "plain", "description": "keep", "parameters": {} },
+            {
+                "type": "namespace",
+                "name": "collaboration",
+                "tools": [
+                    { "type": "function", "name": "spawn_agent", "description": "spawn", "parameters": { "type": "object" } }
+                ]
+            },
+            {
+                "type": "namespace",
+                "name": "image_gen",
+                "tools": [{ "type": "function", "name": "imagegen" }]
+            }
+        ],
+        "tool_choice": { "type": "function", "name": "spawn_agent", "namespace": "collaboration" }
+    });
+
+    let output = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("convert namespace request");
+    let value: Value = serde_json::from_slice(&output).expect("json");
+    let tools = value["tools"].as_array().expect("tools");
+
+    assert_eq!(tools.len(), 3);
+    assert_eq!(tools[0]["name"], "plain");
+    assert_eq!(tools[1]["type"], "function");
+    assert_eq!(tools[1]["name"], "collaboration__spawn_agent");
+    assert_eq!(tools[1]["description"], "spawn");
+    assert_eq!(tools[2]["type"], "namespace");
+    assert_eq!(tools[2]["name"], "image_gen");
+    assert_eq!(value["tool_choice"]["name"], "collaboration__spawn_agent");
+    assert!(value["tool_choice"].get("namespace").is_none());
+    assert_eq!(value["input"][0]["name"], "collaboration__spawn_agent");
+    assert!(value["input"][0].get("namespace").is_none());
+    assert_eq!(value["input"][1]["name"], "spawn_agent");
+    assert_eq!(value["input"][1]["namespace"], "collaboration");
+}
+
+#[test]
+fn responses_request_to_codex_rejects_namespace_flat_name_collisions() {
+    for tools in [
+        json!([
+            { "type": "function", "name": "collaboration__spawn_agent" },
+            { "type": "namespace", "name": "collaboration", "tools": [
+                { "type": "function", "name": "spawn_agent" }
+            ] }
+        ]),
+        json!([
+            { "type": "namespace", "name": "a", "tools": [
+                { "type": "function", "name": "b__c" }
+            ] },
+            { "type": "namespace", "name": "a__b", "tools": [
+                { "type": "function", "name": "c" }
+            ] }
+        ]),
+    ] {
+        let input = json!({ "model": "gpt-5.5", "input": "hi", "tools": tools });
+        let error = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+            .expect_err("ambiguous namespace tools must be rejected");
+
+        assert!(error.contains("conflict"), "error: {error}");
+    }
+}
+
+#[test]
+fn codex_response_to_responses_restores_namespace_function_calls_only() {
+    let request_body = json!({
+        "tools": [{
+            "type": "namespace",
+            "name": "collaboration",
+            "tools": [{ "type": "function", "name": "spawn_agent" }]
+        }]
+    })
+    .to_string();
+    let response = json!({
+        "type": "response.completed",
+        "response": {
+            "id": "resp_namespace",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                { "type": "function_call", "call_id": "call_1", "name": "collaboration__spawn_agent", "arguments": "{}" },
+                { "type": "message", "name": "collaboration__spawn_agent", "content": [] }
+            ]
+        }
+    });
+
+    let output =
+        codex_response_to_responses(&Bytes::from(response.to_string()), Some(&request_body))
+            .expect("convert response");
+    let value: Value = serde_json::from_slice(&output).expect("json");
+
+    assert_eq!(value["output"][0]["name"], "spawn_agent");
+    assert_eq!(value["output"][0]["namespace"], "collaboration");
+    assert_eq!(value["output"][1]["name"], "collaboration__spawn_agent");
+    assert!(value["output"][1].get("namespace").is_none());
+}
+
+#[test]
 fn responses_request_to_codex_strips_prompt_cache_retention() {
     let input = json!({
         "model": "gpt-5",
@@ -1159,6 +1265,66 @@ fn responses_request_to_codex_strips_invalid_call_input_ids_only() {
 }
 
 #[test]
+fn responses_request_to_codex_bounds_long_call_ids_and_preserves_pairing() {
+    let suffix = "z".repeat(62);
+    let input = json!({
+        "model": "gpt-5.5",
+        "input": [
+            { "type": "function_call", "call_id": format!("call_{suffix}"), "name": "lookup", "arguments": "{}" },
+            { "type": "function_call_output", "call_id": format!("fc_{suffix}"), "output": "done" }
+        ]
+    });
+
+    let output = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("convert responses request");
+    let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
+    let input_items = value["input"].as_array().expect("input array");
+    let call_id = input_items[0]["call_id"].as_str().expect("call id");
+
+    assert!(call_id.starts_with("fc_"));
+    assert_eq!(call_id.len(), 64);
+    assert_eq!(input_items[1]["call_id"], call_id);
+}
+
+#[test]
+fn chat_request_to_codex_bounds_long_call_ids_and_preserves_pairing() {
+    let call_id = format!("call_{}", "x".repeat(62));
+    let input = json!({
+        "model": "gpt-5.5",
+        "messages": [
+            {
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "id": call_id,
+                    "type": "function",
+                    "function": { "name": "lookup", "arguments": "{}" }
+                }]
+            },
+            { "role": "tool", "tool_call_id": call_id, "content": "done" }
+        ]
+    });
+
+    let output =
+        chat_request_to_codex(&Bytes::from(input.to_string()), None).expect("convert chat request");
+    let value: serde_json::Value = serde_json::from_slice(&output).expect("json");
+    let input_items = value["input"].as_array().expect("input array");
+    let function_call = input_items
+        .iter()
+        .find(|item| item["type"] == "function_call")
+        .expect("function call");
+    let function_output = input_items
+        .iter()
+        .find(|item| item["type"] == "function_call_output")
+        .expect("function output");
+    let call_id = function_call["call_id"].as_str().expect("call id");
+
+    assert!(call_id.starts_with("fc_"));
+    assert_eq!(call_id.len(), 64);
+    assert_eq!(function_output["call_id"], call_id);
+}
+
+#[test]
 fn responses_request_to_codex_preserves_name_less_tool_call_context_items() {
     let input = json!({
         "model": "gpt-5",
@@ -1216,7 +1382,7 @@ fn responses_request_to_codex_rejects_spark_image_generation_tool() {
 }
 
 #[test]
-fn responses_request_to_codex_rejects_spark_namespace_image_generation_tool() {
+fn responses_request_to_codex_allows_passive_spark_image_generation_namespace() {
     let input = json!({
         "model": "gpt-5.3-codex-spark",
         "input": "draw icon",
@@ -1225,15 +1391,12 @@ fn responses_request_to_codex_rejects_spark_namespace_image_generation_tool() {
         ]
     });
 
-    let error = responses_request_to_codex(&Bytes::from(input.to_string()), None)
-        .expect_err("should reject namespace image generation");
-
-    assert!(error.contains("gpt-5.3-codex-spark"), "error: {error}");
-    assert!(error.contains("text-only"), "error: {error}");
+    responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("passive namespace declaration is not image generation intent");
 }
 
 #[test]
-fn responses_request_to_codex_rejects_spark_additional_image_generation_tool() {
+fn responses_request_to_codex_allows_passive_spark_additional_image_generation_namespace() {
     let input = json!({
         "model": "gpt-5.3-codex-spark",
         "input": [
@@ -1251,8 +1414,21 @@ fn responses_request_to_codex_rejects_spark_additional_image_generation_tool() {
         ]
     });
 
+    responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("passive additional_tools declaration is not image generation intent");
+}
+
+#[test]
+fn responses_request_to_codex_rejects_spark_explicit_image_namespace_choice() {
+    let input = json!({
+        "model": "gpt-5.3-codex-spark",
+        "input": "draw icon",
+        "tools": [{ "type": "namespace", "name": "image_gen" }],
+        "tool_choice": { "type": "namespace", "name": "image_gen" }
+    });
+
     let error = responses_request_to_codex(&Bytes::from(input.to_string()), None)
-        .expect_err("should reject additional image generation tool");
+        .expect_err("explicit image namespace choice must be rejected");
 
     assert!(error.contains("gpt-5.3-codex-spark"), "error: {error}");
     assert!(error.contains("text-only"), "error: {error}");

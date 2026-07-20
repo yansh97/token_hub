@@ -93,6 +93,20 @@ fn meta_parses_reasoning_suffix_and_strips_model() {
 }
 
 #[test]
+fn anthropic_meta_strips_repeated_case_insensitive_one_meg_suffixes() {
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    rt.block_on(async {
+        let body = ReplayableBody::from_bytes(Bytes::from_static(
+            br#"{"model":"claude-opus-4-6[1M][1m]","messages":[]}"#,
+        ));
+
+        let meta = parse_request_meta_best_effort(ANTHROPIC_MESSAGES_PREFIX, &body).await;
+
+        assert_eq!(meta.original_model.as_deref(), Some("claude-opus-4-6"));
+    });
+}
+
+#[test]
 fn apply_reasoning_suffix_for_chat_sets_reasoning_effort_and_model() {
     let rt = tokio::runtime::Runtime::new().expect("runtime");
     rt.block_on(async {

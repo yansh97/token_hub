@@ -12,6 +12,10 @@ impl ReplayableBody {
         Self { bytes }
     }
 
+    pub(crate) fn as_bytes(&self) -> &Bytes {
+        &self.bytes
+    }
+
     pub(crate) async fn from_body(body: Body) -> Result<Self, std::io::Error> {
         let mut stream = body.into_data_stream();
         let mut buffer: Vec<u8> = Vec::new();

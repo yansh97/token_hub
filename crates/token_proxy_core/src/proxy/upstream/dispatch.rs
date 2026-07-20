@@ -14,7 +14,10 @@ use super::super::{
     request_detail::RequestDetailSnapshot,
     ProxyState, RequestMeta,
 };
-use super::{attempt, requested_target_upstream_id, utils::resolve_group_start, AttemptOutcome};
+use super::{
+    attempt, requested_target_upstream_id, utils::resolve_group_start, AttemptOutcome,
+    RetryDirective, RetryScope,
+};
 
 pub(super) struct GroupAttemptResult {
     pub(super) response: Option<Response>,
@@ -23,6 +26,7 @@ pub(super) struct GroupAttemptResult {
     pub(super) last_timeout_error: Option<String>,
     pub(super) last_retry_error: Option<String>,
     pub(super) last_retry_response: Option<Response>,
+    pub(super) effective_body: Option<ReplayableBody>,
     /// 首响应头前 transport 诊断；仅在最终失败时落库。
     pub(super) last_deferred_log: Option<DeferredTransportLog>,
 }
@@ -36,6 +40,7 @@ impl GroupAttemptResult {
             last_timeout_error: None,
             last_retry_error: None,
             last_retry_response: None,
+            effective_body: None,
             last_deferred_log: None,
         }
     }
@@ -48,6 +53,7 @@ pub(super) struct ForwardAttemptState {
     pub(super) last_timeout_error: Option<String>,
     pub(super) last_retry_error: Option<String>,
     pub(super) last_retry_response: Option<Response>,
+    pub(super) effective_body: Option<ReplayableBody>,
     pub(super) last_deferred_log: Option<DeferredTransportLog>,
 }
 
@@ -60,6 +66,7 @@ impl ForwardAttemptState {
             last_timeout_error: None,
             last_retry_error: None,
             last_retry_response: None,
+            effective_body: None,
             last_deferred_log: None,
         }
     }
@@ -127,6 +134,19 @@ impl GroupDispatchPlan {
 }
 
 fn apply_attempt_outcome(result: &mut GroupAttemptResult, outcome: AttemptOutcome) -> bool {
+    if let AttemptOutcome::Retryable {
+        response: Some(response),
+        ..
+    } = &outcome
+    {
+        if let Some(body) = response
+            .extensions()
+            .get::<RetryDirective>()
+            .and_then(|directive| directive.effective_body.clone())
+        {
+            result.effective_body = Some(body);
+        }
+    }
     match outcome {
         AttemptOutcome::Success(response) | AttemptOutcome::Fatal(response) => {
             // 成功或 Fatal 已自带终态日志路径；丢弃中间 deferred。
@@ -181,6 +201,9 @@ fn merge_group_result(state: &mut ForwardAttemptState, result: GroupAttemptResul
     if let Some(response) = result.last_retry_response {
         state.last_retry_response = Some(response);
     }
+    if result.effective_body.is_some() {
+        state.effective_body = result.effective_body;
+    }
     if result.last_deferred_log.is_some() {
         state.last_deferred_log = result.last_deferred_log;
     }
@@ -220,6 +243,7 @@ pub(super) async fn run_upstream_groups(
                 continue;
             }
         }
+        let active_body = summary.effective_body.as_ref().unwrap_or(body);
         let result = try_group_upstreams(
             state,
             method.clone(),
@@ -230,7 +254,7 @@ pub(super) async fn run_upstream_groups(
             inbound_path,
             upstream_path_with_query,
             headers,
-            body,
+            active_body,
             meta,
             target_upstream_id.as_deref(),
             request_auth,
@@ -440,7 +464,7 @@ async fn dispatch_group_upstreams(
                 inbound_path,
                 upstream_path_with_query,
                 headers,
-                body,
+                result.effective_body.as_ref().unwrap_or(body),
                 meta,
                 request_auth,
                 client_gemini_api_key,
@@ -473,7 +497,7 @@ async fn dispatch_group_upstreams(
                         inbound_path,
                         upstream_path_with_query,
                         headers,
-                        body,
+                        result.effective_body.as_ref().unwrap_or(body),
                         meta,
                         request_auth,
                         client_gemini_api_key,
@@ -490,6 +514,10 @@ async fn dispatch_group_upstreams(
 
         if let Some((item_index, outcome)) = completed {
             let upstream = &items[item_index];
+            let retry_body = result
+                .effective_body
+                .clone()
+                .unwrap_or_else(|| body.clone());
             // 任意 Retryable：先在同一上游原地重试最多 N 次，再进入跨上游 failover。
             if apply_same_upstream_retries(
                 state,
@@ -499,7 +527,7 @@ async fn dispatch_group_upstreams(
                 inbound_path,
                 upstream_path_with_query,
                 headers,
-                body,
+                &retry_body,
                 meta,
                 request_auth,
                 client_gemini_api_key,
@@ -530,7 +558,7 @@ async fn dispatch_group_upstreams(
                     inbound_path,
                     upstream_path_with_query,
                     headers,
-                    body,
+                    result.effective_body.as_ref().unwrap_or(body),
                     meta,
                     request_auth,
                     client_gemini_api_key,
@@ -574,13 +602,30 @@ async fn apply_same_upstream_retries(
     max_retries: u32,
 ) -> bool {
     let mut current = initial;
+    let mut current_body = body.clone();
     let mut used = 0u32;
     loop {
+        let directive = match &current {
+            AttemptOutcome::Retryable {
+                response: Some(response),
+                ..
+            } => response.extensions().get::<RetryDirective>().cloned(),
+            _ => None,
+        };
+        if let Some(body) = directive
+            .as_ref()
+            .and_then(|directive| directive.effective_body.clone())
+        {
+            current_body = body;
+        }
         let is_retryable = matches!(current, AttemptOutcome::Retryable { .. });
+        let retry_same_upstream = directive.as_ref().is_none_or(|directive| {
+            directive.scope == RetryScope::SameThenNext
+        });
         if apply_group_attempt_outcome(state, provider, upstream, result, current, cooldown_scope) {
             return true;
         }
-        if !is_retryable || used >= max_retries {
+        if !is_retryable || !retry_same_upstream || used >= max_retries {
             return false;
         }
         used += 1;
@@ -612,7 +657,7 @@ async fn apply_same_upstream_retries(
             inbound_path,
             upstream_path_with_query,
             headers,
-            body,
+            &current_body,
             meta,
             request_auth,
             client_gemini_api_key,
@@ -650,7 +695,7 @@ fn launch_group_attempts<'a>(
     inbound_path: &'a str,
     upstream_path_with_query: &'a str,
     headers: &'a HeaderMap,
-    body: &'a ReplayableBody,
+    body: &ReplayableBody,
     meta: &'a RequestMeta,
     request_auth: &'a RequestAuth,
     client_gemini_api_key: Option<&'a str>,
@@ -694,7 +739,7 @@ fn enqueue_group_attempt<'a>(
     inbound_path: &'a str,
     upstream_path_with_query: &'a str,
     headers: &'a HeaderMap,
-    body: &'a ReplayableBody,
+    body: &ReplayableBody,
     meta: &'a RequestMeta,
     request_auth: &'a RequestAuth,
     client_gemini_api_key: Option<&'a str>,
@@ -705,6 +750,7 @@ fn enqueue_group_attempt<'a>(
     let upstream = &items[item_index];
     let method = method.clone();
     let request_detail = request_detail.clone();
+    let body = body.clone();
     in_flight.push(Box::pin(async move {
         let outcome = attempt::attempt_upstream(
             state,
@@ -714,7 +760,7 @@ fn enqueue_group_attempt<'a>(
             inbound_path,
             upstream_path_with_query,
             headers,
-            body,
+            &body,
             meta,
             request_auth,
             client_gemini_api_key,

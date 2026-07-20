@@ -17,6 +17,7 @@ mod kiro_result;
 mod prepare;
 mod request;
 mod request_body;
+mod request_repair;
 mod result;
 mod retry;
 mod transport;
@@ -140,6 +141,18 @@ enum AttemptOutcome {
     },
     Fatal(Response),
     SkippedAuth,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RetryScope {
+    SameThenNext,
+    NextOnly,
+}
+
+#[derive(Clone)]
+struct RetryDirective {
+    scope: RetryScope,
+    effective_body: Option<crate::proxy::request_body::ReplayableBody>,
 }
 
 pub(super) struct PreparedUpstreamRequest {
