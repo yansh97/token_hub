@@ -1,6 +1,6 @@
 # 设计：原地重试次数可配置
 
-状态：关键决策已确认（待最终审核后实现）  
+状态：已实现；2026-07-20 补充请求修复与 retry scope
 日期：2026-07-15
 
 ## 1. 问题
@@ -258,6 +258,24 @@ Client request
 ## 10. Open Questions
 
 已全部确认。冷却时机本版不改。
+
+## 11. Request Repair Retry 与 Retry Scope
+
+普通 Same-Upstream Retry 原样重放请求；Request Repair Retry 根据上游的精确 400 拒绝修改请求，两者必须分开计数：
+
+- `unknown_parameter` / `unsupported_parameter`：仅删除顶层 `max_output_tokens` 或指定 `input[n].namespace`，最多 6 次，SHA-256 去重。
+- xAI `invalid-argument` 且错误同时包含 `decrypt`、`encrypted_content`：仅删除 reasoning item 的 `encrypted_content`，最多 1 次。
+- 修复固定在同一 runtime upstream、账号/API key 和 prompt cache identity 上执行，不消耗 `same_upstream_retry_count`。
+- 修复后的 effective body 继续用于普通原地重试、同组 failover 和后续优先级组，不能回退原始 body。
+
+Retryable 响应携带内部 scope：
+
+| Scope | 行为 |
+| --- | --- |
+| `SameThenNext` | 先按 `same_upstream_retry_count` 原地重试，再 failover |
+| `NextOnly` | 跳过原地重试，直接 failover |
+
+HTTP 413 必须读取错误体：context-window 超限是终态；其它 413 视为节点请求体上限，使用 `NextOnly`，避免向同一节点原样空转。
 
 ## Key Decisions（已确认）
 

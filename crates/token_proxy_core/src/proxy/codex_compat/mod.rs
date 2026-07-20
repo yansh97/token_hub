@@ -1,11 +1,19 @@
 use axum::body::Bytes;
 use axum::http::HeaderMap;
+use std::collections::HashMap;
 
 mod headers;
+mod namespace;
 mod request;
 mod response;
 mod stream;
 mod tool_names;
+
+#[derive(Clone)]
+pub(super) struct RestoredToolName {
+    pub(super) name: String,
+    pub(super) namespace: Option<String>,
+}
 
 pub(crate) use headers::{apply_codex_headers, is_native_codex_request};
 #[cfg(test)]
@@ -25,9 +33,9 @@ pub(crate) use stream::{
 
 pub(crate) fn extract_tool_name_map_from_request_body(
     body: Option<&str>,
-) -> std::collections::HashMap<String, String> {
+) -> HashMap<String, RestoredToolName> {
     let Some(body) = body else {
-        return std::collections::HashMap::new();
+        return HashMap::new();
     };
     let bytes = Bytes::copy_from_slice(body.as_bytes());
     request::extract_tool_name_map(&bytes).unwrap_or_default()

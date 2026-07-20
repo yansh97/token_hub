@@ -6,26 +6,20 @@ const MCP_PREFIX: &str = "mcp__";
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ToolNameMap {
     pub(crate) short_by_original: HashMap<String, String>,
-    pub(crate) original_by_short: HashMap<String, String>,
 }
 
 impl ToolNameMap {
     pub(crate) fn from_names(names: &[String]) -> Self {
         let mut used = HashSet::new();
         let mut short_by_original = HashMap::new();
-        let mut original_by_short = HashMap::new();
 
         for name in names {
             let candidate = base_candidate(name);
             let short = make_unique(&candidate, &mut used);
             short_by_original.insert(name.clone(), short.clone());
-            original_by_short.insert(short, name.clone());
         }
 
-        Self {
-            short_by_original,
-            original_by_short,
-        }
+        Self { short_by_original }
     }
 
     pub(crate) fn shorten(&self, name: &str) -> String {

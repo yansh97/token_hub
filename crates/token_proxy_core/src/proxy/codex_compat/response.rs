@@ -3,7 +3,7 @@ use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::extract_tool_name_map_from_request_body;
+use super::{extract_tool_name_map_from_request_body, RestoredToolName};
 
 pub(crate) fn codex_response_to_chat(
     bytes: &Bytes,
@@ -120,7 +120,7 @@ fn response_text(bytes: &Bytes) -> String {
 
 fn build_chat_completion_value(
     response: &Map<String, Value>,
-    tool_name_map: &HashMap<String, String>,
+    tool_name_map: &HashMap<String, RestoredToolName>,
 ) -> Value {
     let (content_text, reasoning_text, tool_calls) =
         extract_response_output(response, tool_name_map);
@@ -185,7 +185,7 @@ fn build_chat_message(
 
 fn extract_response_output(
     response: &Map<String, Value>,
-    tool_name_map: &HashMap<String, String>,
+    tool_name_map: &HashMap<String, RestoredToolName>,
 ) -> (String, String, Vec<Value>) {
     let mut content_text = String::new();
     let mut reasoning_text = String::new();
@@ -288,12 +288,15 @@ fn extract_output_text(item: &Map<String, Value>) -> String {
 
 fn build_tool_call(
     item: &Map<String, Value>,
-    tool_name_map: &HashMap<String, String>,
+    tool_name_map: &HashMap<String, RestoredToolName>,
 ) -> Option<Value> {
     let call_id = item.get("call_id").and_then(Value::as_str).unwrap_or("");
     let name = item.get("name").and_then(Value::as_str).unwrap_or("");
     let arguments = item.get("arguments").and_then(Value::as_str).unwrap_or("");
-    let restored_name = tool_name_map.get(name).map(String::as_str).unwrap_or(name);
+    let restored_name = tool_name_map
+        .get(name)
+        .map(|identity| identity.name.as_str())
+        .unwrap_or(name);
 
     Some(json!({
         "id": call_id,
@@ -307,7 +310,7 @@ fn build_tool_call(
 
 fn restore_tool_names_in_response(
     response: &mut Map<String, Value>,
-    tool_name_map: &HashMap<String, String>,
+    tool_name_map: &HashMap<String, RestoredToolName>,
 ) {
     if tool_name_map.is_empty() {
         return;
@@ -328,7 +331,10 @@ fn restore_tool_names_in_response(
         let Some(restored) = tool_name_map.get(name) else {
             continue;
         };
-        item.insert("name".to_string(), Value::String(restored.clone()));
+        item.insert("name".to_string(), Value::String(restored.name.clone()));
+        if let Some(namespace) = restored.namespace.as_ref() {
+            item.insert("namespace".to_string(), Value::String(namespace.clone()));
+        }
     }
 }
 

@@ -2409,12 +2409,11 @@ async fn assert_disconnect_once_retries_same_upstream_before_fallback() {
     let (status, response_text) = send_scripted_replay_probe(state).await;
     // 成功恢复时不再写中间 502 行，只应有最终成功日志。
     let logged_count = wait_for_request_log_count(&pool, 1).await;
-    let failure_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM request_logs WHERE status = 502;",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("count transport failure logs");
+    let failure_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM request_logs WHERE status = 502;")
+            .fetch_one(&pool)
+            .await
+            .expect("count transport failure logs");
     let primary_connections = primary.connections();
     let primary_requests = primary.requests();
     let fallback_requests = fallback.requests();
@@ -2435,7 +2434,10 @@ async fn assert_disconnect_once_retries_same_upstream_before_fallback() {
     assert_wire_request_replayed(&primary_requests);
     assert!(fallback_requests.is_empty());
     assert_eq!(logged_count, 1);
-    assert_eq!(failure_count, 0, "recovered transport failure must not log intermediate 502");
+    assert_eq!(
+        failure_count, 0,
+        "recovered transport failure must not log intermediate 502"
+    );
 }
 
 async fn assert_disconnect_twice_falls_back_after_one_fresh_retry() {
@@ -2589,8 +2591,7 @@ async fn assert_codex_transport_disconnect_does_not_restart_account_chain(pinned
         Some("responses fallback after codex disconnect")
     );
     assert_eq!(
-        codex_connections,
-        2,
+        codex_connections, 2,
         "transport disconnect allows one same-upstream retry without expanding the account chain"
     );
     assert_eq!(fallback_requests.len(), 1);
@@ -3497,6 +3498,26 @@ async fn send_responses_request_with_headers(
     )
     .await;
 
+    let status = response.status();
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("proxy response bytes");
+    let json = serde_json::from_slice(&body).expect("proxy response json");
+    (status, json)
+}
+
+async fn send_responses_request_with_body(
+    state: ProxyStateHandle,
+    request_body: Value,
+) -> (StatusCode, Value) {
+    let response = proxy_request(
+        State(state),
+        Method::POST,
+        Uri::from_static(RESPONSES_PATH),
+        axum::http::HeaderMap::new(),
+        Body::from(request_body.to_string()),
+    )
+    .await;
     let status = response.status();
     let body = to_bytes(response.into_body(), usize::MAX)
         .await
@@ -8278,6 +8299,293 @@ fn responses_context_window_error_does_not_failover_same_request() {
             secondary_requests.is_empty(),
             "context-window semantic errors must not switch accounts"
         );
+    });
+}
+
+#[test]
+fn responses_rejected_field_repairs_same_upstream_without_generic_retry_budget() {
+    run_async(async {
+        let upstream = spawn_mock_raw_sequence_upstream(vec![
+            (
+                StatusCode::BAD_REQUEST,
+                Bytes::from_static(br#"{"error":{"code":"unsupported_parameter","message":"Unsupported parameter: max_output_tokens","param":"max_output_tokens"}}"#),
+                "application/json",
+            ),
+            (
+                StatusCode::OK,
+                Bytes::from_static(br#"{"id":"resp_repaired","object":"response","created_at":123,"model":"gpt-5","status":"completed","output":[]}"#),
+                "application/json",
+            ),
+        ])
+        .await;
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_RESPONSES,
+            10,
+            "responses-repair",
+            upstream.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        config.same_upstream_retry_count = 0;
+        let data_dir = next_test_data_dir("responses_rejected_field_repair");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, _) = send_responses_request_with_body(
+            state,
+            json!({
+                "model": "gpt-5",
+                "max_output_tokens": 2048,
+                "input": [{ "type": "message", "role": "user", "content": "hi" }]
+            }),
+        )
+        .await;
+        let requests = upstream.requests();
+
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].body["max_output_tokens"], 2048);
+        assert!(requests[1].body.get("max_output_tokens").is_none());
+    });
+}
+
+#[test]
+fn responses_repaired_body_survives_same_upstream_retry_and_failover() {
+    run_async(async {
+        let primary = spawn_mock_raw_sequence_upstream(vec![
+            (
+                StatusCode::BAD_REQUEST,
+                Bytes::from_static(br#"{"error":{"code":"unsupported_parameter","message":"Unsupported parameter: max_output_tokens","param":"max_output_tokens"}}"#),
+                "application/json",
+            ),
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Bytes::from_static(br#"{"error":{"message":"primary unavailable"}}"#),
+                "application/json",
+            ),
+        ])
+        .await;
+        let secondary = spawn_mock_upstream(
+            StatusCode::OK,
+            json!({
+                "id": "resp_repaired_failover",
+                "object": "response",
+                "created_at": 123,
+                "model": "gpt-5",
+                "status": "completed",
+                "output": []
+            }),
+        )
+        .await;
+        let mut config = config_with_runtime_upstreams(&[
+            (
+                PROVIDER_RESPONSES,
+                10,
+                "repair-primary",
+                primary.base_url.as_str(),
+                FORMATS_RESPONSES,
+            ),
+            (
+                PROVIDER_RESPONSES,
+                10,
+                "repair-secondary",
+                secondary.base_url.as_str(),
+                FORMATS_RESPONSES,
+            ),
+        ]);
+        config.upstream_strategy = UpstreamStrategyRuntime {
+            order: UpstreamOrderStrategy::FillFirst,
+            dispatch: UpstreamDispatchRuntime::Serial,
+        };
+        config.same_upstream_retry_count = 1;
+        let data_dir = next_test_data_dir("responses_repaired_body_failover");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, _) = send_responses_request_with_body(
+            state,
+            json!({ "model": "gpt-5", "max_output_tokens": 2048, "input": "hi" }),
+        )
+        .await;
+        let primary_requests = primary.requests();
+        let secondary_requests = secondary.requests();
+
+        primary.abort();
+        secondary.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(primary_requests.len(), 3);
+        assert!(primary_requests[0].body.get("max_output_tokens").is_some());
+        assert!(primary_requests[1..]
+            .iter()
+            .all(|request| request.body.get("max_output_tokens").is_none()));
+        assert_eq!(secondary_requests.len(), 1);
+        assert!(secondary_requests[0]
+            .body
+            .get("max_output_tokens")
+            .is_none());
+    });
+}
+
+#[test]
+fn responses_xai_invalid_encrypted_content_repairs_once() {
+    run_async(async {
+        let upstream = spawn_mock_raw_sequence_upstream(vec![
+            (
+                StatusCode::BAD_REQUEST,
+                Bytes::from_static(br#"{"code":"invalid-argument","error":"Unable to decrypt encrypted_content"}"#),
+                "application/json",
+            ),
+            (
+                StatusCode::OK,
+                Bytes::from_static(br#"{"id":"resp_xai_repaired","object":"response","created_at":123,"model":"grok-4","status":"completed","output":[]}"#),
+                "application/json",
+            ),
+        ])
+        .await;
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_RESPONSES,
+            10,
+            "xai-repair",
+            upstream.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        config.same_upstream_retry_count = 0;
+        let data_dir = next_test_data_dir("responses_xai_encrypted_repair");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, _) = send_responses_request_with_body(
+            state,
+            json!({
+                "model": "grok-4",
+                "input": [
+                    { "type": "reasoning", "encrypted_content": "secret", "summary": [{ "type": "summary_text", "text": "keep" }] },
+                    { "type": "message", "role": "user", "content": "hi" }
+                ]
+            }),
+        )
+        .await;
+        let requests = upstream.requests();
+
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].body["input"][0]["encrypted_content"], "secret");
+        assert!(requests[1].body["input"][0]
+            .get("encrypted_content")
+            .is_none());
+        assert_eq!(requests[1].body["input"][0]["summary"][0]["text"], "keep");
+    });
+}
+
+#[test]
+fn responses_body_limit_413_fails_over_without_same_upstream_retry() {
+    run_async(async {
+        let primary = spawn_mock_upstream(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            json!({ "error": { "message": "request body exceeds this node's 16MB limit" } }),
+        )
+        .await;
+        let secondary = spawn_mock_upstream(
+            StatusCode::OK,
+            json!({
+                "id": "resp_after_413",
+                "object": "response",
+                "created_at": 123,
+                "model": "gpt-5",
+                "status": "completed",
+                "output": []
+            }),
+        )
+        .await;
+        let mut config = config_with_runtime_upstreams(&[
+            (
+                PROVIDER_RESPONSES,
+                10,
+                "body-limit",
+                primary.base_url.as_str(),
+                FORMATS_RESPONSES,
+            ),
+            (
+                PROVIDER_RESPONSES,
+                10,
+                "larger-node",
+                secondary.base_url.as_str(),
+                FORMATS_RESPONSES,
+            ),
+        ]);
+        config.upstream_strategy = UpstreamStrategyRuntime {
+            order: UpstreamOrderStrategy::FillFirst,
+            dispatch: UpstreamDispatchRuntime::Serial,
+        };
+        config.same_upstream_retry_count = 2;
+        let data_dir = next_test_data_dir("responses_body_limit_413_failover");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, _) = send_responses_request(state).await;
+        let primary_requests = primary.requests();
+        let secondary_requests = secondary.requests();
+
+        primary.abort();
+        secondary.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(primary_requests.len(), 1);
+        assert_eq!(secondary_requests.len(), 1);
+    });
+}
+
+#[test]
+fn responses_context_window_413_is_terminal() {
+    run_async(async {
+        let primary = spawn_mock_upstream(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            json!({ "error": { "code": "context_length_exceeded", "message": "maximum context length exceeded" } }),
+        )
+        .await;
+        let secondary = spawn_mock_upstream(
+            StatusCode::OK,
+            json!({ "id": "unused", "object": "response", "output": [] }),
+        )
+        .await;
+        let mut config = config_with_runtime_upstreams(&[
+            (
+                PROVIDER_RESPONSES,
+                10,
+                "context-limit",
+                primary.base_url.as_str(),
+                FORMATS_RESPONSES,
+            ),
+            (
+                PROVIDER_RESPONSES,
+                10,
+                "unused",
+                secondary.base_url.as_str(),
+                FORMATS_RESPONSES,
+            ),
+        ]);
+        config.upstream_strategy = UpstreamStrategyRuntime {
+            order: UpstreamOrderStrategy::FillFirst,
+            dispatch: UpstreamDispatchRuntime::Serial,
+        };
+        let data_dir = next_test_data_dir("responses_context_window_413_terminal");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, _) = send_responses_request(state).await;
+        let primary_requests = primary.requests();
+        let secondary_requests = secondary.requests();
+
+        primary.abort();
+        secondary.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(primary_requests.len(), 1);
+        assert!(secondary_requests.is_empty());
     });
 }
 

@@ -1,13 +1,17 @@
 use std::time::Instant;
 
-use axum::http::{HeaderMap, Method};
+use axum::http::{HeaderMap, Method, StatusCode};
+use reqwest::ResponseBuilderExt;
 
 use super::retry::{
     finalize_attempt, retry_after_kiro_refresh, retry_with_next_codex_account, CodexFailoverResult,
     UpstreamAttempt, UpstreamAttemptFailure,
 };
 use super::transport::send_upstream_request;
-use super::{AttemptOutcome, PreparedUpstreamRequest};
+use super::{
+    request_repair::{repair_request_body, RequestRepair, RequestRepairState},
+    AttemptOutcome, PreparedUpstreamRequest, RetryDirective, RetryScope,
+};
 use crate::proxy::log::RequestTimings;
 use crate::proxy::openai_compat::FormatTransform;
 use crate::proxy::request_body::ReplayableBody;
@@ -63,21 +67,77 @@ pub(super) async fn attempt_upstream(
         )
         .await;
     }
-    let first = attempt_send(
+    let mut effective_body = body.clone();
+    let mut repair_state = RequestRepairState::new(&effective_body);
+    let mut repair_count = 0usize;
+    let mut fixed_upstream = upstream.clone();
+    let mut first = attempt_send(
         state,
         method.clone(),
         provider,
-        upstream,
+        &fixed_upstream,
         inbound_path,
         upstream_path_with_query,
         headers,
-        body,
+        &effective_body,
         meta,
         request_auth,
         request_detail.as_ref(),
         cooldown_scope,
     )
     .await;
+    loop {
+        let attempt = match first {
+            Ok(attempt) => attempt,
+            Err(failure) => {
+                first = Err(failure);
+                break;
+            }
+        };
+        let (attempt, repair) =
+            match inspect_request_repair(attempt, &effective_body, &mut repair_state).await {
+                Ok(value) => value,
+                Err(failure) => {
+                    first = Err(failure);
+                    break;
+                }
+            };
+        let Some(repair) = repair else {
+            first = Ok(attempt);
+            break;
+        };
+        // 修复重试必须复用首次选中的 Codex 账号，不能在账号 failover 中改变归因。
+        if provider == "codex" && fixed_upstream.codex_account_id.is_none() {
+            fixed_upstream.codex_account_id = attempt.selected_account_id.clone();
+        }
+        repair_count += 1;
+        tracing::info!(
+            provider,
+            upstream = %upstream.id,
+            account_id = attempt.selected_account_id.as_deref().unwrap_or(""),
+            repair_kind = ?repair.kind,
+            reason = repair.reason,
+            repair_count,
+            "retrying upstream after safe request repair"
+        );
+        drop(attempt);
+        effective_body = repair.body;
+        first = attempt_send(
+            state,
+            method.clone(),
+            provider,
+            &fixed_upstream,
+            inbound_path,
+            upstream_path_with_query,
+            headers,
+            &effective_body,
+            meta,
+            request_auth,
+            request_detail.as_ref(),
+            cooldown_scope,
+        )
+        .await;
+    }
     let first = match retry_with_next_codex_account(
         state,
         method.clone(),
@@ -86,7 +146,7 @@ pub(super) async fn attempt_upstream(
         inbound_path,
         upstream_path_with_query,
         headers,
-        body,
+        &effective_body,
         meta,
         request_auth,
         client_gemini_api_key,
@@ -98,7 +158,9 @@ pub(super) async fn attempt_upstream(
     .await
     {
         CodexFailoverResult::Pending(attempt) => attempt,
-        CodexFailoverResult::Resolved(outcome) => return outcome,
+        CodexFailoverResult::Resolved(outcome) => {
+            return attach_effective_body(outcome, &effective_body, repair_count > 0);
+        }
     };
     if let Some(outcome) = retry_after_kiro_refresh(
         state,
@@ -108,7 +170,7 @@ pub(super) async fn attempt_upstream(
         inbound_path,
         upstream_path_with_query,
         headers,
-        body,
+        &effective_body,
         meta,
         request_auth,
         client_gemini_api_key,
@@ -119,9 +181,9 @@ pub(super) async fn attempt_upstream(
     )
     .await
     {
-        return outcome;
+        return attach_effective_body(outcome, &effective_body, repair_count > 0);
     }
-    finalize_attempt(
+    let outcome = finalize_attempt(
         state,
         provider,
         upstream,
@@ -132,7 +194,108 @@ pub(super) async fn attempt_upstream(
         first,
         cooldown_scope,
     )
-    .await
+    .await;
+    attach_effective_body(outcome, &effective_body, repair_count > 0)
+}
+
+async fn inspect_request_repair(
+    attempt: UpstreamAttempt,
+    request_body: &ReplayableBody,
+    state: &mut RequestRepairState,
+) -> Result<(UpstreamAttempt, Option<RequestRepair>), UpstreamAttemptFailure> {
+    if attempt.response.status() != StatusCode::BAD_REQUEST {
+        return Ok((attempt, None));
+    }
+    let UpstreamAttempt {
+        response,
+        selected_account_id,
+        meta,
+        start_time,
+        timings,
+        token_tracker,
+    } = attempt;
+    let status = response.status();
+    let version = response.version();
+    let headers = response.headers().clone();
+    let url = response.url().clone();
+    let response_body = match response.bytes().await {
+        Ok(body) => body,
+        Err(error) => {
+            drop(token_tracker);
+            return Err(UpstreamAttemptFailure {
+                outcome: AttemptOutcome::Retryable {
+                    message: format!("Failed to read upstream repair response: {error}"),
+                    response: None,
+                    is_timeout: error.is_timeout(),
+                    should_cooldown: false,
+                    deferred_log: None,
+                },
+                selected_account_id,
+            });
+        }
+    };
+    // response.bytes() 消耗响应；未命中修复时重建原状态、头和错误体供既有流程处理。
+    let mut rebuilt = axum::http::Response::builder()
+        .status(status)
+        .version(version)
+        .url(url)
+        .body(response_body.clone())
+        .map(reqwest::Response::from)
+        .map_err(|error| UpstreamAttemptFailure {
+            outcome: AttemptOutcome::Fatal(crate::proxy::http::error_response(
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to rebuild upstream repair response: {error}"),
+            )),
+            selected_account_id: selected_account_id.clone(),
+        })?;
+    *rebuilt.headers_mut() = headers;
+    let repair =
+        repair_request_body(status, request_body, &response_body, state).map_err(|error| {
+            UpstreamAttemptFailure {
+                outcome: AttemptOutcome::Fatal(crate::proxy::http::error_response(
+                    StatusCode::BAD_GATEWAY,
+                    error,
+                )),
+                selected_account_id: selected_account_id.clone(),
+            }
+        })?;
+    Ok((
+        UpstreamAttempt {
+            response: rebuilt,
+            selected_account_id,
+            meta,
+            start_time,
+            timings,
+            token_tracker,
+        },
+        repair,
+    ))
+}
+
+fn attach_effective_body(
+    mut outcome: AttemptOutcome,
+    effective_body: &ReplayableBody,
+    repaired: bool,
+) -> AttemptOutcome {
+    if !repaired {
+        return outcome;
+    }
+    let AttemptOutcome::Retryable {
+        response: Some(response),
+        ..
+    } = &mut outcome
+    else {
+        return outcome;
+    };
+    let scope = response
+        .extensions()
+        .get::<RetryDirective>()
+        .map_or(RetryScope::SameThenNext, |directive| directive.scope);
+    response.extensions_mut().insert(RetryDirective {
+        scope,
+        effective_body: Some(effective_body.clone()),
+    });
+    outcome
 }
 
 pub(super) async fn attempt_send(

@@ -5,7 +5,7 @@ use axum::{http::StatusCode, response::Response};
 
 use super::dispatch::ForwardAttemptState;
 use super::utils::{is_retryable_error, is_retryable_status, sanitize_upstream_error};
-use super::AttemptOutcome;
+use super::{AttemptOutcome, RetryDirective, RetryScope};
 use crate::proxy::config::ProviderUpstreams;
 use crate::proxy::cooldown_scope::CooldownScope;
 use crate::proxy::http;
@@ -93,6 +93,13 @@ pub(super) async fn handle_upstream_result(
                 .is_some()
             {
                 return AttemptOutcome::Success(response);
+            }
+            let mut response = response;
+            if status == StatusCode::PAYLOAD_TOO_LARGE {
+                response.extensions_mut().insert(RetryDirective {
+                    scope: RetryScope::NextOnly,
+                    effective_body: None,
+                });
             }
             let retryable_response = response
                 .extensions()
