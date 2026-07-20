@@ -50,25 +50,25 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {CONFIG_SECTIONS.map((section) => {
-                const isActive = pathname === section.route;
-                const Icon = section.icon;
-                return (
-                  <Fragment key={section.id}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        tooltip={section.label()}
-                        className="h-9 rounded-lg px-2.5 text-[13px] text-sidebar-foreground/75 data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-foreground [&>svg]:size-[17px]"
-                      >
-                        <Link to={section.route}>
-                          <Icon />
-                          <span>{section.label()}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </Fragment>
-                );
+                  const isActive = pathname === section.route;
+                  const Icon = section.icon;
+                  return (
+                    <Fragment key={section.id}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive}
+                          tooltip={section.label()}
+                          className="h-9 rounded-lg px-2.5 text-[13px] text-sidebar-foreground/75 data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-foreground [&>svg]:size-[17px]"
+                        >
+                          <Link to={section.route}>
+                            <Icon />
+                            <span>{section.label()}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </Fragment>
+                  );
               })}
             </SidebarMenu>
           </SidebarGroupContent>

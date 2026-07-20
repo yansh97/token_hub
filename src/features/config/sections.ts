@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Server,
-  SlidersHorizontal,
   ScrollText,
   Settings,
 } from "lucide-react";
@@ -12,14 +11,10 @@ import { m } from "@/paraglide/messages.js";
 export type ConfigSectionId =
   | "dashboard"
   | "logs"
-  | "core"
   | "upstreams"
   | "settings";
 
-export type ConfigEditorSectionId = Extract<
-  ConfigSectionId,
-  "core" | "upstreams" | "settings"
->;
+export type ConfigEditorSectionId = Extract<ConfigSectionId, "upstreams" | "settings">;
 
 export type ConfigSectionRoute = `/config/${ConfigSectionId}`;
 
@@ -45,13 +40,6 @@ export const CONFIG_SECTIONS: readonly ConfigSection[] = [
     label: () => m.config_section_upstreams_label(),
     description: () => m.config_section_upstreams_desc(),
     icon: Server,
-  },
-  {
-    id: "core",
-    route: "/config/core",
-    label: () => m.config_section_core_label(),
-    description: () => m.config_section_core_desc(),
-    icon: SlidersHorizontal,
   },
   {
     id: "logs",

@@ -31,10 +31,17 @@ export function AutoStartCard({
   });
 
   return (
-    <Card data-slot="auto-start-card">
-      <CardHeader>
-        <CardTitle>{m.auto_start_title()}</CardTitle>
-        <CardDescription>{m.auto_start_desc()}</CardDescription>
+    <Card
+      data-slot="auto-start-card"
+      className="gap-0 rounded-none border-0 bg-transparent py-4 shadow-none"
+    >
+      <CardHeader className="gap-1 px-0 py-0">
+        <CardTitle className="text-[15px] leading-5">
+          {m.auto_start_title()}
+        </CardTitle>
+        <CardDescription className="text-[12px] leading-4">
+          {m.auto_start_desc()}
+        </CardDescription>
         <CardAction>
           <Switch
             checked={enabled}
@@ -44,11 +51,12 @@ export function AutoStartCard({
           />
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-2 text-xs text-muted-foreground">
-        <p>{m.auto_start_hint()}</p>
-        {isLoading ? <p>{m.auto_start_status_loading()}</p> : null}
-        {isError ? <p className="text-destructive">{errorText}</p> : null}
-      </CardContent>
+      {isLoading || isError ? (
+        <CardContent className="space-y-1 px-0 pt-2 text-[12px] leading-4 text-muted-foreground">
+          {isLoading ? <p>{m.auto_start_status_loading()}</p> : null}
+          {isError ? <p className="text-destructive">{errorText}</p> : null}
+        </CardContent>
+      ) : null}
     </Card>
   );
 }

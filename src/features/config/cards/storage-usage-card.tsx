@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { formatBytes } from "@/features/update/updater";
 import { parseError } from "@/lib/error";
 import { m } from "@/paraglide/messages.js";
@@ -26,25 +25,16 @@ type DataStorageUsage = {
 
 type LoadStatus = "idle" | "loading" | "error";
 
-type StorageRowProps = {
+type StorageMetricProps = {
   label: string;
   value: string;
-  mono?: boolean;
 };
 
-function StorageRow({ label, value, mono = false }: StorageRowProps) {
+function StorageMetric({ label, value }: StorageMetricProps) {
   return (
-    <div className="flex items-start justify-between gap-4 text-sm">
-      <p className="shrink-0 text-muted-foreground">{label}</p>
-      <p
-        className={
-          mono
-            ? "min-w-0 break-all text-right font-mono text-xs text-foreground/80"
-            : "tabular-nums text-right text-foreground"
-        }
-      >
-        {value}
-      </p>
+    <div className="space-y-0.5">
+      <p className="text-[11px] leading-4 text-muted-foreground">{label}</p>
+      <p className="text-[13px] font-medium leading-5 tabular-nums">{value}</p>
     </div>
   );
 }
@@ -58,8 +48,6 @@ export function StorageUsageCard() {
   const loadUsage = useCallback(async () => {
     const requestId = requestSeq.current + 1;
     requestSeq.current = requestId;
-    setStatus("loading");
-    setErrorMessage("");
     try {
       const next = await invoke<DataStorageUsage>("read_data_storage_usage");
       if (requestSeq.current !== requestId) {
@@ -78,6 +66,8 @@ export function StorageUsageCard() {
   }, []);
 
   useEffect(() => {
+    // Tauri 数据读取在 await 后更新状态；规则无法跨回调识别这一点。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadUsage();
   }, [loadUsage]);
 
@@ -87,16 +77,26 @@ export function StorageUsageCard() {
   });
 
   return (
-    <Card data-slot="storage-usage-card" data-testid="storage-usage-card">
-      <CardHeader>
-        <CardTitle>{m.storage_usage_title()}</CardTitle>
-        <CardDescription>{m.storage_usage_desc()}</CardDescription>
+    <Card
+      data-slot="storage-usage-card"
+      data-testid="storage-usage-card"
+      className="gap-0 rounded-none border-0 bg-transparent py-4 shadow-none first:pt-2"
+    >
+      <CardHeader className="gap-1 px-0 pb-3 pt-0">
+        <CardTitle className="text-[15px] leading-5">
+          {m.storage_usage_title()}
+        </CardTitle>
+        <CardDescription className="text-[12px] leading-4">
+          {m.storage_usage_desc()}
+        </CardDescription>
         <CardAction>
           <Button
             type="button"
             variant="outline"
-            size="icon"
+            size="icon-sm"
             onClick={() => {
+              setStatus("loading");
+              setErrorMessage("");
               void loadUsage();
             }}
             disabled={isLoading}
@@ -109,41 +109,42 @@ export function StorageUsageCard() {
           </Button>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <StorageRow
-          label={m.storage_usage_data_dir_label()}
-          value={usage?.dataDir || "--"}
-          mono
-        />
-        <Separator />
-        <div className="space-y-2">
-          <StorageRow
+      <CardContent className="space-y-3 px-0">
+        <div className="flex min-w-0 items-center justify-between gap-4 text-[12px]">
+          <span className="shrink-0 text-muted-foreground">
+            {m.storage_usage_data_dir_label()}
+          </span>
+          <span className="min-w-0 truncate font-mono text-foreground/80">
+            {usage?.dataDir || "--"}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+          <StorageMetric
             label={m.storage_usage_total_label()}
             value={usage ? formatBytes(usage.totalBytes) : "--"}
           />
-          <StorageRow
+          <StorageMetric
             label={m.storage_usage_database_label()}
             value={usage ? formatBytes(usage.databaseBytes) : "--"}
           />
-          <StorageRow
+          <StorageMetric
             label={m.storage_usage_config_label()}
             value={usage ? formatBytes(usage.configBytes) : "--"}
           />
-          <StorageRow
+          <StorageMetric
             label={m.storage_usage_other_label()}
             value={usage ? formatBytes(usage.otherBytes) : "--"}
           />
         </div>
-        <p className="text-xs text-muted-foreground">
-          {m.storage_usage_hint()}
-        </p>
         {isLoading ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[12px] leading-4 text-muted-foreground">
             {m.storage_usage_loading()}
           </p>
         ) : null}
         {status === "error" ? (
-          <p className="text-xs text-destructive">{errorText}</p>
+          <p className="text-[12px] leading-4 text-destructive">
+            {errorText}
+          </p>
         ) : null}
       </CardContent>
     </Card>

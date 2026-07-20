@@ -13,7 +13,6 @@ const ConfigUpstreamsLazyRouteImport = createFileRoute("/config/upstreams")()
 const ConfigSettingsLazyRouteImport = createFileRoute("/config/settings")()
 const ConfigLogsLazyRouteImport = createFileRoute("/config/logs")()
 const ConfigDashboardLazyRouteImport = createFileRoute("/config/dashboard")()
-const ConfigCoreLazyRouteImport = createFileRoute("/config/core")()
 
 const ConfigRouteRoute = ConfigRouteRouteImport.update({
   id: "/config",
@@ -56,16 +55,10 @@ const ConfigDashboardLazyRoute = ConfigDashboardLazyRouteImport.update({
 } as any).lazy(() =>
   import("./routes/config/dashboard.lazy").then((d) => d.Route),
 )
-const ConfigCoreLazyRoute = ConfigCoreLazyRouteImport.update({
-  id: "/core",
-  path: "/core",
-  getParentRoute: () => ConfigRouteRoute,
-} as any).lazy(() => import("./routes/config/core.lazy").then((d) => d.Route))
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
   "/config": typeof ConfigRouteRouteWithChildren
-  "/config/core": typeof ConfigCoreLazyRoute
   "/config/dashboard": typeof ConfigDashboardLazyRoute
   "/config/logs": typeof ConfigLogsLazyRoute
   "/config/settings": typeof ConfigSettingsLazyRoute
@@ -74,7 +67,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
-  "/config/core": typeof ConfigCoreLazyRoute
   "/config/dashboard": typeof ConfigDashboardLazyRoute
   "/config/logs": typeof ConfigLogsLazyRoute
   "/config/settings": typeof ConfigSettingsLazyRoute
@@ -85,7 +77,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
   "/config": typeof ConfigRouteRouteWithChildren
-  "/config/core": typeof ConfigCoreLazyRoute
   "/config/dashboard": typeof ConfigDashboardLazyRoute
   "/config/logs": typeof ConfigLogsLazyRoute
   "/config/settings": typeof ConfigSettingsLazyRoute
@@ -97,7 +88,6 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/config"
-    | "/config/core"
     | "/config/dashboard"
     | "/config/logs"
     | "/config/settings"
@@ -106,7 +96,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/"
-    | "/config/core"
     | "/config/dashboard"
     | "/config/logs"
     | "/config/settings"
@@ -116,7 +105,6 @@ export interface FileRouteTypes {
     | "__root__"
     | "/"
     | "/config"
-    | "/config/core"
     | "/config/dashboard"
     | "/config/logs"
     | "/config/settings"
@@ -180,18 +168,10 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ConfigDashboardLazyRouteImport
       parentRoute: typeof ConfigRouteRoute
     }
-    "/config/core": {
-      id: "/config/core"
-      path: "/core"
-      fullPath: "/config/core"
-      preLoaderRoute: typeof ConfigCoreLazyRouteImport
-      parentRoute: typeof ConfigRouteRoute
-    }
   }
 }
 
 interface ConfigRouteRouteChildren {
-  ConfigCoreLazyRoute: typeof ConfigCoreLazyRoute
   ConfigDashboardLazyRoute: typeof ConfigDashboardLazyRoute
   ConfigLogsLazyRoute: typeof ConfigLogsLazyRoute
   ConfigSettingsLazyRoute: typeof ConfigSettingsLazyRoute
@@ -200,7 +180,6 @@ interface ConfigRouteRouteChildren {
 }
 
 const ConfigRouteRouteChildren: ConfigRouteRouteChildren = {
-  ConfigCoreLazyRoute: ConfigCoreLazyRoute,
   ConfigDashboardLazyRoute: ConfigDashboardLazyRoute,
   ConfigLogsLazyRoute: ConfigLogsLazyRoute,
   ConfigSettingsLazyRoute: ConfigSettingsLazyRoute,

@@ -158,7 +158,7 @@ describe("config/ConfigScreen auto save", () => {
 
     render(
       <I18nProvider>
-        <ConfigScreen activeSectionId="core" />
+        <ConfigScreen activeSectionId="settings" />
       </I18nProvider>,
     );
 
@@ -208,7 +208,7 @@ describe("config/ConfigScreen auto save", () => {
 
     render(
       <I18nProvider>
-        <ConfigScreen activeSectionId="core" />
+        <ConfigScreen activeSectionId="settings" />
       </I18nProvider>,
     );
 
@@ -265,7 +265,7 @@ describe("config/ConfigScreen auto save", () => {
 
     render(
       <I18nProvider>
-        <ConfigScreen activeSectionId="core" />
+        <ConfigScreen activeSectionId="settings" />
       </I18nProvider>,
     );
 
@@ -308,7 +308,7 @@ describe("config/ConfigScreen auto save", () => {
 
     render(
       <I18nProvider>
-        <ConfigScreen activeSectionId="core" />
+        <ConfigScreen activeSectionId="settings" />
       </I18nProvider>,
     );
 
@@ -362,7 +362,7 @@ describe("config/ConfigScreen auto save", () => {
 
     render(
       <I18nProvider>
-        <ConfigScreen activeSectionId="core" />
+        <ConfigScreen activeSectionId="settings" />
       </I18nProvider>,
     );
 
@@ -405,7 +405,7 @@ describe("config/ConfigScreen auto save", () => {
 
     render(
       <I18nProvider>
-        <ConfigScreen activeSectionId="core" />
+        <ConfigScreen activeSectionId="settings" />
       </I18nProvider>,
     );
 

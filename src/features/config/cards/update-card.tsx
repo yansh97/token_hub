@@ -6,13 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   canStartUpdateCheck,
   formatBytes,
@@ -98,17 +97,17 @@ function UpdateStatusRow({
 }: UpdateStatusRowProps) {
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3 text-[13px]">
         <span className="text-muted-foreground">
           {m.update_current_version_label()}
         </span>
-        <span className="font-mono text-xs text-foreground/80">
+        <span className="font-mono text-[12px] text-foreground/80">
           {currentVersion || "--"}
         </span>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
       {lastCheckedAt ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[11px] leading-4 text-muted-foreground">
           {m.update_last_checked({ time: lastCheckedAt })}
         </p>
       ) : null}
@@ -117,36 +116,34 @@ function UpdateStatusRow({
 }
 
 type UpdateDetailsProps = {
-  status: UpdateStatus;
   updateInfo: UpdateInfo | null;
 };
 
-function UpdateDetails({ status, updateInfo }: UpdateDetailsProps) {
+function UpdateDetails({ updateInfo }: UpdateDetailsProps) {
   if (!updateInfo) {
-    const message = resolveStatusBadge(status).label;
-    return <p className="text-sm text-muted-foreground">{message}</p>;
+    return null;
   }
 
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-2 text-[13px]">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground">
           {m.update_latest_version_label()}
         </span>
-        <span className="font-mono text-xs text-foreground/80">
+        <span className="font-mono text-[12px] text-foreground/80">
           {updateInfo.version}
         </span>
       </div>
       {updateInfo.date ? (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-[11px] leading-4 text-muted-foreground">
           {m.update_release_date_label()} {updateInfo.date}
         </div>
       ) : null}
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+        <p className="text-[11px] font-medium text-muted-foreground">
           {m.update_release_notes_label()}
         </p>
-        <div className="mt-2 rounded-md border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground whitespace-pre-wrap">
+        <div className="mt-1 rounded-md border border-border/60 bg-background/60 p-2.5 text-[12px] leading-5 text-muted-foreground whitespace-pre-wrap">
           {updateInfo.body || m.update_release_notes_empty()}
         </div>
       </div>
@@ -162,7 +159,7 @@ function UpdateProgress({ label }: UpdateProgressProps) {
   if (!label) {
     return null;
   }
-  return <div className="text-xs text-muted-foreground">{label}</div>;
+  return <div className="text-[12px] leading-4 text-muted-foreground">{label}</div>;
 }
 
 type UpdateErrorProps = {
@@ -174,7 +171,7 @@ function UpdateError({ message }: UpdateErrorProps) {
     return null;
   }
   return (
-    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-[12px] text-destructive">
       <div className="flex items-center gap-2">
         <AlertCircle className="size-4" aria-hidden="true" />
         <span>{message}</span>
@@ -205,16 +202,27 @@ function UpdateActions({
       <Button
         type="button"
         variant="outline"
+        size="sm"
         onClick={onCheck}
         disabled={!canCheck}
       >
         {m.update_check()}
       </Button>
-      <Button type="button" onClick={onInstall} disabled={!canInstall}>
+      <Button
+        type="button"
+        size="sm"
+        onClick={onInstall}
+        disabled={!canInstall}
+      >
         {m.update_download_install()}
       </Button>
       {canRelaunch ? (
-        <Button type="button" variant="secondary" onClick={onRelaunch}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onRelaunch}
+        >
           {m.update_restart_now()}
         </Button>
       ) : null}
@@ -259,32 +267,38 @@ export function UpdateCard() {
   }, [actions]);
 
   return (
-    <Card data-slot="update-card">
-      <CardHeader>
-        <CardTitle>{m.update_title()}</CardTitle>
-        <CardDescription>{m.update_desc()}</CardDescription>
+    <Card
+      data-slot="update-card"
+      className="gap-0 rounded-none border-0 bg-transparent py-4 pb-6 shadow-none"
+    >
+      <CardHeader className="gap-1 px-0 py-0">
+        <CardTitle className="text-[15px] leading-5">
+          {m.update_title()}
+        </CardTitle>
+        <CardDescription className="text-[12px] leading-4">
+          {m.update_desc()}
+        </CardDescription>
+        <CardAction className="max-sm:col-span-2 max-sm:row-start-3 max-sm:justify-self-start max-sm:pt-2">
+          <UpdateActions
+            canCheck={canCheck}
+            canInstall={canInstall}
+            canRelaunch={canRelaunch}
+            onCheck={triggerManualCheck}
+            onInstall={actions.downloadAndInstall}
+            onRelaunch={actions.relaunchApp}
+          />
+        </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 px-0 pt-3">
         <UpdateStatusRow
           currentVersion={currentVersion}
           badge={statusBadge}
           lastCheckedAt={state.lastCheckedAt}
         />
-        <Separator />
-        <UpdateDetails status={state.status} updateInfo={state.updateInfo} />
+        <UpdateDetails updateInfo={state.updateInfo} />
         <UpdateProgress label={progressLabel} />
         <UpdateError message={state.statusMessage} />
       </CardContent>
-      <CardFooter>
-        <UpdateActions
-          canCheck={canCheck}
-          canInstall={canInstall}
-          canRelaunch={canRelaunch}
-          onCheck={triggerManualCheck}
-          onInstall={actions.downloadAndInstall}
-          onRelaunch={actions.relaunchApp}
-        />
-      </CardFooter>
     </Card>
   );
 }

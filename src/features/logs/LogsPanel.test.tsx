@@ -627,7 +627,7 @@ describe("logs/LogsPanel", () => {
     expect(screen.queryByText("req-stale")).not.toBeInTheDocument();
   });
 
-  it("renders detail fields in a left-aligned label-value layout", async () => {
+  it("renders detail fields in a compact responsive label-value layout", async () => {
     const user = userEvent.setup();
 
     renderPanel();
@@ -649,7 +649,10 @@ describe("logs/LogsPanel", () => {
     const statusLabel = await screen.findByText(m.dashboard_table_status());
     expect(statusLabel.closest("div")).toHaveClass(
       "grid",
-      "grid-cols-[11rem_minmax(0,1fr)]",
+      "grid-cols-[8.5rem_minmax(0,1fr)]",
+    );
+    expect(statusLabel.closest("div")?.parentElement).toHaveClass(
+      "lg:grid-cols-2",
     );
 
     const statusValue = screen.getByText("200");
@@ -658,7 +661,7 @@ describe("logs/LogsPanel", () => {
     const latencyLabel = screen.getByText(m.dashboard_table_latency_ms());
     expect(latencyLabel.closest("div")).toHaveClass(
       "grid",
-      "grid-cols-[11rem_minmax(0,1fr)]",
+      "grid-cols-[8.5rem_minmax(0,1fr)]",
     );
   });
 

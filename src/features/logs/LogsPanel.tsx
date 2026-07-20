@@ -45,11 +45,11 @@ const DETAIL_PLACEHOLDER = "—";
 const REQUEST_DETAIL_CAPTURE_EVENT = "request-detail-capture-changed";
 const CAPTURE_COUNTDOWN_TICK_MS = 1_000;
 const DETAIL_FIELD_ROW_CLASS =
-  "grid grid-cols-[11rem_minmax(0,1fr)] items-start gap-x-3 py-1";
+  "grid grid-cols-[8.5rem_minmax(0,1fr)] items-start gap-x-3 py-1.5";
 const DETAIL_FIELD_LABEL_CLASS =
-  "text-[12px] leading-snug text-muted-foreground";
+  "text-[12px] leading-5 text-muted-foreground";
 const DETAIL_FIELD_VALUE_CLASS =
-  "min-w-0 text-[13px] text-foreground justify-self-start";
+  "min-w-0 justify-self-start text-[13px] leading-5 text-foreground";
 const IDLE_CAPTURE_STATE: RequestDetailCaptureState = {
   enabled: false,
   expiresAtMs: null,
@@ -141,11 +141,11 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
     detail.mappedModel.trim() !== detail.model.trim();
 
   return (
-    <div className="space-y-2">
-      <p className="text-[15px] font-semibold leading-5 text-foreground">
+    <section className="space-y-2.5">
+      <h3 className="text-[13px] font-semibold leading-5 text-foreground">
         {m.logs_detail_basic_info()}
-      </p>
-      <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-1">
+      </h3>
+      <div className="grid rounded-lg border border-border/60 bg-muted/20 px-3.5 py-2 lg:grid-cols-2 lg:gap-x-6">
         <DetailField label="ID" value={String(detail.id)} />
         <DetailField label={m.dashboard_table_time()} value={timestamp} />
         <DetailField
@@ -232,7 +232,7 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
           value={detail.upstreamRequestId}
         />
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -244,18 +244,20 @@ type DetailSectionProps = {
 function DetailSection({ title, value }: DetailSectionProps) {
   const content = value?.trim() ? value : null;
   return (
-    <div className="space-y-2">
-      <p className="text-[15px] font-semibold leading-5 text-foreground">
+    <section className="space-y-2.5 border-t border-border/60 pt-4">
+      <h3 className="text-[13px] font-semibold leading-5 text-foreground">
         {title}
-      </p>
+      </h3>
       {content ? (
-        <pre className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs whitespace-pre-wrap break-words">
+        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3 font-mono text-[12px] leading-5 text-foreground/85">
           {content}
         </pre>
       ) : (
-        <p className="text-xs text-muted-foreground">{DETAIL_PLACEHOLDER}</p>
+        <p className="text-[12px] leading-5 text-muted-foreground">
+          {DETAIL_PLACEHOLDER}
+        </p>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -425,16 +427,17 @@ function RequestDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="sm:max-w-2xl">
-        <SheetHeader>
+      <SheetContent className="gap-0 sm:max-w-2xl">
+        <SheetHeader className="shrink-0 gap-1 border-b border-border/60 px-5 py-4 pr-14">
           <div className="flex items-center gap-2">
-            <SheetTitle>{m.logs_detail_title()}</SheetTitle>
+            <SheetTitle className="text-[15px] leading-5">
+              {m.logs_detail_title()}
+            </SheetTitle>
             {status === "idle" && detail ? (
               <Button
                 variant="outline"
-                size="icon"
+                size="icon-sm"
                 onClick={handleCopy}
-                className="size-7"
               >
                 {copied ? (
                   <Check className="size-3.5" aria-hidden="true" />
@@ -447,10 +450,12 @@ function RequestDetailSheet({
               </Button>
             ) : null}
           </div>
-          <SheetDescription>{m.logs_detail_desc()}</SheetDescription>
+          <SheetDescription className="text-[12px] leading-4">
+            {m.logs_detail_desc()}
+          </SheetDescription>
         </SheetHeader>
         <ScrollArea className="flex-1">
-          <div className="space-y-4 px-4 pb-6">
+          <div className="px-5 py-5">
             {status === "loading" ? (
               <p className="text-[13px] text-muted-foreground">
                 {m.logs_detail_loading()}

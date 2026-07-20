@@ -10,7 +10,6 @@ import {
   StorageUsageCard,
   UpdateCard,
   UpstreamsCard,
-  type StatusBadge,
 } from "@/features/config/cards";
 import type { ProxyServiceViewProps } from "@/features/config/cards/proxy-service-card";
 import type { ConfigEditorSectionId } from "@/features/config/sections";
@@ -20,12 +19,12 @@ import type {
   ProxyServiceRequestState,
   ProxyServiceStatus,
 } from "@/features/config/types";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages.js";
 
 type AppViewProps = {
   activeSectionId: ConfigEditorSectionId;
   form: ConfigForm;
-  statusBadge: StatusBadge;
   showLocalKey: boolean;
   showUpstreamKeys: boolean;
   providerOptions: string[];
@@ -134,15 +133,32 @@ function ConfigSectionBody({
   ...props
 }: ConfigSectionBodyProps) {
   switch (activeSectionId) {
-    case "core":
+    case "settings":
       return (
-        <ProxyCoreCard
-          form={props.form}
-          showLocalKey={props.showLocalKey}
-          onToggleLocalKey={props.onToggleLocalKey}
-          onChange={props.onFormChange}
-          proxyService={proxyService}
-        />
+        <div className="flex flex-col gap-0">
+          <ProxyCoreCard
+            form={props.form}
+            showLocalKey={props.showLocalKey}
+            onToggleLocalKey={props.onToggleLocalKey}
+            onChange={props.onFormChange}
+            proxyService={proxyService}
+          />
+          <section className="mt-5 border-t border-border/70 pt-5">
+            <h2 className="text-[15px] font-semibold leading-5">
+              {m.config_application_group_title()}
+            </h2>
+            <div className="mt-3 flex flex-col divide-y divide-border/70">
+              <StorageUsageCard />
+              <AutoStartCard
+                enabled={props.autoStartEnabled}
+                status={props.autoStartStatus}
+                message={props.autoStartMessage}
+                onChange={props.onAutoStartChange}
+              />
+              <UpdateCard />
+            </div>
+          </section>
+        </div>
       );
     case "upstreams":
       return (
@@ -158,19 +174,6 @@ function ConfigSectionBody({
           />
         </div>
       );
-    case "settings":
-      return (
-        <div className="flex flex-col gap-4">
-          <StorageUsageCard />
-          <AutoStartCard
-            enabled={props.autoStartEnabled}
-            status={props.autoStartStatus}
-            message={props.autoStartMessage}
-            onChange={props.onAutoStartChange}
-          />
-          <UpdateCard />
-        </div>
-      );
     default:
       return null;
   }
@@ -182,7 +185,14 @@ function ConfigSectionContent({
   ...props
 }: ConfigSectionContentProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 lg:px-6">
+    <div
+      className={cn(
+        "flex min-h-0 w-full flex-1 flex-col gap-4",
+        activeSectionId === "upstreams"
+          ? "px-0 pb-0"
+          : "px-4 pb-6 lg:px-6",
+      )}
+    >
       <ValidationAlert validation={props.validation} />
       <StatusAlert
         status={props.status}

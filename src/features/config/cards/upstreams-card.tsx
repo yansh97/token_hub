@@ -238,7 +238,7 @@ export function UpstreamsCard({
       data-slot="upstreams-card"
       className="max-h-full min-h-0 gap-0 overflow-hidden rounded-none border-0 bg-transparent py-0 shadow-none"
     >
-      <CardHeader className="shrink-0 gap-0 px-4 py-3">
+      <CardHeader className="shrink-0 gap-0 px-4 py-3 lg:px-6">
         <CardTitle className="text-[15px] font-semibold leading-5">
           {m.upstreams_title()}
         </CardTitle>
@@ -246,7 +246,7 @@ export function UpstreamsCard({
           <UpstreamsToolbar onAddClick={openCreateDialog} />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-0">
+      <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-0 lg:px-6">
         {upstreams.length ? (
           <UpstreamsTable
             upstreams={upstreams}

@@ -49,7 +49,6 @@ function buildAppViewProps({
   return {
     activeSectionId,
     form: state.form,
-    statusBadge: derived.statusBadge,
     showLocalKey: state.showLocalKey,
     showUpstreamKeys: state.showUpstreamKeys,
     providerOptions: derived.providerOptions,
@@ -88,7 +87,6 @@ export function ConfigScreen({ activeSectionId }: ConfigScreenProps) {
     state.form,
     state.lastConfig,
     state.configExtras,
-    state.status,
     state.autoStartEnabled,
     state.autoStartBaseline,
     state.autoStartStatus,

@@ -56,7 +56,7 @@ type ProxyServiceStatusRowProps = {
 
 function ProxyServiceStatusRow({ badge, addr }: ProxyServiceStatusRowProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground">
           {m.proxy_service_state_label()}
@@ -67,17 +67,8 @@ function ProxyServiceStatusRow({ badge, addr }: ProxyServiceStatusRowProps) {
         <span className="text-muted-foreground">
           {m.proxy_service_addr_label()}
         </span>
-        <span className="font-mono text-xs text-foreground/80">{addr}</span>
+        <span className="font-mono text-[12px] text-foreground/80">{addr}</span>
       </div>
-    </div>
-  );
-}
-
-function ProxyServiceHelp() {
-  return (
-    <div className="grid gap-2 text-xs text-muted-foreground">
-      <p>{m.proxy_service_help_1()}</p>
-      <p>{m.proxy_service_help_2()}</p>
     </div>
   );
 }
@@ -123,16 +114,22 @@ function ProxyServiceActions({
       <Button
         type="button"
         variant="outline"
-        size="icon"
+        size="icon-sm"
         onClick={onRefresh}
         disabled={isWorking}
+        aria-label={m.common_refresh()}
       >
         <RefreshCw
           className={cn("size-4", isWorking && "animate-spin")}
           aria-hidden="true"
         />
       </Button>
-      <Button type="button" onClick={onStart} disabled={isWorking || isRunning}>
+      <Button
+        type="button"
+        size="sm"
+        onClick={onStart}
+        disabled={isWorking || isRunning}
+      >
         {isWorking ? (
           <Loader2 className="animate-spin" aria-hidden="true" />
         ) : (
@@ -143,6 +140,7 @@ function ProxyServiceActions({
       <Button
         type="button"
         variant="outline"
+        size="sm"
         onClick={onStop}
         disabled={isWorking || !isRunning}
       >
@@ -152,6 +150,7 @@ function ProxyServiceActions({
       <Button
         type="button"
         variant="outline"
+        size="sm"
         onClick={onRestart}
         disabled={isWorking || !isRunning || isDirty}
       >
@@ -161,6 +160,7 @@ function ProxyServiceActions({
       <Button
         type="button"
         variant="outline"
+        size="sm"
         onClick={onReload}
         disabled={isWorking || isDirty}
       >
@@ -204,20 +204,21 @@ function ProxyServiceContent({
   const addr = status?.addr || "--";
 
   return (
-    <div className={cn("space-y-4", className)}>
-      <ProxyServiceStatusRow badge={badge} addr={addr} />
-      <ProxyServiceHelp />
+    <div className={cn("space-y-3", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ProxyServiceStatusRow badge={badge} addr={addr} />
+        <ProxyServiceActions
+          isWorking={isWorking}
+          isRunning={isRunning}
+          isDirty={isDirty}
+          onRefresh={onRefresh}
+          onStart={onStart}
+          onStop={onStop}
+          onRestart={onRestart}
+          onReload={onReload}
+        />
+      </div>
       <ProxyServiceError message={errorMessage} />
-      <ProxyServiceActions
-        isWorking={isWorking}
-        isRunning={isRunning}
-        isDirty={isDirty}
-        onRefresh={onRefresh}
-        onStart={onStart}
-        onStop={onStop}
-        onRestart={onRestart}
-        onReload={onReload}
-      />
       <ProxyServiceDirtyNotice isDirty={isDirty} />
     </div>
   );
@@ -232,13 +233,13 @@ export function ProxyServicePanel({
   return (
     <section
       data-slot="proxy-service-panel"
-      className={cn("space-y-3", className)}
+      className={cn("space-y-4", className)}
     >
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-foreground">
+        <p className="text-[15px] font-semibold leading-5 text-foreground">
           {m.proxy_service_title()}
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13px] leading-5 text-muted-foreground">
           {m.proxy_service_desc()}
         </p>
       </div>

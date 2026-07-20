@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppView } from "@/features/config/AppView";
 import { EMPTY_FORM } from "@/features/config/form";
@@ -40,11 +40,6 @@ const IDLE_PROXY_STATUS: ProxyServiceStatus = {
 
 const BASE_APP_VIEW_PROPS = {
   form: EMPTY_FORM,
-  statusBadge: {
-    id: "saved" as const,
-    label: "saved",
-    variant: "default" as const,
-  },
   showLocalKey: false,
   showUpstreamKeys: false,
   providerOptions: [],
@@ -69,11 +64,15 @@ const BASE_APP_VIEW_PROPS = {
   onProxyServiceReload: () => undefined,
 };
 
+afterEach(() => {
+  cleanup();
+});
+
 describe("config/AppView", () => {
   it("does not show a persistent save button when there are pending edits", () => {
     render(
       <AppView
-        activeSectionId="core"
+        activeSectionId="settings"
         {...BASE_APP_VIEW_PROPS}
         status="idle"
         statusMessage=""
@@ -93,7 +92,7 @@ describe("config/AppView", () => {
 
     render(
       <AppView
-        activeSectionId="core"
+        activeSectionId="settings"
         {...BASE_APP_VIEW_PROPS}
         status="error"
         statusMessage="disk full"
@@ -114,7 +113,7 @@ describe("config/AppView", () => {
   it("does not render informational save alerts", () => {
     render(
       <AppView
-        activeSectionId="core"
+        activeSectionId="settings"
         {...BASE_APP_VIEW_PROPS}
         status="saved"
         statusMessage="should not be shown"
@@ -130,7 +129,7 @@ describe("config/AppView", () => {
   it("shows validation message immediately when config is invalid", () => {
     render(
       <AppView
-        activeSectionId="core"
+        activeSectionId="settings"
         {...BASE_APP_VIEW_PROPS}
         status="idle"
         statusMessage=""

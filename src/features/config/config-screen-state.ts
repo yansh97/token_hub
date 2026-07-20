@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
-import { type StatusBadge } from "@/features/config/cards";
 import {
   EMPTY_FORM,
   toForm,
@@ -16,8 +15,6 @@ import type {
   ProxyServiceStatus,
 } from "@/features/config/types";
 import { parseError } from "@/lib/error";
-import { useI18n } from "@/lib/i18n";
-import { m } from "@/paraglide/messages.js";
 
 type JsonValue =
   | null
@@ -59,38 +56,6 @@ function normalizeConfigForCompare(
 
 export type StatusState = "idle" | "loading" | "saving" | "saved" | "error";
 export type AutoStartStatus = "idle" | "loading" | "error";
-
-function createStatusBadge(
-  status: StatusState,
-  isDirty: boolean,
-  lastConfig: ProxyConfigFile | null,
-): StatusBadge {
-  if (status === "loading" || status === "saving") {
-    return {
-      id: "working",
-      label: m.config_status_working(),
-      variant: "secondary",
-    };
-  }
-  if (status === "error") {
-    return {
-      id: "error",
-      label: m.config_status_error(),
-      variant: "destructive",
-    };
-  }
-  if (isDirty) {
-    return {
-      id: "unsaved",
-      label: m.config_status_unsaved(),
-      variant: "secondary",
-    };
-  }
-  if (lastConfig) {
-    return { id: "saved", label: m.config_status_saved(), variant: "default" };
-  }
-  return { id: "idle", label: m.config_status_idle(), variant: "outline" };
-}
 
 export function useConfigState() {
   const [form, setForm] = useState<ConfigForm>(EMPTY_FORM);
@@ -234,12 +199,10 @@ export function useConfigDerived(
   form: ConfigForm,
   lastConfig: ProxyConfigFile | null,
   configExtras: Record<string, unknown>,
-  status: StatusState,
   autoStartEnabled: boolean,
   autoStartBaseline: boolean,
   autoStartStatus: AutoStartStatus,
 ) {
-  useI18n();
   const validation = useMemo(() => validate(form), [form]);
   const currentPayload = useMemo(
     () =>
@@ -269,8 +232,6 @@ export function useConfigDerived(
   const autoStartDirty =
     autoStartStatus !== "loading" && autoStartEnabled !== autoStartBaseline;
   const isDirty = configDirty || autoStartDirty;
-
-  const statusBadge = createStatusBadge(status, isDirty, lastConfig);
 
   const providerOptions = useMemo(() => {
     const providers = new Set<string>();
@@ -305,7 +266,6 @@ export function useConfigDerived(
     autoStartDirty,
     autoSaveKey,
     isDirty,
-    statusBadge,
     canSave,
     canAutoSave: canSave,
     providerOptions,
