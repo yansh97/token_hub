@@ -427,8 +427,21 @@ export function LogsPanel() {
   }, [updateCaptureState]);
 
   useEffect(() => {
-    void loadCaptureState();
-  }, [loadCaptureState]);
+    let active = true;
+    void readRequestDetailCapture().then(
+      (nextState) => {
+        if (active) {
+          updateCaptureState(nextState);
+        }
+      },
+      () => {
+        // ignore
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [updateCaptureState]);
 
   useEffect(() => {
     let active = true;
@@ -469,7 +482,6 @@ export function LogsPanel() {
     if (!captureEnabled) {
       return;
     }
-    setCaptureNowMs(Date.now());
     const timerId = window.setInterval(() => {
       setCaptureNowMs(Date.now());
     }, CAPTURE_COUNTDOWN_TICK_MS);

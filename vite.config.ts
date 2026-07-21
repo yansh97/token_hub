@@ -21,7 +21,7 @@ export default defineConfig(() => ({
     },
   },
   build: {
-    // Tauri 桌面包本地分发，且配置页已经按路由懒加载；当前最大 chunk 属于可接受范围。
+    // Tauri 桌面包本地分发，当前最大 chunk 属于图表依赖，仍在可接受范围内。
     // 将阈值调到接近现状，避免稳定可接受的大包持续污染构建输出。
     chunkSizeWarningLimit: 900,
   },

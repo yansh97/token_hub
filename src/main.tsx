@@ -1,5 +1,4 @@
 import { Toaster } from "@/components/ui/sonner";
-import { Agentation } from "agentation";
 import React from "react";
 import ReactDOM from "react-dom/client";
 
@@ -16,14 +15,6 @@ if (typeof window !== "undefined") {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {import.meta.env.DEV && (
-      <Agentation
-        endpoint="http://localhost:4747"
-        onSessionCreated={(sessionId) => {
-          console.log("Session started:", sessionId);
-        }}
-      />
-    )}
     <Toaster position="bottom-right" closeButton richColors />
     <App />
   </React.StrictMode>,

@@ -1,8 +1,16 @@
 # Token Hub 前端重构计划
 
-状态：原则已确认，等待页面审计与设计阶段启动
+状态：已完成，后续按上游同步和产品需求维护
 
 日期：2026-07-20
+
+## 实施记录（2026-07-21）
+
+- 阶段 0 至 3 已完成：完成页面和数据契约审计，移除 TanStack Router 与国际化运行时，建立原生 Hash 路由、本地主题同步、AppShell、Sidebar、本地简单组件与 Base UI 复杂交互 primitives；仪表盘、日志、提供商和设置已按新信息架构重建。
+- 阶段 4 已完成：清理历史模板、旧路由、未使用账号管理 UI 与无生产引用的依赖；保留 Base UI、Sonner、Recharts、Lucide 和 React Compiler，均有明确的生产或构建职责。额外移除 `agentation`、`tw-animate-css` 和前端未使用的 clipboard manager。
+- 阶段 5 已完成：配置读写、自动保存、提供商编辑、日志捕获、更新、路由和桌面布局均有测试覆盖；当前 35 个测试文件、160 个测试通过，`pnpm peers check`、lint、类型检查、生产构建与差异格式检查通过。
+- 桌面视觉验收已在当前 Tauri 开发窗口中随页面迭代完成。自动化 Computer Use 连接到的是旧 Token Proxy 实例，因此未将该实例的画面作为本次验收依据。
+- 本次前端重构未改变 Tauri command、事件 payload、配置格式或后端数据层。`src-tauri` 中已有的托盘、窗口和发布调整均来自单独确认的桌面体验需求。
 
 ## 1. 背景
 
