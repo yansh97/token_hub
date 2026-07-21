@@ -9,9 +9,11 @@ use crate::codex::{CodexQuotaCache, CodexQuotaItem, CodexTokenRecord};
 use crate::kiro::{KiroQuotaCache, KiroQuotaItem, KiroTokenRecord};
 use crate::paths::TokenProxyPaths;
 use crate::proxy::sqlite;
+use crate::xai::{XaiQuotaCache, XaiQuotaItem, XaiTokenRecord};
 
 const PROVIDER_KIND_KIRO: &str = "kiro";
 const PROVIDER_KIND_CODEX: &str = "codex";
+const PROVIDER_KIND_XAI: &str = "xai";
 const STATUS_ACTIVE: &str = "active";
 const STATUS_DISABLED: &str = "disabled";
 const STATUS_EXPIRED: &str = "expired";
@@ -25,6 +27,7 @@ pub const MAX_PAGE_SIZE: u32 = 100;
 pub enum ProviderAccountKind {
     Kiro,
     Codex,
+    Xai,
 }
 
 impl ProviderAccountKind {
@@ -32,6 +35,7 @@ impl ProviderAccountKind {
         match self {
             Self::Kiro => PROVIDER_KIND_KIRO,
             Self::Codex => PROVIDER_KIND_CODEX,
+            Self::Xai => PROVIDER_KIND_XAI,
         }
     }
 
@@ -39,6 +43,7 @@ impl ProviderAccountKind {
         match value.trim().to_ascii_lowercase().as_str() {
             PROVIDER_KIND_KIRO => Ok(Self::Kiro),
             PROVIDER_KIND_CODEX => Ok(Self::Codex),
+            PROVIDER_KIND_XAI => Ok(Self::Xai),
             other => Err(format!("Unsupported provider filter: {other}")),
         }
     }
@@ -194,6 +199,15 @@ pub async fn upsert_codex_account(
     upsert_account(paths, &db_record).await
 }
 
+pub async fn upsert_xai_account(
+    paths: &TokenProxyPaths,
+    account_id: &str,
+    record: &XaiTokenRecord,
+) -> Result<(), String> {
+    let db_record = build_xai_db_record(account_id, record)?;
+    upsert_account(paths, &db_record).await
+}
+
 pub async fn delete_account(paths: &TokenProxyPaths, account_id: &str) -> Result<(), String> {
     let pool = sqlite::open_write_pool(paths).await?;
     sqlx::query("DELETE FROM provider_accounts WHERE account_id = ?;")
@@ -201,6 +215,29 @@ pub async fn delete_account(paths: &TokenProxyPaths, account_id: &str) -> Result
         .execute(&pool)
         .await
         .map_err(|err| format!("Failed to delete provider account row: {err}"))?;
+    Ok(())
+}
+
+/// Provider 专属删除必须同时匹配 kind，避免账户型 command 误删其它 provider 的全局 ID。
+pub async fn delete_account_by_kind(
+    paths: &TokenProxyPaths,
+    provider_kind: ProviderAccountKind,
+    account_id: &str,
+) -> Result<(), String> {
+    let pool = sqlite::open_write_pool(paths).await?;
+    let result =
+        sqlx::query("DELETE FROM provider_accounts WHERE provider_kind = ? AND account_id = ?;")
+            .bind(provider_kind.as_str())
+            .bind(account_id)
+            .execute(&pool)
+            .await
+            .map_err(|err| format!("Failed to delete provider account row: {err}"))?;
+    if result.rows_affected() == 0 {
+        return Err(format!(
+            "{} account not found: {account_id}",
+            provider_kind.as_str()
+        ));
+    }
     Ok(())
 }
 
@@ -310,6 +347,16 @@ ORDER BY priority DESC, account_id ASC
                         .map_err(|err| format!("Failed to decode provider_name: {err}"))?,
                     &record_json,
                 ),
+                ProviderAccountKind::Xai => build_xai_list_item(
+                    account_id,
+                    row.try_get("email")
+                        .map_err(|err| format!("Failed to decode email: {err}"))?,
+                    row.try_get("expires_at")
+                        .map_err(|err| format!("Failed to decode expires_at: {err}"))?,
+                    row.try_get("provider_name")
+                        .map_err(|err| format!("Failed to decode provider_name: {err}"))?,
+                    &record_json,
+                ),
             }
         })
         .collect::<Result<Vec<_>, String>>()
@@ -325,6 +372,12 @@ pub async fn list_codex_records(
     paths: &TokenProxyPaths,
 ) -> Result<HashMap<String, CodexTokenRecord>, String> {
     list_records_by_kind(paths, ProviderAccountKind::Codex).await
+}
+
+pub async fn list_xai_records(
+    paths: &TokenProxyPaths,
+) -> Result<HashMap<String, XaiTokenRecord>, String> {
+    list_records_by_kind(paths, ProviderAccountKind::Xai).await
 }
 
 fn build_kiro_db_record(
@@ -360,6 +413,25 @@ fn build_codex_db_record(
         provider_name: None,
         record_json: serde_json::to_string(record)
             .map_err(|err| format!("Failed to serialize Codex token record for sqlite: {err}"))?,
+        updated_at_ms: now_unix_ms(),
+        priority: record.priority,
+    })
+}
+
+fn build_xai_db_record(
+    account_id: &str,
+    record: &XaiTokenRecord,
+) -> Result<ProviderAccountDbRecord, String> {
+    Ok(ProviderAccountDbRecord {
+        provider_kind: ProviderAccountKind::Xai,
+        account_id: account_id.to_string(),
+        email: normalize_optional_string(record.email.as_deref()),
+        expires_at: normalize_optional_string(Some(record.expires_at.as_str())),
+        expires_at_ms: record.expires_at().map(offset_datetime_to_unix_ms),
+        auth_method: Some("oauth".to_string()),
+        provider_name: Some("xai".to_string()),
+        record_json: serde_json::to_string(record)
+            .map_err(|err| format!("Failed to serialize xAI token record for sqlite: {err}"))?,
         updated_at_ms: now_unix_ms(),
         priority: record.priority,
     })
@@ -477,6 +549,30 @@ fn build_codex_list_item(
     })
 }
 
+fn build_xai_list_item(
+    account_id: String,
+    email: Option<String>,
+    expires_at: Option<String>,
+    provider_name: Option<String>,
+    record_json: &str,
+) -> Result<ProviderAccountListItem, String> {
+    let record = serde_json::from_str::<XaiTokenRecord>(record_json)
+        .map_err(|err| format!("Failed to parse xai record_json: {err}"))?;
+    Ok(ProviderAccountListItem {
+        provider_kind: ProviderAccountKind::Xai,
+        account_id,
+        email,
+        expires_at,
+        priority: record.priority,
+        status: provider_status_from_xai(&record),
+        auth_method: Some("oauth".to_string()),
+        provider_name,
+        auto_refresh_enabled: Some(record.auto_refresh_enabled),
+        proxy_url: normalize_optional_string(record.proxy_url.as_deref()),
+        quota: provider_quota_snapshot_from_xai(&record.quota),
+    })
+}
+
 fn provider_status_from_kiro(record: &KiroTokenRecord) -> ProviderAccountStatus {
     match record.effective_status() {
         crate::kiro::KiroAccountStatus::Active => ProviderAccountStatus::Active,
@@ -491,6 +587,15 @@ fn provider_status_from_codex(record: &CodexTokenRecord) -> ProviderAccountStatu
         crate::codex::CodexAccountStatus::Disabled => ProviderAccountStatus::Disabled,
         crate::codex::CodexAccountStatus::Expired => ProviderAccountStatus::Expired,
         crate::codex::CodexAccountStatus::Invalid => ProviderAccountStatus::Invalid,
+    }
+}
+
+fn provider_status_from_xai(record: &XaiTokenRecord) -> ProviderAccountStatus {
+    match record.effective_status() {
+        crate::xai::XaiAccountStatus::Active => ProviderAccountStatus::Active,
+        crate::xai::XaiAccountStatus::Disabled => ProviderAccountStatus::Disabled,
+        crate::xai::XaiAccountStatus::Expired => ProviderAccountStatus::Expired,
+        crate::xai::XaiAccountStatus::Invalid => ProviderAccountStatus::Invalid,
     }
 }
 
@@ -520,6 +625,19 @@ fn provider_quota_snapshot_from_codex(quota: &CodexQuotaCache) -> ProviderAccoun
     }
 }
 
+fn provider_quota_snapshot_from_xai(quota: &XaiQuotaCache) -> ProviderAccountQuotaSnapshot {
+    ProviderAccountQuotaSnapshot {
+        plan_type: quota.plan_type.clone(),
+        error: quota.error.clone(),
+        checked_at: quota.checked_at.clone(),
+        items: quota
+            .quotas
+            .iter()
+            .map(provider_quota_item_from_xai)
+            .collect(),
+    }
+}
+
 fn provider_quota_item_from_kiro(item: &KiroQuotaItem) -> ProviderAccountQuotaItem {
     ProviderAccountQuotaItem {
         name: item.name.clone(),
@@ -532,6 +650,17 @@ fn provider_quota_item_from_kiro(item: &KiroQuotaItem) -> ProviderAccountQuotaIt
 }
 
 fn provider_quota_item_from_codex(item: &CodexQuotaItem) -> ProviderAccountQuotaItem {
+    ProviderAccountQuotaItem {
+        name: item.name.clone(),
+        percentage: item.percentage,
+        used: item.used,
+        limit: item.limit,
+        reset_at: item.reset_at.clone(),
+        is_trial: false,
+    }
+}
+
+fn provider_quota_item_from_xai(item: &XaiQuotaItem) -> ProviderAccountQuotaItem {
     ProviderAccountQuotaItem {
         name: item.name.clone(),
         percentage: item.percentage,
@@ -604,6 +733,7 @@ mod tests {
     use super::*;
     use crate::codex::{CodexAccountStatus, CodexAccountStore, CodexQuotaCache, CodexTokenRecord};
     use crate::paths::TokenProxyPaths;
+    use crate::xai::{XaiAccountStatus, XaiAccountStore, XaiQuotaCache, XaiTokenRecord};
     use rand::random;
 
     fn account_with_status(status: ProviderAccountStatus) -> ProviderAccountListItem {
@@ -706,5 +836,60 @@ mod tests {
         assert_eq!(counts.invalid, 1);
         assert!(items.iter().any(|item| item.account_id == "codex-invalid"
             && item.status == ProviderAccountStatus::Invalid));
+    }
+
+    #[tokio::test]
+    async fn list_snapshot_reads_persisted_xai_account_fields() {
+        let data_dir = std::env::temp_dir().join(format!(
+            "token-proxy-provider-accounts-xai-smoke-{}",
+            random::<u64>()
+        ));
+        let paths = TokenProxyPaths::from_app_data_dir(data_dir.clone()).expect("test paths");
+        let store = XaiAccountStore::new(&paths, crate::app_proxy::new_state()).expect("xai store");
+        store
+            .save_record(
+                "xai-user@example.com".to_string(),
+                XaiTokenRecord {
+                    access_token: "access".to_string(),
+                    refresh_token: "refresh".to_string(),
+                    id_token: String::new(),
+                    token_type: "Bearer".to_string(),
+                    expires_at: "2099-01-01T00:00:00Z".to_string(),
+                    last_refresh: None,
+                    email: Some("user@example.com".to_string()),
+                    subject: Some("subject-1".to_string()),
+                    token_endpoint: Some("https://auth.x.ai/oauth/token".to_string()),
+                    auto_refresh_enabled: true,
+                    status: XaiAccountStatus::Active,
+                    proxy_url: Some("http://127.0.0.1:7890".to_string()),
+                    priority: 7,
+                    quota: XaiQuotaCache::default(),
+                },
+            )
+            .await
+            .expect("seed xai account");
+
+        let items = list_accounts_snapshot(
+            &paths,
+            ProviderAccountsQueryParams {
+                provider_kind: Some(ProviderAccountKind::Xai),
+                search: "user@example.com".to_string(),
+            },
+        )
+        .await
+        .expect("list xai accounts");
+
+        let _ = std::fs::remove_dir_all(data_dir);
+
+        assert_eq!(items.len(), 1);
+        let item = &items[0];
+        assert_eq!(item.provider_kind, ProviderAccountKind::Xai);
+        assert_eq!(item.email.as_deref(), Some("user@example.com"));
+        assert_eq!(item.priority, 7);
+        assert_eq!(item.status, ProviderAccountStatus::Active);
+        assert_eq!(item.auth_method.as_deref(), Some("oauth"));
+        assert_eq!(item.provider_name.as_deref(), Some("xai"));
+        assert_eq!(item.auto_refresh_enabled, Some(true));
+        assert_eq!(item.proxy_url.as_deref(), Some("http://127.0.0.1:7890"));
     }
 }

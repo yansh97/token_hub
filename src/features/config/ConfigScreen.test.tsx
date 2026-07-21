@@ -266,7 +266,7 @@ describe("config/ConfigScreen auto save", () => {
 
     expect(setAppProxyUrlMock).not.toHaveBeenCalled();
 
-    expect(resolveReadConfig).not.toBeNull();
+    // biome-ignore lint/style/noNonNullAssertion: The preceding wait registers this deferred resolver.
     resolveReadConfig!({ path: "/tmp/config.json", config });
 
     await waitFor(() => {

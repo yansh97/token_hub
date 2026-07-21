@@ -287,6 +287,7 @@ export function DashboardFilters({
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {/* biome-ignore lint/a11y/useSemanticElements: This is a non-form ARIA button group. */}
           <div
             role="group"
             aria-label="时间范围"

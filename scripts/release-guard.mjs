@@ -35,7 +35,7 @@ function latestTag() {
 
 export function parseReleaseCommitVersion(commitSubject) {
   const match = commitSubject.match(
-    /^chore: token-hub release v(\d+\.\d+\.\d+)(?: \(\#\d+\))?$/,
+    /^chore: token-hub release v(\d+\.\d+\.\d+)(?: \(#\d+\))?$/,
   );
   return match?.[1] ?? "";
 }

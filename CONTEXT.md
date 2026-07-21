@@ -67,3 +67,19 @@ _Avoid_: `response.failed`（只用于已经提交的 SSE 流）
 **In-stream Terminal Failure**:
 Responses SSE 已以 HTTP 200 提交后用于终止流的 `response.failed` 事件。事件必须包含连续的 `sequence_number`，其 `response` 必须包含 `created_at`、`model` 和完整失败状态；请求日志仍记录真实 4xx/5xx 失败状态。
 _Avoid_: HTTP Error Response（响应头提交后已无法更改 HTTP 状态）
+
+**xAI API Key Upstream（xAI API Key 上游）**:
+使用开发者 API Key 访问 xAI 官方 API 的普通上游；它没有账户生命周期，继续使用 OpenAI-compatible provider 配置。
+_Avoid_: xAI 账户、Grok OAuth 账户
+
+**xAI OAuth Account（xAI OAuth 账户）**:
+通过 xAI OIDC device-code 或 refresh token 获得并持久化的 Grok CLI OAuth 身份；它拥有刷新、调度、冷却、配额和禁用状态。
+_Avoid_: xAI API Key、CPA API Key、普通 OpenAI 上游
+
+**xAI CLI Gateway（xAI CLI 网关）**:
+xAI OAuth 账户发送文本 Responses 请求的受信服务端点 `cli-chat-proxy.grok.com`；它不提供普通 API Key 上游的模型发现合同。
+_Avoid_: xAI 官方 API、OpenAI-compatible base URL
+
+**xAI Official API（xAI 官方 API）**:
+xAI OAuth 账户发送仓库已有图片、视频和 Responses Compact 请求的受信服务端点 `api.x.ai`；它与 CLI 网关使用同一账户身份，承接 CLI 网关明确不支持的端点能力。
+_Avoid_: xAI CLI 网关、自定义 base URL

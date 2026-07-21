@@ -198,6 +198,50 @@ async fn buffered_responses_complete_error_preserves_body_and_content_length() {
     assert_eq!(response_body.as_ref(), body.as_bytes());
 }
 
+#[tokio::test]
+async fn xai_video_content_preserves_binary_body_and_content_type() {
+    let binary = Bytes::from_static(&[0x00, 0x9f, 0xff, 0x01, 0x80]);
+    let upstream_res = axum::http::Response::builder()
+        .status(StatusCode::OK)
+        .header(CONTENT_TYPE, "video/mp4")
+        .header(CONTENT_LENGTH, binary.len())
+        .body(reqwest::Body::from(binary.clone()))
+        .expect("response")
+        .into();
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("video/mp4"));
+    headers.insert(
+        CONTENT_LENGTH,
+        HeaderValue::from_str(&binary.len().to_string()).expect("content length"),
+    );
+    let tracker = TokenRateTracker::new().register(None, None).await;
+    let mut context = test_context();
+    context.path = "/v1/videos/video-123/content".to_string();
+    context.provider = "xai".to_string();
+    context.model = None;
+
+    let response = build_buffered_response(
+        StatusCode::OK,
+        upstream_res,
+        headers,
+        context,
+        Arc::new(LogWriter::new(None)),
+        tracker,
+        FormatTransform::None,
+        None,
+        None,
+        None,
+        Duration::from_secs(1),
+    )
+    .await;
+    let (parts, response_body) = response.into_parts();
+    let response_body = to_bytes(response_body, usize::MAX).await.expect("body");
+
+    assert_eq!(parts.status, StatusCode::OK);
+    assert_eq!(parts.headers.get(CONTENT_TYPE).unwrap(), "video/mp4");
+    assert_eq!(response_body, binary);
+}
+
 #[test]
 fn buffer_event_stream_response_converts_chat_completion_chunks_to_json() {
     let sse = Bytes::from(

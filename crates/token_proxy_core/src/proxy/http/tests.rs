@@ -82,6 +82,7 @@ fn upstream_without_key() -> UpstreamRuntime {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         kiro_preferred_endpoint: None,
         proxy_url: None,
         priority: 0,

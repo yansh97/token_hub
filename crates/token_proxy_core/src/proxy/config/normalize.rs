@@ -100,7 +100,7 @@ fn normalize_single_upstream(
         upstream.use_chat_completions_for_responses,
     )?;
     let api_keys = normalize_api_keys(upstream);
-    validate_api_key_mode(&upstream.id, &providers, api_keys.len())?;
+    validate_api_key_mode(&upstream.id, &providers, &api_keys)?;
 
     let kiro_account_id = upstream
         .kiro_account_id
@@ -110,6 +110,12 @@ fn normalize_single_upstream(
         .map(|value| value.to_string());
     let codex_account_id = upstream
         .codex_account_id
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+    let xai_account_id = upstream
+        .xai_account_id
         .as_ref()
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
@@ -145,6 +151,7 @@ fn normalize_single_upstream(
             runtime_provider.as_str(),
             kiro_account_id.as_deref(),
             codex_account_id.as_deref(),
+            xai_account_id.as_deref(),
         )?;
 
         let mut allowed_inbound_formats =
@@ -169,6 +176,7 @@ fn normalize_single_upstream(
                 rewrite_developer_role_to_system: upstream.rewrite_developer_role_to_system,
                 kiro_account_id: kiro_account_id.clone(),
                 codex_account_id: codex_account_id.clone(),
+                xai_account_id: xai_account_id.clone(),
                 kiro_preferred_endpoint: upstream.preferred_endpoint.clone(),
                 proxy_url: proxy_url.clone(),
                 priority: upstream.priority.unwrap_or(0),
@@ -251,14 +259,17 @@ fn normalize_api_keys(upstream: &UpstreamConfig) -> Vec<Option<String>> {
 fn validate_api_key_mode(
     upstream_id: &str,
     providers: &[String],
-    api_key_count: usize,
+    api_keys: &[Option<String>],
 ) -> Result<(), String> {
-    if api_key_count <= 1 {
-        return Ok(());
+    if providers.iter().any(|provider| provider == "xai") && api_keys.iter().any(Option::is_some) {
+        return Err(format!(
+            "Upstream {upstream_id} xAI OAuth provider does not accept api_keys."
+        ));
     }
-    if providers
-        .iter()
-        .any(|provider| matches!(provider.as_str(), "kiro" | "codex"))
+    if api_keys.len() > 1
+        && providers
+            .iter()
+            .any(|provider| matches!(provider.as_str(), "kiro" | "codex" | "xai"))
     {
         return Err(format!(
             "Upstream {upstream_id} does not support multiple api_keys for account-based providers."
@@ -288,7 +299,7 @@ fn runtime_provider_for_upstream<'a>(
 fn is_supported_provider(provider: &str) -> bool {
     matches!(
         provider,
-        "openai" | "openai-response" | "anthropic" | "gemini" | "kiro" | "codex"
+        "openai" | "openai-response" | "anthropic" | "gemini" | "kiro" | "codex" | "xai"
     )
 }
 
@@ -333,7 +344,7 @@ fn normalize_providers(upstream: &UpstreamConfig) -> Result<Vec<String>, String>
 fn validate_provider_mix(upstream_id: &str, providers: &[String]) -> Result<(), String> {
     let specials = providers
         .iter()
-        .filter(|provider| matches!(provider.as_str(), "kiro" | "codex"))
+        .filter(|provider| matches!(provider.as_str(), "kiro" | "codex" | "xai"))
         .collect::<Vec<_>>();
     if specials.is_empty() {
         return Ok(());
@@ -379,6 +390,17 @@ fn validate_convert_from_map(
 
 fn resolve_base_url(upstream_id: &str, base_url: &str, provider: &str) -> Result<String, String> {
     let base_url = base_url.trim();
+    if provider == "xai" {
+        if base_url.is_empty()
+            || base_url.trim_end_matches('/') == crate::xai::CLI_BASE_URL.trim_end_matches('/')
+        {
+            return Ok(crate::xai::CLI_BASE_URL.to_string());
+        }
+        return Err(format!(
+            "Upstream {upstream_id} xAI OAuth base_url must be {}.",
+            crate::xai::CLI_BASE_URL
+        ));
+    }
     if !base_url.is_empty() {
         return Ok(base_url.to_string());
     }
@@ -394,11 +416,22 @@ fn resolve_base_url(upstream_id: &str, base_url: &str, provider: &str) -> Result
 }
 
 fn validate_provider_account_binding(
-    _upstream_id: &str,
-    _provider: &str,
-    _kiro_account_id: Option<&str>,
-    _codex_account_id: Option<&str>,
+    upstream_id: &str,
+    provider: &str,
+    kiro_account_id: Option<&str>,
+    codex_account_id: Option<&str>,
+    xai_account_id: Option<&str>,
 ) -> Result<(), String> {
+    if provider != "xai" && xai_account_id.is_some() {
+        return Err(format!(
+            "Upstream {upstream_id} xai_account_id requires provider xai."
+        ));
+    }
+    if provider == "xai" && (kiro_account_id.is_some() || codex_account_id.is_some()) {
+        return Err(format!(
+            "Upstream {upstream_id} xAI provider only accepts xai_account_id."
+        ));
+    }
     Ok(())
 }
 
@@ -428,6 +461,12 @@ fn native_inbound_formats_for_provider(provider: &str) -> InboundApiFormatMask {
         "codex" => {
             mask.insert(InboundApiFormat::OpenaiChat);
             mask.insert(InboundApiFormat::OpenaiResponses);
+        }
+        "xai" => {
+            mask.insert(InboundApiFormat::OpenaiChat);
+            mask.insert(InboundApiFormat::OpenaiResponses);
+            mask.insert(InboundApiFormat::AnthropicMessages);
+            mask.insert(InboundApiFormat::Gemini);
         }
         _ => {}
     }

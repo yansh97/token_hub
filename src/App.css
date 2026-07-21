@@ -178,6 +178,7 @@
 .toaster [data-sonner-toast],
 .toaster [data-sonner-toast] [data-close-button],
 .toaster [data-sonner-toast] [data-button] {
+  /* biome-ignore lint/complexity/noImportantStyles: Overrides Sonner's disabled pointer-events layer. */
   pointer-events: auto !important;
 }
 

@@ -280,7 +280,6 @@ export function UpdateNotifier() {
     downloadAndInstall,
     downloadProgressLabel,
     state.lastCheckSource,
-    state.lastCheckedAt,
     state.status,
     state.statusMessage,
     state.updateInfo,

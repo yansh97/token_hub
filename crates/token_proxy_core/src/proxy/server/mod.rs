@@ -20,6 +20,7 @@ const PROVIDER_ANTHROPIC: &str = "anthropic";
 const PROVIDER_GEMINI: &str = "gemini";
 const PROVIDER_KIRO: &str = "kiro";
 const PROVIDER_CODEX: &str = "codex";
+const PROVIDER_XAI: &str = "xai";
 const PROVIDER_PROXY: &str = "proxy";
 const LOCAL_UPSTREAM_ID: &str = "local";
 const LOCALHOST_CLIENT_IP: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);

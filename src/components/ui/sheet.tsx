@@ -1,4 +1,4 @@
-import * as React from "react";
+import type * as React from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 

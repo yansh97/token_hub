@@ -21,7 +21,7 @@ use crate::paths::TokenProxyPaths;
 
 /// 默认优雅停机等待时间；超时后会强制 abort server task。
 const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
-const CODEX_ACCOUNT_REFRESH_INTERVAL: Duration = Duration::from_secs(300);
+const ACCOUNT_REFRESH_INTERVAL: Duration = Duration::from_secs(300);
 
 type ProxyStateHandle = Arc<RwLock<Arc<ProxyState>>>;
 type ProxyRouter = axum::Router;
@@ -40,6 +40,7 @@ pub struct ProxyContext {
     pub token_rate: Arc<super::token_rate::TokenRateTracker>,
     pub kiro_accounts: Arc<crate::kiro::KiroAccountStore>,
     pub codex_accounts: Arc<crate::codex::CodexAccountStore>,
+    pub xai_accounts: Arc<crate::xai::XaiAccountStore>,
 }
 
 #[derive(Clone)]
@@ -346,6 +347,7 @@ impl ProxyServiceInner {
             codex_account_refresh_task: Some(spawn_codex_account_refresh_task(
                 state_handle.clone(),
             )),
+            xai_account_refresh_task: Some(spawn_xai_account_refresh_task(state_handle.clone())),
             shutdown_timeout: DEFAULT_SHUTDOWN_TIMEOUT,
         });
         Ok(())
@@ -423,11 +425,16 @@ impl ProxyServiceInner {
         if let Some(task) = running.codex_account_refresh_task.take() {
             task.abort();
         }
+        if let Some(task) = running.xai_account_refresh_task.take() {
+            task.abort();
+        }
         running.model_discovery_task =
             Some(spawn_model_discovery_task(running.state_handle.clone()));
         running.codex_account_refresh_task = Some(spawn_codex_account_refresh_task(
             running.state_handle.clone(),
         ));
+        running.xai_account_refresh_task =
+            Some(spawn_xai_account_refresh_task(running.state_handle.clone()));
         tracing::debug!(
             elapsed_ms = start.elapsed().as_millis(),
             "proxy reload applied"
@@ -493,6 +500,9 @@ impl ProxyServiceInner {
         if let Some(task) = running.codex_account_refresh_task.take() {
             task.abort();
         }
+        if let Some(task) = running.xai_account_refresh_task.take() {
+            task.abort();
+        }
         if let Some(tx) = running.shutdown_tx.take() {
             let _ = tx.send(());
         }
@@ -530,6 +540,7 @@ struct RunningProxy {
     task: Option<JoinHandle<Result<(), String>>>,
     model_discovery_task: Option<JoinHandle<()>>,
     codex_account_refresh_task: Option<JoinHandle<()>>,
+    xai_account_refresh_task: Option<JoinHandle<()>>,
     shutdown_timeout: Duration,
 }
 
@@ -559,7 +570,31 @@ fn spawn_codex_account_refresh_task(state_handle: ProxyStateHandle) -> JoinHandl
                     tracing::warn!(error = %err, "codex due account refresh failed");
                 }
             }
-            tokio::time::sleep(CODEX_ACCOUNT_REFRESH_INTERVAL).await;
+            tokio::time::sleep(ACCOUNT_REFRESH_INTERVAL).await;
+        }
+    })
+}
+
+fn spawn_xai_account_refresh_task(state_handle: ProxyStateHandle) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            let store = {
+                let state = state_handle.read().await;
+                state.xai_accounts.clone()
+            };
+            match store.refresh_due_accounts().await {
+                Ok(refreshed) if !refreshed.is_empty() => {
+                    tracing::info!(
+                        refreshed = refreshed.len(),
+                        "xai due account refresh finished"
+                    );
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::warn!(error = %error, "xai due account refresh failed");
+                }
+            }
+            tokio::time::sleep(ACCOUNT_REFRESH_INTERVAL).await;
         }
     })
 }
@@ -590,6 +625,7 @@ async fn build_proxy_state(
     let token_rate = ctx.token_rate.clone();
     let kiro_accounts = ctx.kiro_accounts.clone();
     let codex_accounts = ctx.codex_accounts.clone();
+    let xai_accounts = ctx.xai_accounts.clone();
     Ok(Arc::new(ProxyState {
         upstream_selector: super::upstream_selector::UpstreamSelectorRuntime::new_with_cooldown(
             config.retryable_failure_cooldown,
@@ -606,6 +642,7 @@ async fn build_proxy_state(
         model_discovery: Arc::new(super::model_discovery::UpstreamModelDiscoveryCache::new()),
         kiro_accounts,
         codex_accounts,
+        xai_accounts,
     }))
 }
 

@@ -272,7 +272,7 @@ describe("update/UpdateNotifier", () => {
       );
     });
 
-    expect(resolveConfig).not.toBeNull();
+    // biome-ignore lint/style/noNonNullAssertion: The preceding wait registers this deferred resolver.
     resolveConfig!({ config: { app_proxy_url: "socks5h://127.0.0.1:9999" } });
 
     await waitFor(() => {

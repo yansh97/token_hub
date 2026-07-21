@@ -11,6 +11,7 @@ use super::transport_error::{analyze_transport_error, TransportRecovery};
 use super::AttemptOutcome;
 use crate::proxy::cooldown_scope::CooldownScope;
 use crate::proxy::http;
+use crate::proxy::http_client::proxy_log_target;
 use crate::proxy::log::RequestTimings;
 use crate::proxy::request_body::ReplayableBody;
 use crate::proxy::request_detail::RequestDetailSnapshot;
@@ -153,7 +154,7 @@ async fn send_upstream_request_once(
     // 每步都重建 body，因为 reqwest::Body 只能消费一次。
     let mut last_transport_error: Option<reqwest::Error> = None;
     for transport_step in 0u8..3 {
-        let client = match resolve_ordinary_client(state, proxy_url, transport_step) {
+        let client = match resolve_upstream_client(state, provider, proxy_url, transport_step) {
             Ok(client) => client,
             Err(message) => {
                 return Err(AttemptOutcome::Fatal(http::error_response(
@@ -256,23 +257,35 @@ async fn send_upstream_request_once(
     ))
 }
 
-fn resolve_ordinary_client(
+fn resolve_upstream_client(
     state: &ProxyState,
+    provider: &str,
     proxy_url: Option<&str>,
     transport_step: u8,
 ) -> Result<reqwest::Client, String> {
     match transport_step {
+        0 if provider == "xai" => state.http_clients.xai_client_for_proxy_url(proxy_url),
         0 => state.http_clients.client_for_proxy_url(proxy_url),
+        1 if provider == "xai" => {
+            // xAI bearer 不允许跨主机重放；rotate 后仍使用禁重定向池。
+            state
+                .http_clients
+                .rotate_xai_client_for_proxy_url(proxy_url)
+        }
         1 => {
             // 丢弃毒 H2 session，强制下一次走新 TCP/TLS/H2。
             state.http_clients.rotate_client_for_proxy_url(proxy_url)
         }
         _ => {
             tracing::warn!(
-                proxy = proxy_url.unwrap_or("direct"),
+                proxy = %proxy_log_target(proxy_url),
                 "falling back to HTTP/1.1 after repeated pre-header H2/transport failures"
             );
-            state.http_clients.client_for_proxy_url_http1(proxy_url)
+            if provider == "xai" {
+                state.http_clients.xai_client_for_proxy_url_http1(proxy_url)
+            } else {
+                state.http_clients.client_for_proxy_url_http1(proxy_url)
+            }
         }
     }
 }
@@ -686,7 +699,36 @@ mod tests {
     use super::*;
     use crate::logging::LogLevel;
     use crate::proxy::config::{ProxyConfig, UpstreamStrategyRuntime};
-    use std::collections::HashMap;
+    use axum::{body::to_bytes, extract::State, response::IntoResponse, routing::any, Router};
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    #[derive(Clone, Default)]
+    struct CapturedMediaRequest {
+        body: Arc<Mutex<Option<axum::body::Bytes>>>,
+        content_type: Arc<Mutex<Option<String>>>,
+    }
+
+    async fn capture_media_request(
+        State(capture): State<CapturedMediaRequest>,
+        headers: axum::http::HeaderMap,
+        body: axum::body::Body,
+    ) -> axum::response::Response {
+        let body = to_bytes(body, usize::MAX)
+            .await
+            .expect("read captured media body");
+        *capture.body.lock().expect("captured body lock") = Some(body);
+        *capture
+            .content_type
+            .lock()
+            .expect("captured content-type lock") = headers
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        axum::http::StatusCode::OK.into_response()
+    }
 
     fn test_config() -> ProxyConfig {
         ProxyConfig {
@@ -751,5 +793,75 @@ mod tests {
         assert!(http[1].http1_only);
         assert!(socks5[1].http1_only);
         assert!(socks5h[1].http1_only);
+    }
+
+    #[tokio::test]
+    async fn xai_image_edits_send_preserves_multipart_boundary_and_body() {
+        let capture = CapturedMediaRequest::default();
+        let app = Router::new()
+            .route("/{*path}", any(capture_media_request))
+            .with_state(capture.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind media capture upstream");
+        let address = listener.local_addr().expect("media capture address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("media capture upstream should run");
+        });
+
+        let boundary = "token-proxy-xai-boundary";
+        let payload = axum::body::Bytes::from_static(
+            b"--token-proxy-xai-boundary\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\nedit\r\n--token-proxy-xai-boundary--\r\n",
+        );
+        let content_type = format!("multipart/form-data; boundary={boundary}");
+        let body = crate::proxy::request_body::ReplayableBody::from_bytes(payload.clone());
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_str(&content_type).expect("multipart content type"),
+        );
+        super::super::prepare::enforce_xai_request_headers(
+            "/v1/images/edits",
+            &body,
+            false,
+            None,
+            &mut headers,
+        );
+        let client = Client::builder()
+            .no_proxy()
+            .build()
+            .expect("build media capture client");
+        let response = send_request_once(
+            client,
+            &Method::POST,
+            &format!("http://{address}/v1/images/edits"),
+            &headers,
+            body.to_reqwest_body().await.expect("build request body"),
+            Some(Duration::from_secs(5)),
+            Instant::now(),
+            RequestTimings::default(),
+        )
+        .await;
+
+        server.abort();
+        let response = match response {
+            Ok(response) => response,
+            Err(_) => panic!("multipart media request should reach local upstream"),
+        };
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            capture
+                .content_type
+                .lock()
+                .expect("captured content-type lock")
+                .as_deref(),
+            Some(content_type.as_str())
+        );
+        assert_eq!(
+            capture.body.lock().expect("captured body lock").as_ref(),
+            Some(&payload)
+        );
     }
 }

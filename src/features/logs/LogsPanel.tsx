@@ -488,7 +488,7 @@ export function LogsPanel() {
     return () => {
       window.clearInterval(timerId);
     };
-  }, [captureEnabled, captureState.expiresAtMs]);
+  }, [captureEnabled]);
 
   useEffect(() => {
     if (!captureState.enabled || captureState.expiresAtMs === null) {

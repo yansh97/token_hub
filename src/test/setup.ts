@@ -138,6 +138,7 @@ if (typeof window.matchMedia !== "function") {
 
 if (typeof globalThis.ResizeObserver === "undefined") {
   class MockResizeObserver {
+    // biome-ignore lint/complexity/noUselessConstructor: Mirrors the browser constructor signature.
     constructor(_callback: ResizeObserverCallback) {}
 
     observe = vi.fn<ResizeObserver["observe"]>();
@@ -149,11 +150,13 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 }
 
 if (typeof globalThis.IntersectionObserver === "undefined") {
-  class MockIntersectionObserver {
+  class MockIntersectionObserver implements IntersectionObserver {
     readonly root: Element | Document | null = null;
     readonly rootMargin = "";
+    readonly scrollMargin = "";
     readonly thresholds: ReadonlyArray<number> = [];
 
+    // biome-ignore lint/complexity/noUselessConstructor: Mirrors the browser constructor signature.
     constructor(
       _callback: IntersectionObserverCallback,
       _options?: IntersectionObserverInit,

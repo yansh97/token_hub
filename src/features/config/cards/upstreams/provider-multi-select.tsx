@@ -32,7 +32,9 @@ function orderProviders(
   providerOptions: readonly string[],
 ) {
   const index = new Map<string, number>();
-  providerOptions.forEach((value, idx) => index.set(value, idx));
+  providerOptions.forEach((value, idx) => {
+    index.set(value, idx);
+  });
   return [...values].sort((left, right) => {
     const leftIndex = index.get(left);
     const rightIndex = index.get(right);

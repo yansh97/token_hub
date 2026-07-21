@@ -7,6 +7,7 @@ pub mod logs;
 pub mod pricing;
 pub mod providers;
 pub mod proxy;
+pub mod xai;
 
 pub use agent_node::{
     agent_node_read_config, agent_node_restart, agent_node_save_config, agent_node_start,
@@ -37,6 +38,12 @@ pub use proxy::{
     fetch_upstream_models, prepare_relaunch, proxy_reload, proxy_restart, proxy_start,
     proxy_status, proxy_stop,
 };
+pub use xai::{
+    xai_cancel_login, xai_fetch_quotas, xai_import_file, xai_import_refresh_tokens,
+    xai_import_text, xai_list_accounts, xai_logout, xai_poll_login, xai_refresh_account,
+    xai_refresh_quota_cache, xai_refresh_quota_now, xai_set_auto_refresh, xai_set_priority,
+    xai_set_proxy_url, xai_set_status, xai_start_login,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ManualAccountStatus {
@@ -54,6 +61,15 @@ impl From<ManualAccountStatus> for crate::kiro::KiroAccountStatus {
 }
 
 impl From<ManualAccountStatus> for crate::codex::CodexAccountStatus {
+    fn from(value: ManualAccountStatus) -> Self {
+        match value {
+            ManualAccountStatus::Active => Self::Active,
+            ManualAccountStatus::Disabled => Self::Disabled,
+        }
+    }
+}
+
+impl From<ManualAccountStatus> for crate::xai::XaiAccountStatus {
     fn from(value: ManualAccountStatus) -> Self {
         match value {
             ManualAccountStatus::Active => Self::Active,

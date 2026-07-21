@@ -1,14 +1,14 @@
-import {
-  type ConfigForm,
-  type InboundApiFormat,
-  type KiroPreferredEndpoint,
-  type ModelMappingForm,
-  type ProxyConfigFile,
-  type ProxyConfigFileBase,
-  type TrayTokenRateConfig,
-  type UpstreamDispatchStrategy,
-  type UpstreamForm,
-  type UpstreamStrategy,
+import type {
+  ConfigForm,
+  InboundApiFormat,
+  KiroPreferredEndpoint,
+  ModelMappingForm,
+  ProxyConfigFile,
+  ProxyConfigFileBase,
+  TrayTokenRateConfig,
+  UpstreamDispatchStrategy,
+  UpstreamForm,
+  UpstreamStrategy,
 } from "@/features/config/types";
 import {
   ACCOUNT_BACKED_PROVIDERS,
@@ -66,7 +66,7 @@ function normalizeKiroPreferredEndpoint(value: string) {
 }
 
 function joinListInput(values: string[] | null | undefined) {
-  return values && values.length ? values.join(", ") : "";
+  return values?.length ? values.join(", ") : "";
 }
 
 function parseApiKeysInput(value: string) {

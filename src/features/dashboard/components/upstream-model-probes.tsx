@@ -68,6 +68,8 @@ function ProbeModels({ models }: { models: string[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
+  // The grid is absent until models arrive, so reconnect when its mount condition changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: models.length controls that condition.
   useEffect(() => {
     const node = containerRef.current;
     if (!node || typeof ResizeObserver === "undefined") {
@@ -178,7 +180,7 @@ export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
           {probes.length > 0 ? (
             probes.map((probe, index) => (
               <ProbeRow
-                key={`${probe.provider}:${probe.upstreamId}:${probe.accountId ?? "public"}:${index}`}
+                key={probe.upstreamId}
                 probe={probe}
                 index={index}
               />

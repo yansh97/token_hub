@@ -27,7 +27,7 @@ use super::super::super::{
 use super::super::{
     anthropic_to_responses, chat_to_responses, kiro_to_anthropic, responses_error,
     responses_to_anthropic, responses_to_chat, streaming, upstream_stream, RetryableStreamResponse,
-    PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_OPENAI_RESPONSES,
+    PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_OPENAI_RESPONSES, PROVIDER_XAI,
 };
 use super::buffered;
 
@@ -975,6 +975,7 @@ fn stream_first_output_timeout_response(
     log.clone().write_detached(entry);
     let mut response = http::error_response(StatusCode::GATEWAY_TIMEOUT, &message);
     response.extensions_mut().insert(RetryableStreamResponse {
+        status: StatusCode::GATEWAY_TIMEOUT,
         message,
         should_cooldown: true,
     });
@@ -998,7 +999,7 @@ fn responses_prelude_inspector(
         && is_openai_responses_stream_path(&context.path)
         && matches!(
             context.provider.as_str(),
-            PROVIDER_OPENAI | PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX
+            PROVIDER_OPENAI | PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX | PROVIDER_XAI
         );
 
     // 只缓冲 Responses 生命周期 prelude；首个业务事件放行后，后续错误绝不再拼接第二条流。
@@ -1034,10 +1035,19 @@ fn responses_prelude_retry_response(
     let mut response = http::build_response(status, headers.clone(), body);
     // capacity 类错误不触发跨请求冷却，但仍可原地/跨上游重试。
     let is_capacity = buffered::is_capacity_retry_error(&message, &message);
+    let cooldown_hint = buffered::xai_account_cooldown_hint(
+        &context.provider,
+        error.status,
+        &Bytes::from(message.clone()),
+    );
     response.extensions_mut().insert(RetryableStreamResponse {
+        status: error.status,
         message,
         should_cooldown: !is_capacity,
     });
+    if let Some(hint) = cooldown_hint {
+        response.extensions_mut().insert(hint);
+    }
     response
 }
 
@@ -1127,6 +1137,7 @@ fn stream_error_response(
     log.clone().write_detached(entry);
     let mut response = http::error_response(status, &message);
     response.extensions_mut().insert(RetryableStreamResponse {
+        status,
         message,
         should_cooldown: true,
     });
@@ -1181,6 +1192,7 @@ fn log_response_stream_if_debug(stream: ResponseStream) -> ResponseStream {
 mod tests {
     use super::*;
     use crate::proxy::openai_compat::CHAT_PATH;
+    use crate::proxy::response::AccountCooldownHint;
     use axum::body::to_bytes;
     use axum::http::HeaderMap;
     use futures_util::stream;
@@ -1347,6 +1359,97 @@ mod tests {
             body.contains("\"sequence_number\":0"),
             "prelude terminal event must start the Responses sequence: {body}"
         );
+    }
+
+    #[tokio::test]
+    async fn xai_responses_prelude_exposes_unauthorized_semantic_status() {
+        let upstream_res = reqwest_response_from_delayed_chunks(vec![(
+            Duration::ZERO,
+            "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"type\":\"authentication_error\",\"code\":\"unauthorized\",\"message\":\"token expired\"}}}\n\n",
+        )]);
+        let mut context = test_context();
+        context.provider = PROVIDER_XAI.to_string();
+        context.upstream_id = "xai-test".to_string();
+        context.account_id = Some("xai-user".to_string());
+        let log = Arc::new(LogWriter::new(None));
+
+        let response = match prepare_upstream_stream(
+            StatusCode::OK,
+            &HeaderMap::new(),
+            upstream_res,
+            FormatTransform::None,
+            &mut context,
+            &log,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(30),
+        )
+        .await
+        {
+            Ok(_) => panic!("xAI pre-output error should trigger account failover"),
+            Err(response) => response,
+        };
+
+        let retry = response
+            .extensions()
+            .get::<RetryableStreamResponse>()
+            .expect("retry marker");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(retry.status, StatusCode::UNAUTHORIZED);
+        assert!(retry.message.contains("unauthorized"));
+    }
+
+    #[tokio::test]
+    async fn xai_responses_prelude_free_usage_shapes_mark_429_and_24_hour_cooldown() {
+        for (shape, event) in [
+            (
+                "top-level status",
+                "data: {\"type\":\"error\",\"status\":429,\"error\":{\"code\":\"subscription:free-usage-exhausted\",\"message\":\"You've used all the included free usage for now.\"}}\n\n",
+            ),
+            (
+                "nested invalid request",
+                "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"subscription:free-usage-exhausted\",\"message\":\"You've used all the included free usage for now.\"}}}\n\n",
+            ),
+        ] {
+            let upstream_res =
+                reqwest_response_from_delayed_chunks(vec![(Duration::ZERO, event)]);
+            let mut context = test_context();
+            context.provider = PROVIDER_XAI.to_string();
+            context.upstream_id = "xai-test".to_string();
+            context.account_id = Some("xai-user".to_string());
+            let log = Arc::new(LogWriter::new(None));
+
+            let response = match prepare_upstream_stream(
+                StatusCode::OK,
+                &HeaderMap::new(),
+                upstream_res,
+                FormatTransform::None,
+                &mut context,
+                &log,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                Duration::from_secs(30),
+            )
+            .await
+            {
+                Ok(_) => panic!("xAI free usage error should trigger account failover: {shape}"),
+                Err(response) => response,
+            };
+
+            let retry = response
+                .extensions()
+                .get::<RetryableStreamResponse>()
+                .expect("retry marker");
+            let cooldown = response
+                .extensions()
+                .get::<AccountCooldownHint>()
+                .expect("free usage cooldown marker");
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(retry.status, StatusCode::TOO_MANY_REQUESTS);
+            assert!(retry.should_cooldown);
+            assert_eq!(cooldown.duration, Duration::from_secs(24 * 60 * 60));
+            assert_eq!(cooldown.reason, "free_usage_exhausted");
+        }
     }
 
     #[tokio::test]
@@ -1553,13 +1656,15 @@ fn should_rewrite_sse_model(provider: &str) -> bool {
         || provider == PROVIDER_OPENAI_RESPONSES
         || provider == PROVIDER_GEMINI
         || provider == PROVIDER_CODEX
+        || provider == PROVIDER_XAI
 }
 
 fn openai_semantic_timeout(provider: &str, path: &str, timeout: Duration) -> Option<Duration> {
     if is_openai_responses_stream_path(path)
         && (provider == PROVIDER_OPENAI
             || provider == PROVIDER_OPENAI_RESPONSES
-            || provider == PROVIDER_CODEX)
+            || provider == PROVIDER_CODEX
+            || provider == PROVIDER_XAI)
     {
         Some(timeout)
     } else {

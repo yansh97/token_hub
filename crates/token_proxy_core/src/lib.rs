@@ -16,3 +16,4 @@ pub mod agent_node;
 pub mod codex;
 pub mod kiro;
 pub mod proxy;
+pub mod xai;

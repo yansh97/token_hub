@@ -7,6 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use super::request_body::ReplayableBody;
 
 const BODY_TOO_LARGE_MESSAGE: &str = "[body omitted: too large]";
+const REDACTED_HEADER_VALUE: &str = "[redacted]";
 const DEFAULT_CAPTURE_WINDOW_SECS: u64 = 600; // 10 minutes
 const DISARMED_AT_MS: u64 = 0;
 
@@ -152,10 +153,25 @@ pub fn serialize_request_headers(headers: &HeaderMap) -> Option<String> {
         .iter()
         .map(|(name, value)| HeaderEntry {
             name: name.to_string(),
-            value: value.to_str().unwrap_or("<binary>").to_string(),
+            value: if is_sensitive_request_header(name.as_str()) {
+                REDACTED_HEADER_VALUE.to_string()
+            } else {
+                value.to_str().unwrap_or("<binary>").to_string()
+            },
         })
         .collect();
     serde_json::to_string(&items).ok()
+}
+
+/// Request Detail 会持久化到数据库，凭证类请求头必须在序列化前脱敏。
+fn is_sensitive_request_header(name: &str) -> bool {
+    matches!(
+        name,
+        "authorization" | "proxy-authorization" | "cookie" | "set-cookie"
+    ) || name.contains("api-key")
+        || name.contains("apikey")
+        || name.contains("token")
+        || name.contains("secret")
 }
 
 pub(crate) async fn capture_request_detail(
@@ -185,9 +201,65 @@ struct HeaderEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::HeaderValue;
     use std::sync::atomic::AtomicU64;
     use std::sync::Mutex;
     use std::time::Duration;
+
+    #[test]
+    fn request_header_serialization_redacts_credentials_and_keeps_safe_values() {
+        let mut headers = HeaderMap::new();
+        for (name, value) in [
+            ("authorization", "Bearer access-secret"),
+            ("proxy-authorization", "Basic proxy-secret"),
+            ("cookie", "session=cookie-secret"),
+            ("set-cookie", "session=response-secret"),
+            ("x-api-key", "api-key-secret"),
+            ("x-access-token", "access-token-secret"),
+            ("x-client-secret", "client-secret"),
+            ("content-type", "application/json"),
+            ("x-request-id", "request-123"),
+        ] {
+            headers.insert(
+                name.parse::<axum::http::HeaderName>().expect("header name"),
+                HeaderValue::from_str(value).expect("header value"),
+            );
+        }
+
+        let serialized = serialize_request_headers(&headers).expect("serialized headers");
+        let entries = serde_json::from_str::<Vec<serde_json::Value>>(&serialized)
+            .expect("header snapshot JSON");
+        let value_for = |name: &str| {
+            entries.iter().find_map(|entry| {
+                (entry["name"].as_str() == Some(name))
+                    .then(|| entry["value"].as_str().unwrap_or_default())
+            })
+        };
+
+        for name in [
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+            "set-cookie",
+            "x-api-key",
+            "x-access-token",
+            "x-client-secret",
+        ] {
+            assert_eq!(value_for(name), Some(REDACTED_HEADER_VALUE));
+        }
+        assert_eq!(value_for("content-type"), Some("application/json"));
+        assert_eq!(value_for("x-request-id"), Some("request-123"));
+        for secret in [
+            "access-secret",
+            "proxy-secret",
+            "cookie-secret",
+            "api-key-secret",
+            "access-token-secret",
+            "client-secret",
+        ] {
+            assert!(!serialized.contains(&format!("\"value\":\"{secret}\"")));
+        }
+    }
 
     fn create_capture(
         now_ms: Arc<AtomicU64>,

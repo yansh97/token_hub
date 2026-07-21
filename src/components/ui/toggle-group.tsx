@@ -79,6 +79,7 @@ function ToggleGroup<T extends ToggleGroupType>({
     <ToggleGroupContext.Provider
       value={{ type, value: selected, disabled, variant, size, spacing, toggle }}
     >
+      {/* biome-ignore lint/a11y/useSemanticElements: This is a non-form ARIA button group. */}
       <div
         role="group"
         data-slot="toggle-group"

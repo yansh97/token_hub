@@ -44,6 +44,7 @@ function App() {
       case "settings":
         return <SettingsPage />;
       case "dashboard":
+        return <DashboardPage />;
       default:
         return <DashboardPage />;
     }

@@ -12,6 +12,7 @@ function Separator({
   decorative?: boolean;
 }) {
   return (
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: The role varies with the decorative prop.
     <div
       data-slot="separator"
       data-orientation={orientation}

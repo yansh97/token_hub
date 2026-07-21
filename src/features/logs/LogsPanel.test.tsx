@@ -610,6 +610,7 @@ describe("logs/LogsPanel", () => {
     });
 
     await act(async () => {
+      // biome-ignore lint/style/noNonNullAssertion: The preceding wait registers this deferred resolver.
       resolveThird!(
         createRequestLogDetail({
           id: 3,
@@ -632,6 +633,7 @@ describe("logs/LogsPanel", () => {
     expect(screen.getByText("OpenAI Responses")).toBeInTheDocument();
 
     await act(async () => {
+      // biome-ignore lint/style/noNonNullAssertion: The preceding wait registers this deferred resolver.
       resolveFirst!(
         createRequestLogDetail({
           model: "stale-chat-model",

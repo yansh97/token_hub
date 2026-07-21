@@ -8,7 +8,7 @@ describe("release workflow", () => {
   it("bootstraps the GitHub release before desktop asset uploads", () => {
     expect(releaseWorkflow).toContain("stable_release_bootstrap:");
     expect(releaseWorkflow).toContain(
-      "stable_release:\n    name: Release (${{ matrix.platform }} / ${{ matrix.target }})\n    needs: [stable_tag, stable_release_bootstrap]",
+      `stable_release:\n    name: Release (\${{ matrix.platform }} / \${{ matrix.target }})\n    needs: [stable_tag, stable_release_bootstrap]`,
     );
     expect(releaseWorkflow).not.toContain("stable_cli_release:");
     expect(releaseWorkflow).not.toContain("Build CLI binary");

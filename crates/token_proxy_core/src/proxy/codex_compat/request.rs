@@ -32,10 +32,15 @@ fn normalize_codex_call_id(id: &str) -> String {
     }
 
     // 同一 canonical ID 生成相同摘要，使 call 与 output 在压缩后仍能配对。
+    // sha2 0.11 的 Output 不再实现 LowerHex，手动格式化固定宽度 hex。
     let mut hasher = Sha256::new();
     hasher.update(b"token-proxy:codex-call-id:v1:");
     hasher.update(candidate.as_bytes());
-    let digest = format!("{:x}", hasher.finalize());
+    let digest: String = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
     let suffix_bytes = CODEX_CALL_ID_MAX_BYTES - CODEX_CALL_ID_PREFIX.len();
     let normalized = format!("{CODEX_CALL_ID_PREFIX}{}", &digest[..suffix_bytes]);
     tracing::debug!(
