@@ -415,7 +415,8 @@ export function DashboardFilters({
                 }
               }}
             >
-              <SelectTrigger id="dashboard-range" className="h-9 w-[160px]">
+              {/* 筛选条空间紧：触发器约原宽度 2/3，下拉仍可随最长项变宽 */}
+              <SelectTrigger id="dashboard-range" className="h-9 w-[107px]">
                 <SelectValue placeholder={m.dashboard_range_placeholder()} />
               </SelectTrigger>
               <SelectContent>
@@ -487,7 +488,7 @@ export function DashboardFilters({
                 onUpstreamChange(toUpstreamFilterValue(value))
               }}
             >
-              <SelectTrigger id="dashboard-upstream" className="h-9 w-[148px]">
+              <SelectTrigger id="dashboard-upstream" className="h-9 w-[99px]">
                 <SelectValue placeholder={m.dashboard_upstream_placeholder()} />
               </SelectTrigger>
               <SelectContent>
@@ -513,7 +514,7 @@ export function DashboardFilters({
                 onAccountChange(next.accountId, next.publicOnly)
               }}
             >
-              <SelectTrigger id="dashboard-account" className="h-9 w-[148px]">
+              <SelectTrigger id="dashboard-account" className="h-9 w-[99px]">
                 <SelectValue placeholder={m.dashboard_account_placeholder()} />
               </SelectTrigger>
               <SelectContent>
@@ -545,7 +546,7 @@ export function DashboardFilters({
                 onModelChange(toModelFilterValue(value))
               }}
             >
-              <SelectTrigger id="dashboard-model" className="h-9 w-[160px]">
+              <SelectTrigger id="dashboard-model" className="h-9 w-[107px]">
                 <SelectValue placeholder={m.dashboard_model_placeholder()} />
               </SelectTrigger>
               <SelectContent>
