@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { handleKiroCallback } from "@/features/kiro/api";
 import { UpdateNotifier } from "@/features/update/UpdateNotifier";
 import { UpdaterProvider } from "@/features/update/updater";
+import { AppShellProvider } from "@/layouts/app-shell";
 
 import "./App.css";
 
@@ -32,8 +33,11 @@ function App() {
     <UpdaterProvider>
       <UpdateNotifier />
       <main className="app-shell">
+        {/* 持久壳：侧边栏只挂一次，路由切换只换内容区，motion layoutId 才能滑 */}
         <div data-slot="app-shell" className="relative z-10 h-full min-h-0">
-          <Outlet />
+          <AppShellProvider>
+            <Outlet />
+          </AppShellProvider>
         </div>
       </main>
     </UpdaterProvider>
