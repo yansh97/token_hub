@@ -9,7 +9,7 @@ pub async fn read_request_log_detail(
     app: tauri::AppHandle,
     id: u64,
 ) -> Result<proxy::logs::RequestLogDetail, String> {
-    let paths = app.state::<Arc<token_proxy_core::paths::TokenProxyPaths>>();
+    let paths = app.state::<Arc<token_proxy_account_store::paths::TokenProxyPaths>>();
     let pool = proxy::sqlite::open_read_pool(paths.inner().as_ref()).await?;
     proxy::logs::read_request_log_detail(&pool, id).await
 }

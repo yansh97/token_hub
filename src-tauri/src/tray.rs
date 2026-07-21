@@ -9,11 +9,11 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager};
 
-use crate::proxy::config::{TrayTokenRateConfig, TrayTokenRateFormat};
 use crate::proxy::service::{ProxyServiceHandle, ProxyServiceState, ProxyServiceStatus};
 #[cfg(target_os = "macos")]
 use crate::proxy::token_rate::TokenRateSnapshot;
 use crate::proxy::token_rate::TokenRateTracker;
+use token_proxy_config::{TrayTokenRateConfig, TrayTokenRateFormat};
 
 type AppMenuItem = MenuItem<tauri::Wry>;
 type AppTrayIcon = TrayIcon<tauri::Wry>;

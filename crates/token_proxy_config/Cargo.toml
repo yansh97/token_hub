@@ -1,0 +1,16 @@
+[package]
+name = "token_proxy_config"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+token_proxy_account_store = { path = "../token_proxy_account_store" }
+axum = "0.8.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53", features = ["fs"] }
+tracing = { version = "0.1.44", features = ["release_max_level_off"] }
+url = "2.5.8"
+
+[dev-dependencies]
+token_proxy_account_xai = { path = "../token_proxy_account_xai" }

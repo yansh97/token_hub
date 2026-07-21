@@ -1,7 +1,15 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/token_proxy_core",
+  "crates/token_proxy_agent_node",
+  "crates/token_proxy_account_store",
+  "crates/token_proxy_account_codex",
+  "crates/token_proxy_account_kiro",
+  "crates/token_proxy_account_xai",
+  "crates/token_proxy_accounts",
+  "crates/token_proxy_config",
+  "crates/token_proxy_app",
+  "crates/token_proxy_protocol",
   "crates/token_proxy_cli",
   "src-tauri",
 ]

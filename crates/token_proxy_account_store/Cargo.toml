@@ -1,0 +1,17 @@
+[package]
+name = "token_proxy_account_store"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+base64 = "0.22"
+rand = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "socks", "http2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11"
+sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
+time = { version = "0.3", features = ["formatting"] }
+tokio = { version = "1.53", features = ["fs", "sync"] }
+tracing = { version = "0.1.44", features = ["release_max_level_off"] }
+url = "2.5.8"

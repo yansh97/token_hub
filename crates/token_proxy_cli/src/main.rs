@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "token-proxy")]
@@ -59,7 +58,7 @@ async fn main() {
 }
 
 async fn run(cli: Cli) -> Result<(), String> {
-    let paths = token_proxy_core::paths::TokenProxyPaths::from_config_path(&cli.config)?;
+    let paths = token_proxy_account_store::paths::TokenProxyPaths::from_config_path(&cli.config)?;
     match cli.command {
         Command::Config { command } => match command {
             ConfigCommand::Path => {
@@ -67,7 +66,7 @@ async fn run(cli: Cli) -> Result<(), String> {
                 Ok(())
             }
             ConfigCommand::Init => {
-                token_proxy_core::proxy::config::init_default_config(&paths).await?;
+                token_proxy_config::init_default_config(&paths).await?;
                 println!("created {}", paths.config_file().display());
                 Ok(())
             }
@@ -78,7 +77,7 @@ async fn run(cli: Cli) -> Result<(), String> {
 }
 
 async fn run_agent_node(command: AgentNodeCommand) -> Result<(), String> {
-    let config = token_proxy_core::agent_node::AgentNodeConfig {
+    let config = token_proxy_agent_node::AgentNodeConfig {
         server_url: command.server_url,
         api_key: command.api_key,
         hostname: command.hostname.or_else(default_hostname),
@@ -87,7 +86,7 @@ async fn run_agent_node(command: AgentNodeCommand) -> Result<(), String> {
         version: env!("CARGO_PKG_VERSION").to_string(),
     };
     println!("agent node connecting to {}", config.server_url);
-    let mut client = token_proxy_core::agent_node::AgentNodeClient::new(config);
+    let mut client = token_proxy_agent_node::AgentNodeClient::new(config);
     tokio::select! {
         result = client.run_with_reconnect() => result,
         signal = tokio::signal::ctrl_c() => {
@@ -106,25 +105,23 @@ fn default_hostname() -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-async fn serve(paths: token_proxy_core::paths::TokenProxyPaths) -> Result<(), String> {
-    // 1) 初始化日志（默认 silent；服务启动时会根据配置动态 apply）
+async fn serve(paths: token_proxy_account_store::paths::TokenProxyPaths) -> Result<(), String> {
+    // 应用 composition root 统一 CLI/Tauri 的账户、统计和代理依赖。
     let logging =
-        token_proxy_core::logging::LoggingState::init(token_proxy_core::logging::LogLevel::Silent);
-
-    // 2) 初始化 app_proxy（供 accounts/reqwest client 复用）
-    let app_proxy = token_proxy_core::app_proxy::new_state();
-    let config_file = token_proxy_core::proxy::config::read_config(&paths)
-        .await?
-        .config;
-    let proxy_url = token_proxy_core::proxy::config::app_proxy_url_from_config(&config_file)?;
-    token_proxy_core::app_proxy::set(&app_proxy, proxy_url.clone()).await;
+        token_proxy_app::logging::LoggingState::init(token_proxy_app::logging::LogLevel::Silent);
+    let app = token_proxy_app::app::TokenProxyApp::open(paths, logging, None)?;
+    let paths = app.paths();
+    let app_proxy = app.app_proxy();
+    let config_file = token_proxy_config::read_config(&paths).await?.config;
+    let proxy_url = token_proxy_config::app_proxy_url_from_config(&config_file)?;
+    token_proxy_account_store::app_proxy::set(&app_proxy, proxy_url.clone()).await;
 
     // 价格目录刷新独立于代理启动；失败时继续使用 SQLite 缓存或内置快照。
     let pricing_paths = paths.clone();
     tokio::spawn(async move {
         let result = async {
-            let pool = token_proxy_core::proxy::sqlite::open_write_pool(&pricing_paths).await?;
-            token_proxy_core::proxy::pricing::refresh_remote_model_pricing_catalog(
+            let pool = token_proxy_app::proxy::sqlite::open_write_pool(&pricing_paths).await?;
+            token_proxy_app::proxy::pricing::refresh_remote_model_pricing_catalog(
                 &pool,
                 proxy_url.as_deref(),
             )
@@ -137,35 +134,8 @@ async fn serve(paths: token_proxy_core::paths::TokenProxyPaths) -> Result<(), St
         }
     });
 
-    // 3) 初始化运行时依赖（尽量保持与 Tauri 侧一致，确保行为一致）
-    let request_detail =
-        Arc::new(token_proxy_core::proxy::request_detail::RequestDetailCapture::default());
-    let token_rate = token_proxy_core::proxy::token_rate::TokenRateTracker::new();
-
-    let kiro_accounts = Arc::new(token_proxy_core::kiro::KiroAccountStore::new(
-        &paths,
-        app_proxy.clone(),
-    )?);
-    let codex_accounts = Arc::new(token_proxy_core::codex::CodexAccountStore::new(
-        &paths,
-        app_proxy.clone(),
-    )?);
-    let xai_accounts = Arc::new(token_proxy_core::xai::XaiAccountStore::new(
-        &paths,
-        app_proxy.clone(),
-    )?);
-
-    let ctx = token_proxy_core::proxy::service::ProxyContext {
-        paths: Arc::new(paths),
-        logging,
-        request_detail,
-        token_rate,
-        kiro_accounts,
-        codex_accounts,
-        xai_accounts,
-    };
-
-    let proxy = token_proxy_core::proxy::service::ProxyServiceHandle::new();
+    let ctx = app.proxy_context();
+    let proxy = app.proxy();
     let status = proxy.start(&ctx).await?;
     if let Some(addr) = status.addr.as_deref() {
         println!("proxy running on {addr}");

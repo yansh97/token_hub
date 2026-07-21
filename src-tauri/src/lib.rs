@@ -4,7 +4,6 @@ mod app_proxy;
 mod client_config;
 mod codex;
 mod commands;
-mod jsonc;
 mod kiro;
 mod logging;
 mod proxy;
@@ -37,7 +36,6 @@ use commands::{
     xai_set_status, xai_start_login,
 };
 
-type ProxyServiceHandle = proxy::service::ProxyServiceHandle;
 type LogLevel = logging::LogLevel;
 
 const REQUEST_DETAIL_CAPTURE_EVENT: &str = "request-detail-capture-changed";
@@ -49,16 +47,16 @@ type RequestDetailCaptureEvent = proxy::request_detail::RequestDetailCaptureStat
 /// xAI 到期刷新任务会在 proxy 启动时立即读取该状态；把写入和启动收拢到同一条
 /// future 链中，避免并发 task 让首轮 OAuth refresh 误走直连。
 async fn run_after_app_proxy_initialized<T, Action, ActionFuture>(
-    paths: &token_proxy_core::paths::TokenProxyPaths,
+    paths: &token_proxy_account_store::paths::TokenProxyPaths,
     app_proxy_state: &app_proxy::AppProxyState,
     action: Action,
 ) -> Result<T, String>
 where
-    Action: FnOnce(token_proxy_core::proxy::config::ConfigResponse, Option<String>) -> ActionFuture,
+    Action: FnOnce(token_proxy_config::ConfigResponse, Option<String>) -> ActionFuture,
     ActionFuture: Future<Output = T>,
 {
-    let response = proxy::config::read_config(paths).await?;
-    let proxy_url = proxy::config::app_proxy_url_from_config(&response.config)?;
+    let response = token_proxy_config::read_config(paths).await?;
+    let proxy_url = token_proxy_config::app_proxy_url_from_config(&response.config)?;
     app_proxy::set(app_proxy_state, proxy_url.clone()).await;
     tracing::debug!(
         proxy_enabled = proxy_url.is_some(),
@@ -68,7 +66,7 @@ where
 }
 
 async fn refresh_model_pricing_catalog(
-    paths: Arc<token_proxy_core::paths::TokenProxyPaths>,
+    paths: Arc<token_proxy_account_store::paths::TokenProxyPaths>,
     proxy_url: Option<String>,
 ) {
     match proxy::sqlite::open_write_pool(paths.as_ref()).await {
@@ -143,70 +141,42 @@ pub fn run() {
                 .path()
                 .app_config_dir()
                 .map_err(|err| format!("Failed to resolve app config dir: {err}"))?;
-            let paths = Arc::new(token_proxy_core::paths::TokenProxyPaths::from_app_data_dir(
-                data_dir,
-            )?);
-            app.manage(paths.clone());
-
-            let token_rate = proxy::token_rate::TokenRateTracker::new();
-            app.manage(token_rate.clone());
             let app_handle_for_request_detail = app.handle().clone();
             let on_request_detail_change = Arc::new(move |state: RequestDetailCaptureEvent| {
                 let _ = app_handle_for_request_detail.emit(REQUEST_DETAIL_CAPTURE_EVENT, state);
             });
-            let request_detail = Arc::new(proxy::request_detail::RequestDetailCapture::new(Some(
-                on_request_detail_change,
-            )));
+            let token_proxy_app = token_proxy_app::app::TokenProxyApp::open(
+                token_proxy_account_store::paths::TokenProxyPaths::from_app_data_dir(data_dir)?,
+                logging_state.clone(),
+                Some(on_request_detail_change),
+            )?;
+            let paths = token_proxy_app.paths();
+            let token_rate = token_proxy_app.token_rate();
+            let request_detail = token_proxy_app.request_detail();
+            let proxy_service = token_proxy_app.proxy();
+            let app_proxy_state = token_proxy_app.app_proxy();
+            let kiro_store = token_proxy_app.kiro_accounts();
+            let codex_store = token_proxy_app.codex_accounts();
+            let xai_store = token_proxy_app.xai_accounts();
+            let proxy_context = token_proxy_app.proxy_context();
+
+            app.manage(paths.clone());
+            app.manage(token_rate.clone());
             app.manage(request_detail.clone());
-            let proxy_service = ProxyServiceHandle::new();
             app.manage(proxy_service.clone());
             let agent_node_service = agent_node_service::AgentNodeServiceHandle::new();
             app.manage(agent_node_service.clone());
             app.manage(logging_state.clone());
-            let app_proxy_state = app_proxy::new_state();
             app.manage(app_proxy_state.clone());
-            let app_handle = app.handle().clone();
-            let kiro_store = Arc::new(kiro::KiroAccountStore::new(
-                paths.as_ref(),
-                app_proxy_state.clone(),
-            )?);
             app.manage(kiro_store.clone());
-            let kiro_login = Arc::new(kiro::KiroLoginManager::new(
-                kiro_store.clone(),
-                app_proxy_state.clone(),
-            ));
-            app.manage(kiro_login);
-            let codex_store = Arc::new(codex::CodexAccountStore::new(
-                paths.as_ref(),
-                app_proxy_state.clone(),
-            )?);
+            app.manage(token_proxy_app.kiro_login());
             app.manage(codex_store.clone());
-            let codex_login = Arc::new(codex::CodexLoginManager::new(
-                codex_store.clone(),
-                app_proxy_state.clone(),
-            ));
-            app.manage(codex_login);
-            let xai_store = Arc::new(xai::XaiAccountStore::new(
-                paths.as_ref(),
-                app_proxy_state.clone(),
-            )?);
+            app.manage(token_proxy_app.codex_login());
             app.manage(xai_store.clone());
-            let xai_login = Arc::new(xai::XaiLoginManager::new(
-                xai_store.clone(),
-                app_proxy_state.clone(),
-            ));
-            app.manage(xai_login);
-
-            let proxy_context = proxy::service::ProxyContext {
-                paths: paths.clone(),
-                logging: logging_state.clone(),
-                request_detail: request_detail.clone(),
-                token_rate: token_rate.clone(),
-                kiro_accounts: kiro_store.clone(),
-                codex_accounts: codex_store.clone(),
-                xai_accounts: xai_store.clone(),
-            };
+            app.manage(token_proxy_app.xai_login());
             app.manage(proxy_context.clone());
+            app.manage(token_proxy_app);
+            let app_handle = app.handle().clone();
             let tray_state = tray::init_tray(&app_handle, proxy_service.clone())?;
             app.manage(tray_state.clone());
 
@@ -444,15 +414,16 @@ mod tests {
     fn startup_action_observes_initialized_app_proxy() {
         let data_dir = test_data_dir("startup-proxy-order");
         fs::create_dir_all(&data_dir).expect("create test data dir");
-        let paths = token_proxy_core::paths::TokenProxyPaths::from_app_data_dir(data_dir.clone())
-            .expect("test paths");
+        let paths =
+            token_proxy_account_store::paths::TokenProxyPaths::from_app_data_dir(data_dir.clone())
+                .expect("test paths");
         let app_proxy_state = crate::app_proxy::new_state();
         let expected_proxy = "http://127.0.0.1:7890".to_string();
 
         let observed_proxy = test_runtime().block_on(async {
-            let mut config = token_proxy_core::proxy::config::ProxyConfigFile::default();
+            let mut config = token_proxy_config::ProxyConfigFile::default();
             config.app_proxy_url = Some(expected_proxy.clone());
-            token_proxy_core::proxy::config::write_config(&paths, config)
+            token_proxy_config::write_config(&paths, config)
                 .await
                 .expect("write test config");
 
@@ -481,16 +452,17 @@ mod tests {
     fn startup_initialization_clears_stale_app_proxy() {
         let data_dir = test_data_dir("startup-proxy-clear");
         fs::create_dir_all(&data_dir).expect("create test data dir");
-        let paths = token_proxy_core::paths::TokenProxyPaths::from_app_data_dir(data_dir.clone())
-            .expect("test paths");
+        let paths =
+            token_proxy_account_store::paths::TokenProxyPaths::from_app_data_dir(data_dir.clone())
+                .expect("test paths");
         let app_proxy_state = crate::app_proxy::new_state();
 
         let observed_proxy = test_runtime().block_on(async {
             crate::app_proxy::set(&app_proxy_state, Some("http://127.0.0.1:8888".to_string()))
                 .await;
-            token_proxy_core::proxy::config::write_config(
+            token_proxy_config::write_config(
                 &paths,
-                token_proxy_core::proxy::config::ProxyConfigFile::default(),
+                token_proxy_config::ProxyConfigFile::default(),
             )
             .await
             .expect("write test config");

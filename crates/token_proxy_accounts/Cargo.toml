@@ -1,0 +1,16 @@
+[package]
+name = "token_proxy_accounts"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+token_proxy_account_codex = { path = "../token_proxy_account_codex" }
+token_proxy_account_kiro = { path = "../token_proxy_account_kiro" }
+token_proxy_account_store = { path = "../token_proxy_account_store" }
+token_proxy_account_xai = { path = "../token_proxy_account_xai" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.151"
+
+[dev-dependencies]
+rand = "0.10"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread"] }
