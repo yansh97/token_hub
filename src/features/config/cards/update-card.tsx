@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { AlertCircle } from "lucide-react";
 
@@ -75,65 +75,53 @@ function useAppVersion() {
   return currentVersion;
 }
 
+function formatVersion(version: string) {
+  if (!version) {
+    return "--";
+  }
+  return version.startsWith("v") ? version : `v${version}`;
+}
+
 type UpdateStatusRowProps = {
   currentVersion: string;
   badge: { label: string; variant: BadgeVariant };
-  lastCheckedAt: string;
+  updateInfo: UpdateInfo | null;
 };
 
 function UpdateStatusRow({
   currentVersion,
   badge,
-  lastCheckedAt,
+  updateInfo,
 }: UpdateStatusRowProps) {
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-3 text-[13px]">
-        <span className="text-muted-foreground">当前版本</span>
-        <span className="font-mono text-[12px] text-foreground/80">
-          {currentVersion || "--"}
-        </span>
-        <Badge variant={badge.variant}>{badge.label}</Badge>
+  const currentVersionLabel = formatVersion(currentVersion);
+
+  if (updateInfo) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-[13px]">
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground">当前版本</span>
+          <span className="font-mono text-[12px] font-medium text-foreground">
+            {currentVersionLabel}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground">可用版本</span>
+          <span className="font-mono text-[12px] font-medium text-foreground">
+            {formatVersion(updateInfo.version)}
+          </span>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
+        </div>
       </div>
-      {lastCheckedAt ? (
-        <p className="text-[11px] leading-4 text-muted-foreground">
-          上次检查：{lastCheckedAt}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-type UpdateDetailsProps = {
-  updateInfo: UpdateInfo | null;
-};
-
-function UpdateDetails({ updateInfo }: UpdateDetailsProps) {
-  if (!updateInfo) {
-    return null;
+    );
   }
 
   return (
-    <div className="space-y-2 text-[13px]">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground">最新版本</span>
-        <span className="font-mono text-[12px] text-foreground/80">
-          {updateInfo.version}
-        </span>
-      </div>
-      {updateInfo.date ? (
-        <div className="text-[11px] leading-4 text-muted-foreground">
-          发布日期：{updateInfo.date}
-        </div>
-      ) : null}
-      <div>
-        <p className="text-[11px] font-medium text-muted-foreground">
-          更新说明
-        </p>
-        <div className="mt-1 rounded-md border border-border/60 bg-background/60 p-2.5 text-[12px] leading-5 text-muted-foreground whitespace-pre-wrap">
-          {updateInfo.body || "暂无更新说明。"}
-        </div>
-      </div>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+      <span className="text-muted-foreground">当前版本</span>
+      <span className="font-mono text-[12px] font-medium text-foreground">
+        {currentVersionLabel}
+      </span>
+      <Badge variant={badge.variant}>{badge.label}</Badge>
     </div>
   );
 }
@@ -237,14 +225,8 @@ function resolveProgressLabel(
 export function UpdateCard() {
   const currentVersion = useAppVersion();
   const { state, actions } = useUpdater();
-  const statusBadge = useMemo(
-    () => resolveStatusBadge(state.status),
-    [state.status],
-  );
-  const progressLabel = useMemo(
-    () => resolveProgressLabel(state.status, state.downloadState),
-    [state.downloadState, state.status],
-  );
+  const statusBadge = resolveStatusBadge(state.status);
+  const progressLabel = resolveProgressLabel(state.status, state.downloadState);
   const canCheck = canStartUpdateCheck(state.status);
   const canInstall = state.status === "available" && !!state.updateHandle;
   const canRelaunch = state.status === "installed";
@@ -264,24 +246,21 @@ export function UpdateCard() {
             检查并安装最新稳定版本。
           </p>
         </div>
-        <div>
-          <UpdateActions
-            canCheck={canCheck}
-            canInstall={canInstall}
-            canRelaunch={canRelaunch}
-            onCheck={triggerManualCheck}
-            onInstall={actions.downloadAndInstall}
-            onRelaunch={actions.relaunchApp}
-          />
-        </div>
+        <UpdateActions
+          canCheck={canCheck}
+          canInstall={canInstall}
+          canRelaunch={canRelaunch}
+          onCheck={triggerManualCheck}
+          onInstall={actions.downloadAndInstall}
+          onRelaunch={actions.relaunchApp}
+        />
       </div>
       <div className="space-y-3 pt-3">
         <UpdateStatusRow
           currentVersion={currentVersion}
           badge={statusBadge}
-          lastCheckedAt={state.lastCheckedAt}
+          updateInfo={state.updateInfo}
         />
-        <UpdateDetails updateInfo={state.updateInfo} />
         <UpdateProgress label={progressLabel} />
         <UpdateError message={state.statusMessage} />
       </div>

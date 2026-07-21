@@ -46,7 +46,13 @@ function resolveBadge(status: ProxyServiceStatus | null, message: string) {
   };
 }
 
-type ProxyServiceContentProps = ProxyServiceViewProps & { className?: string };
+type ProxyServiceContentProps = {
+  badge: ReturnType<typeof resolveBadge>;
+  addr: string;
+  errorMessage: string;
+  isDirty: boolean;
+  className?: string;
+};
 
 type ProxyServiceStatusRowProps = {
   badge: ReturnType<typeof resolveBadge>;
@@ -181,6 +187,25 @@ function ProxyServiceDirtyNotice({ isDirty }: ProxyServiceDirtyNoticeProps) {
 }
 
 function ProxyServiceContent({
+  badge,
+  addr,
+  errorMessage,
+  isDirty,
+  className,
+}: ProxyServiceContentProps) {
+  return (
+    <div className={cn("space-y-3", className)}>
+      <ProxyServiceStatusRow badge={badge} addr={addr} />
+      <ProxyServiceError message={errorMessage} />
+      <ProxyServiceDirtyNotice isDirty={isDirty} />
+    </div>
+  );
+}
+
+type ProxyServicePanelProps = ProxyServiceViewProps & { className?: string };
+
+export function ProxyServicePanel({
+  className,
   status,
   requestState,
   message,
@@ -190,8 +215,7 @@ function ProxyServiceContent({
   onStop,
   onRestart,
   onReload,
-  className,
-}: ProxyServiceContentProps) {
+}: ProxyServicePanelProps) {
   const isWorking = requestState === "working";
   const isRunning = status?.state === "running";
   const errorMessage = message || status?.last_error || "";
@@ -199,9 +223,19 @@ function ProxyServiceContent({
   const addr = status?.addr || "--";
 
   return (
-    <div className={cn("space-y-3", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ProxyServiceStatusRow badge={badge} addr={addr} />
+    <section
+      data-slot="proxy-service-panel"
+      className={cn("space-y-4", className)}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-[15px] font-semibold leading-5 text-foreground">
+            代理服务
+          </p>
+          <p className="text-[13px] leading-5 text-muted-foreground">
+            查看运行状态，并安全地启动、停止或重新载入服务。
+          </p>
+        </div>
         <ProxyServiceActions
           isWorking={isWorking}
           isRunning={isRunning}
@@ -213,32 +247,12 @@ function ProxyServiceContent({
           onReload={onReload}
         />
       </div>
-      <ProxyServiceError message={errorMessage} />
-      <ProxyServiceDirtyNotice isDirty={isDirty} />
-    </div>
-  );
-}
-
-type ProxyServicePanelProps = ProxyServiceViewProps & { className?: string };
-
-export function ProxyServicePanel({
-  className,
-  ...props
-}: ProxyServicePanelProps) {
-  return (
-    <section
-      data-slot="proxy-service-panel"
-      className={cn("space-y-4", className)}
-    >
-      <div className="space-y-1">
-        <p className="text-[15px] font-semibold leading-5 text-foreground">
-          代理服务
-        </p>
-        <p className="text-[13px] leading-5 text-muted-foreground">
-          查看运行状态，并安全地启动、停止或重新载入服务。
-        </p>
-      </div>
-      <ProxyServiceContent {...props} />
+      <ProxyServiceContent
+        badge={badge}
+        addr={addr}
+        errorMessage={errorMessage}
+        isDirty={isDirty}
+      />
     </section>
   );
 }

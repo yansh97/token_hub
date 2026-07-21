@@ -117,13 +117,13 @@ function ConfigSectionBody({
             onChange={props.onFormChange}
             proxyService={proxyService}
           />
-          <StorageUsageCard />
           <AutoStartCard
             enabled={props.autoStartEnabled}
             status={props.autoStartStatus}
             message={props.autoStartMessage}
             onChange={props.onAutoStartChange}
           />
+          <StorageUsageCard />
           <UpdateCard />
         </div>
       );

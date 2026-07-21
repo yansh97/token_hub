@@ -8,6 +8,7 @@ import {
   toPayload,
   validate,
 } from "@/features/config/form";
+import { PROTOCOL_OPTIONS } from "@/features/config/cards/upstreams/constants";
 import type {
   ConfigForm,
   ProxyConfigFile,
@@ -56,6 +57,8 @@ function normalizeConfigForCompare(
 
 export type StatusState = "idle" | "loading" | "saving" | "saved" | "error";
 export type AutoStartStatus = "idle" | "loading" | "error";
+
+const PROVIDER_OPTIONS = [...PROTOCOL_OPTIONS];
 
 export function useConfigState() {
   const [form, setForm] = useState<ConfigForm>(EMPTY_FORM);
@@ -233,19 +236,6 @@ export function useConfigDerived(
     autoStartStatus !== "loading" && autoStartEnabled !== autoStartBaseline;
   const isDirty = configDirty || autoStartDirty;
 
-  const providerOptions = useMemo(() => {
-    const providers = new Set<string>();
-    for (const upstream of form.upstreams) {
-      for (const provider of upstream.providers) {
-        const trimmed = provider.trim();
-        if (trimmed) {
-          providers.add(trimmed);
-        }
-      }
-    }
-    return Array.from(providers);
-  }, [form.upstreams]);
-
   const autoSaveKey = useMemo(() => {
     const segments: string[] = [];
     if (configDirty && currentPayload) {
@@ -268,6 +258,6 @@ export function useConfigDerived(
     isDirty,
     canSave,
     canAutoSave: canSave,
-    providerOptions,
+    providerOptions: PROVIDER_OPTIONS,
   };
 }

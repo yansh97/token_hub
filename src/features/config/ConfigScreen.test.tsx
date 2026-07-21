@@ -49,6 +49,7 @@ vi.mock("@/features/config/AppView", () => ({
     isDirty,
     status,
     statusMessage,
+    providerOptions,
     onFormChange,
     onSave,
   }: {
@@ -57,6 +58,7 @@ vi.mock("@/features/config/AppView", () => ({
     isDirty: boolean;
     status: "idle" | "loading" | "saving" | "saved" | "error";
     statusMessage: string;
+    providerOptions: string[];
     onFormChange: (patch: Partial<ConfigForm>) => void;
     onSave: () => void;
   }) => (
@@ -75,6 +77,7 @@ vi.mock("@/features/config/AppView", () => ({
       <div data-testid="status">{status}</div>
       <div data-testid="dirty">{String(isDirty)}</div>
       <div data-testid="status-message">{statusMessage}</div>
+      <div data-testid="provider-options">{providerOptions.join(",")}</div>
     </div>
   ),
 }));
@@ -154,6 +157,40 @@ describe("config/ConfigScreen auto save", () => {
       expect(writeCalls[0]?.[1]).toMatchObject({
         config: expect.objectContaining({ host: "10.0.0.3" }),
       });
+    });
+  });
+
+  it("keeps all supported interface formats available for new providers", async () => {
+    const invokeMock = vi.mocked(invoke);
+    const config = {
+      ...toPayload(EMPTY_FORM),
+      upstreams: [
+        {
+          ...toPayload(EMPTY_FORM).upstreams[0],
+          id: "responses-only",
+          providers: ["openai-response"],
+          base_url: "https://api.openai.com",
+          enabled: true,
+        },
+      ],
+    };
+
+    invokeMock.mockImplementation(async (command) => {
+      if (command === "read_proxy_config") {
+        return { path: "/tmp/config.json", config };
+      }
+      if (command === "proxy_status") {
+        return PROXY_STATUS;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    render(<ConfigScreen activeSectionId="upstreams" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("provider-options")).toHaveTextContent(
+        "openai,openai-response,anthropic,gemini",
+      );
     });
   });
 
