@@ -4,13 +4,15 @@ English | [中文](README.zh-CN.md)
 
 > This README is modified from the upstream project. Token Hub is a fork of [mxyhi/token_proxy](https://github.com/mxyhi/token_proxy), focused on UI/UX improvements while preserving the upstream backend and project structure as much as possible.
 
-Local AI API gateway for OpenAI / Gemini / Anthropic. Runs on your machine, keeps tokens counted (SQLite), offers priority-based load balancing, optional API format conversion (OpenAI Chat/Responses ↔ Anthropic Messages, plus Gemini ↔ OpenAI/Anthropic, including SSE/tools/images), and one-click setup for Claude Code / Codex.
+Local AI API gateway for OpenAI / Gemini / Anthropic. Runs on your machine, keeps tokens counted (SQLite), offers priority-based load balancing, and supports optional API format conversion (OpenAI Chat/Responses ↔ Anthropic Messages, plus Gemini ↔ OpenAI/Anthropic, including SSE/tools/images).
 
 ## About This Fork
 
 Token Hub builds on the stable backend and ongoing feature development of the upstream [Token Proxy](https://github.com/mxyhi/token_proxy) project. This fork focuses on targeted UI/UX improvements and aims to keep the original project structure and backend behavior intact, making it practical to incorporate future upstream updates.
 
 The application-facing name is **Token Hub**. Some internal package names, CLI identifiers, configuration keys, and compatibility strings intentionally remain `token_proxy` so existing integrations and upstream synchronization continue to work.
+
+Token Hub's desktop UI manages the four API formats `openai`, `openai-response`, `anthropic`, and `gemini`. The backend retains upstream compatibility code for account-backed providers, but the Token Hub UI does not expose account management.
 
 The upstream project and this fork are distributed under the [Apache License 2.0](LICENSE). The original copyright, license, and attribution notices are retained. Changes made in this fork are documented in the repository history and project documentation.
 
@@ -19,7 +21,7 @@ The upstream project and this fork are distributed under the [Apache License 2.0
 ---
 
 ## What you get
-- Multiple providers: `openai`, `openai-response`, `anthropic`, `gemini`, `kiro`, `codex`
+- Four API formats: `openai`, `openai-response`, `anthropic`, `gemini`
 - Built-in routing + optional format conversion (OpenAI Chat ⇄ Responses; Anthropic Messages ↔ OpenAI; Gemini ↔ OpenAI/Anthropic; SSE supported)
 - Per-upstream priority + two balancing strategies (fill-first / round-robin)
 - Model alias mapping (exact / prefix* / wildcard*) and response model rewrite
@@ -27,10 +29,10 @@ The upstream project and this fork are distributed under the [Apache License 2.0
 - SQLite-powered dashboard (requests, tokens, cached tokens, latency, recent)
 - macOS tray live token rate (optional)
 
-## Quick start (macOS)
-1) Install: move `Token Hub.app` to `/Applications`. If blocked: `xattr -cr /Applications/Token\ Hub.app`.
+## Quick start
+1) Download the asset for your platform from the [latest release](https://github.com/yansh97/token_hub/releases/latest). On macOS, move `Token Hub.app` to `/Applications`; if Gatekeeper blocks it, run `xattr -cr /Applications/Token\ Hub.app`.
 2) Launch the app. The proxy starts automatically.
-3) Open **Settings**, edit and save (writes `config.jsonc` in the Tauri config dir). Defaults are usable; just paste your upstream API keys. Running proxies auto-apply the new config via reload or restart when needed.
+3) Open **Settings**, add an upstream, and save. Settings write to `config.jsonc` in the Tauri config directory and apply to a running proxy automatically.
 4) Call via curl (example with local auth):
 ```bash
 curl -X POST \
@@ -81,10 +83,8 @@ Notes:
 | `local_api_key` | `null` | When set: local auth uses format-specific headers (see Auth rules); local auth inputs are **not** forwarded upstream. |
 | `app_proxy_url` | `null` | Proxy for app updater & as placeholder for upstreams (`"$app_proxy_url"`). Supports `http/https/socks5/socks5h`. |
 | `log_level` | `silent` | `silent|error|warn|info|debug|trace`; debug/trace log request headers (auth redacted) and small bodies (≤64KiB). Release builds force `silent`. |
-| `max_request_body_bytes` | `104857600` (100 MiB) | 0 = fallback to default. Protects inbound body size. |
 | `retryable_failure_cooldown_secs` | `15` | Cooldown window after retryable failures that should temporarily sideline an upstream. `0` disables cooldown. Reloading or restarting the running proxy resets current cooldown state. |
 | `same_upstream_retry_count` | `1` | Extra same-upstream retries after a retryable failure (excluding the first attempt). `0` disables same-upstream retry; max `5`. |
-| `codex_session_scoped_cooldown_enabled` | `false` | Only applies to Codex account-backed OpenAI Responses requests. When enabled, cooldown is isolated by `session_id`; final success clears that session, and requests without `session_id` do not share cooldown. |
 | `tray_token_rate.enabled` | `true` | macOS tray live rate; harmless elsewhere. |
 | `tray_token_rate.format` | `split` | `combined` (`total`), `split` (`↑in ↓out`), `both` (`total | ↑in ↓out`). |
 | `upstream_strategy` | `{ "order": "fill_first", "dispatch": { "type": "serial" } }` | Structured strategy object. `order` controls candidate ordering inside one priority group; `dispatch` controls serial / hedged / race execution. |
@@ -93,13 +93,11 @@ Notes:
 | Field | Default | Notes |
 | --- | --- | --- |
 | `id` | required | Unique per upstream. |
-| `providers` | required | One upstream can serve multiple providers. Special providers `kiro/codex` cannot be mixed with others. |
-| `base_url` | required | Full base; overlapping path parts are de-duplicated. (`providers=["kiro"]` / `["codex"]` can be empty.) |
-| `api_key` | `null` | Provider-specific bearer/key; overrides request headers. |
-| `kiro_account_id` | `null` | Required when `providers=["kiro"]`. |
-| `preferred_endpoint` | `null` | `kiro` only (`providers=["kiro"]`): `ide` or `cli`. |
+| `providers` | required | One upstream can serve one or more of the four supported API formats. |
+| `base_url` | required | Full base; overlapping path parts are de-duplicated. |
+| `api_keys` | `[]` | Provider API keys. The UI accepts comma-separated keys; each key is used as an independent upstream candidate. |
 | `proxy_url` | `null` | Per-upstream proxy; supports `http/https/socks5/socks5h`; default is **no system proxy**. `$app_proxy_url` placeholder allowed. |
-| `priority` | `0` | Higher = tried earlier. Grouped by priority then by order (or round-robin). |
+| `priority` | `100` in the UI | Higher = tried earlier. An omitted raw config value behaves as `0`. |
 | `enabled` | `true` | Disabled upstreams are skipped. |
 | `model_mappings` | `{}` | Exact / `prefix*` / `*`. Priority: exact > longest prefix > wildcard. Response echoes original alias. |
 | `convert_from_map` | `{}` | Explicitly allow inbound format conversion per provider. Example: `{ "openai-response": ["openai_chat", "anthropic_messages"] }`. |
@@ -107,15 +105,15 @@ Notes:
 
 ## Routing & format conversion
 - Gemini native API: `/v1beta/models/*` (including `:generateContent`, `:streamGenerateContent`, `:countTokens`, `:embedContent`, `:batchEmbedContents`), model catalog/detail, `/v1beta/files*`, `/upload/v1beta/files*`, `/v1beta/cachedContents*`, `/v1beta/tunedModels*` → `gemini`.
-- Anthropic: `/v1/messages` (and subpaths) and `/v1/complete` → `anthropic` (Kiro shares the same format).
+- Anthropic: `/v1/messages` (and subpaths) and `/v1/complete` → `anthropic`.
 - OpenAI create routes: `/v1/chat/completions` → `openai`; `/v1/responses` → `openai-response`.
 - OpenAI native pass-through routes are explicitly pinned to OpenAI-compatible providers and won't fall through to `anthropic`: `chat/completions/*`, `responses/*`, `assistants*`, `threads*`, `conversations*`, `chatkit*`, `containers*`, `evals*`, `files*`, `uploads*`, `batches*`, `vector_stores*`, `images/*`, `audio/*`, `embeddings`, `moderations`, `completions`, `fine_tuning/*`, `realtime/*`, `skills*`, `videos*`.
 - For `responses/*` resources, provider preference is `openai-response` → `openai`; for other OpenAI native resources, provider preference is `openai` → `openai-response`.
 - Other paths: choose the provider with the highest configured priority; tie-break is `openai` > `openai-response` > `anthropic`.
 - Cross-format fallback/conversion is controlled by `upstreams[].convert_from_map` (no global switch). If a provider has no eligible upstream for the inbound format, it won't be selected.
 - If `openai` is missing for `/v1/chat/completions`: fallback can be `openai-response`, `anthropic`, or `gemini` (priority-based; tie-break prefers `openai-response`).
-- For `/v1/messages`: choose between `anthropic` and `kiro` by priority; tie-break uses upstream id. If the chosen provider returns a retryable error, the proxy will fall back to the other native provider (Anthropic ↔ Kiro) when configured.
-- If neither `anthropic` nor `kiro` exists for `/v1/messages`: other providers can be selected only when allowed for `anthropic_messages` via `convert_from_map` (e.g. `openai-response`, `openai`, `gemini`).
+- For `/v1/messages`: choose a configured `anthropic` upstream by priority.
+- If no `anthropic` upstream exists: other providers can be selected only when allowed for `anthropic_messages` via `convert_from_map` (e.g. `openai-response`, `openai`, `gemini`).
 - If `openai-response` is missing for `/v1/responses`: fallback can be `openai`, `anthropic`, or `gemini` (priority-based; tie-break prefers `openai`).
 - If `gemini` is missing for `/v1beta/models/*:generateContent` or `*:streamGenerateContent`: fallback can be `openai-response`, `openai`, or `anthropic` (priority-based; tie-break prefers `openai-response`).
 - Other Gemini native endpoints are pass-through only and require a configured `gemini` upstream.
@@ -126,11 +124,11 @@ Notes:
   - OpenAI / Responses: `Authorization: Bearer <key>`
   - Anthropic `/v1/messages`: `x-api-key` or `x-anthropic-api-key`
   - Gemini native API: `x-goog-api-key` or `?key=...`
-- When `local_api_key` is enabled, request headers are **not** used for upstream auth; configure `upstreams[].api_key` instead.
+- When `local_api_key` is enabled, request headers are **not** used for upstream auth; configure `upstreams[].api_keys` instead.
 - Upstream auth resolution (per request):
-  - **OpenAI**: `upstream.api_key` → `x-openai-api-key` → `Authorization` (only if `local_api_key` is **not** set) → error.
-  - **Anthropic**: `upstream.api_key` → `x-api-key` / `x-anthropic-api-key` → error. Missing `anthropic-version` is auto-filled with `2023-06-01`.
-  - **Gemini**: `upstream.api_key` → `x-goog-api-key` → query `?key=...` → error.
+  - **OpenAI**: `upstream.api_keys` → `x-openai-api-key` → `Authorization` (only if `local_api_key` is **not** set) → error.
+  - **Anthropic**: `upstream.api_keys` → `x-api-key` / `x-anthropic-api-key` → error. Missing `anthropic-version` is auto-filled with `2023-06-01`.
+  - **Gemini**: `upstream.api_keys` → `x-goog-api-key` → query `?key=...` → error.
 
 ## Load balancing & retries
 - Priorities: higher `priority` groups first.
@@ -144,8 +142,7 @@ Notes:
 - Retryable conditions: network timeout/connect errors, or status 400/401/403/404/408/413/422/429/307/5xx (including 504/524). Non-context-window 413 responses skip same-upstream retry and fail over directly; context-window errors remain terminal.
 - Explicit Responses field rejections and xAI invalid encrypted reasoning use bounded same-identity request repair before ordinary retry/failover. Repair retries do not consume `same_upstream_retry_count`, and the repaired body is retained for later attempts.
 - Same-upstream retry: on a retryable failure, retry the **same upstream** up to `same_upstream_retry_count` extra times (default `1`, excluding the first attempt) before failing over. After the first client-visible stream output, the proxy does not replay the same attempt.
-- Cooldown conditions: `401/403/408/429/5xx` will temporarily move the failed upstream behind ready peers for `retryable_failure_cooldown_secs` (default `15`); `400/404/422/307` stay retryable but do not trigger cross-request cooldown. With `codex_session_scoped_cooldown_enabled=true`, Codex account-backed OpenAI Responses cooldown is isolated by `session_id`; final successful requests do not keep same-session cooldown, and requests without `session_id` do not share cooldown.
-- `/v1/messages` only: after the chosen native provider is exhausted (retryable errors), the proxy can fall back to the other native provider (`anthropic` ↔ `kiro`) if it is configured.
+- Cooldown conditions: `401/403/408/429/5xx` will temporarily move the failed upstream behind ready peers for `retryable_failure_cooldown_secs` (default `15`); `400/404/422/307` stay retryable but do not trigger cross-request cooldown.
 
 ## Observability
 - SQLite log: `data.db` in config dir. Stores per-request stats (tokens, cached tokens, latency, model, upstream).
@@ -160,7 +157,7 @@ Notes:
 
 ## FAQ
 - **Port already in use?** Change `port` in `config.jsonc`; remember to update your client base URL.
-- **Got 401?** If `local_api_key` is set, you must send the format-specific local key (OpenAI/Responses: `Authorization`, Anthropic: `x-api-key`, Gemini: `x-goog-api-key` or `?key=`). With local auth enabled, configure upstream keys in `upstreams[].api_key`.
+- **Got 401?** If `local_api_key` is set, you must send the format-specific local key (OpenAI/Responses: `Authorization`, Anthropic: `x-api-key`, Gemini: `x-goog-api-key` or `?key=`). With local auth enabled, configure upstream keys in `upstreams[].api_keys`.
 - **Got 504?** Upstream did not send response headers or the first body chunk within 120s. For streaming responses, a 120s idle timeout between chunks may also close the connection.
-- **413 Payload Too Large?** Body exceeded `max_request_body_bytes` (default 100 MiB) or the transform limit for format-conversion requests.
+- **413 Payload Too Large?** The request body exceeded the proxy or format-conversion size limit.
 - **Why no system proxy?** By design, `reqwest` is built with `.no_proxy()`; set per-upstream `proxy_url` if needed.
