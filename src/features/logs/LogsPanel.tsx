@@ -59,8 +59,6 @@ const PROVIDER_TYPE_LABELS: Readonly<Record<string, string>> = {
   "openai-response": "OpenAI Responses",
   anthropic: "Anthropic",
   gemini: "Gemini",
-  kiro: "Kiro",
-  codex: "Codex",
   proxy: "内部代理",
 };
 
@@ -176,7 +174,6 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
   const combinedProviderText = formatDashboardProviderLabel(
     detail.upstreamId,
     detail.provider,
-    detail.accountId,
   );
   const providerText =
     combinedProviderText === "本地代理"

@@ -555,8 +555,6 @@ describe("dashboard/DashboardPanel", () => {
       range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
       offset: 0,
       upstreamId: null,
-      accountId: null,
-      publicOnly: false,
       model: null,
     });
 
@@ -575,8 +573,6 @@ describe("dashboard/DashboardPanel", () => {
       range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
       offset: 0,
       upstreamId: "alpha",
-      accountId: null,
-      publicOnly: false,
       model: null,
     });
 
@@ -590,8 +586,6 @@ describe("dashboard/DashboardPanel", () => {
         range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
         offset: 0,
         upstreamId: "alpha",
-        accountId: null,
-        publicOnly: false,
         model: "gpt-5.4",
       });
     });

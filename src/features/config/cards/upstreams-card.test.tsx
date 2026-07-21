@@ -14,7 +14,7 @@ describe("config/upstreams-card", () => {
       <UpstreamsCard
         upstreams={[]}
         showApiKeys={false}
-        providerOptions={[]}
+        providerOptions={["openai", "openai-response", "anthropic", "gemini"]}
         appProxyUrl=""
         onToggleApiKeys={() => undefined}
         onAdd={() => undefined}
@@ -40,7 +40,7 @@ describe("config/upstreams-card", () => {
       <UpstreamsCard
         upstreams={[]}
         showApiKeys={false}
-        providerOptions={[]}
+        providerOptions={["openai", "openai-response", "anthropic", "gemini"]}
         appProxyUrl=""
         onToggleApiKeys={vi.fn()}
         onAdd={vi.fn()}

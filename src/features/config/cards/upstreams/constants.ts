@@ -39,31 +39,10 @@ const PROVIDER_LABELS: Record<string, string> = {
   "openai-response": "OpenAI Responses",
   anthropic: "Anthropic",
   gemini: "Gemini",
-  codex: "Codex 账户",
-  kiro: "Kiro 账户",
-  antigravity: "Antigravity 账户",
 };
 
 export function getProviderLabel(provider: string) {
   return PROVIDER_LABELS[provider] ?? provider;
-}
-
-export function mergeProviderOptions(values: readonly string[]) {
-  const seen = new Set<string>();
-  const merged: string[] = [];
-  for (const option of PROTOCOL_OPTIONS) {
-    if (!seen.has(option)) {
-      seen.add(option);
-      merged.push(option);
-    }
-  }
-  for (const option of values) {
-    if (!seen.has(option)) {
-      seen.add(option);
-      merged.push(option);
-    }
-  }
-  return merged;
 }
 
 export function toStatusLabel(enabled: boolean) {

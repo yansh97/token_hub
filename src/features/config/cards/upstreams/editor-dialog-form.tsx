@@ -6,13 +6,6 @@ import { FieldRequirement } from "@/components/ui/field-meta";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { AvailableModelsEditor } from "@/features/config/cards/upstreams/available-models-editor";
 import { ConvertFromMapEditor } from "@/features/config/cards/upstreams/convert-from-map-editor";
@@ -22,44 +15,8 @@ import {
   ModelMappingsEditor,
 } from "@/features/config/cards/upstreams/editor-fields";
 import { ProviderMultiSelect } from "@/features/config/cards/upstreams/provider-multi-select";
-import { isAccountBackedProviderSet } from "@/features/config/cards/upstreams/upstream-editor-helpers";
 import { createModelMapping } from "@/features/config/form";
-import type {
-  HeaderOverrideForm,
-  KiroPreferredEndpoint,
-  UpstreamForm,
-} from "@/features/config/types";
-
-const KIRO_ENDPOINT_INHERIT = "inherit";
-
-const KIRO_ENDPOINT_OPTIONS: ReadonlyArray<{
-  value: KiroPreferredEndpoint | typeof KIRO_ENDPOINT_INHERIT;
-  label: () => string;
-}> = [
-  {
-    value: KIRO_ENDPOINT_INHERIT,
-    label: () => "使用全局",
-  },
-  { value: "ide", label: () => "IDE（CodeWhisperer）" },
-  { value: "cli", label: () => "CLI（Amazon Q）" },
-];
-
-function isKiroPreferredEndpoint(
-  value: string,
-): value is KiroPreferredEndpoint {
-  return value === "ide" || value === "cli";
-}
-
-function isLockedAccountBackedUpstream(draft: UpstreamForm) {
-  const providers = draft.providers
-    .map((value) => value.trim())
-    .filter(Boolean);
-  return (
-    providers.length === 1 &&
-    ((providers[0] === "kiro" && draft.id.trim() === "kiro-default") ||
-      (providers[0] === "codex" && draft.id.trim() === "codex-default"))
-  );
-}
+import type { HeaderOverrideForm, UpstreamForm } from "@/features/config/types";
 
 export type UpstreamEditorFieldsProps = {
   draft: UpstreamForm;
@@ -104,107 +61,56 @@ function UpstreamConnectionFields({
   onChangeDraft,
   onFieldBlur,
 }: UpstreamConnectionFieldsProps) {
-  const providers = draft.providers
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const isAccountBackedProvider = isAccountBackedProviderSet(providers);
-  const isKiro = providers.includes("kiro");
-  const isLocked = isLockedAccountBackedUpstream(draft);
-  const kiroEndpointValue = draft.preferredEndpoint.trim()
-    ? draft.preferredEndpoint
-    : KIRO_ENDPOINT_INHERIT;
-
   return (
     <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
       <EditorField label={"接口格式"} required error={errors.providers}>
         <ProviderMultiSelect
           providerOptions={providerOptions}
           value={draft.providers}
-          disabled={isLocked}
           error={errors.providers}
           onChange={(next) => onChangeDraft({ providers: next })}
         />
       </EditorField>
 
-      {isKiro ? (
-        <EditorField
-          label={"Kiro 端点"}
-          htmlFor="upstream-editor-kiro-endpoint"
-          required={false}
-        >
-          <Select
-            value={kiroEndpointValue}
-            onValueChange={(value) => {
-              if (value === KIRO_ENDPOINT_INHERIT) {
-                onChangeDraft({ preferredEndpoint: "" });
-                return;
-              }
-              if (isKiroPreferredEndpoint(value)) {
-                onChangeDraft({ preferredEndpoint: value });
-              }
-            }}
-          >
-            <SelectTrigger id="upstream-editor-kiro-endpoint">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {KIRO_ENDPOINT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label()}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </EditorField>
-      ) : null}
-
-      {isAccountBackedProvider ? null : (
-        <>
-          <EditorField
-            label={"Base URL"}
-            htmlFor="upstream-editor-baseUrl"
-            required
-            error={errors.baseUrl}
-          >
-            <Input
-              id="upstream-editor-baseUrl"
-              required
-              aria-invalid={Boolean(errors.baseUrl)}
-              aria-describedby={
-                errors.baseUrl ? "upstream-editor-baseUrl-error" : undefined
-              }
-              value={draft.baseUrl}
-              onChange={(event) =>
-                onChangeDraft({ baseUrl: event.target.value })
-              }
-              onBlur={() => onFieldBlur("baseUrl")}
-              placeholder="https://api.openai.com"
-            />
-          </EditorField>
-          <EditorField
-            label={"API Keys"}
-            htmlFor="upstream-editor-apiKeys"
-            required={false}
-            error={errors.apiKeys}
-          >
-            <PasswordInput
-              id="upstream-editor-apiKeys"
-              aria-invalid={Boolean(errors.apiKeys)}
-              aria-describedby={
-                errors.apiKeys ? "upstream-editor-apiKeys-error" : undefined
-              }
-              visible={showApiKeys}
-              onVisibilityChange={onToggleApiKeys}
-              value={draft.apiKeys}
-              onChange={(event) =>
-                onChangeDraft({ apiKeys: event.target.value })
-              }
-              onBlur={() => onFieldBlur("apiKeys")}
-              placeholder="sk-xxxxxxxxxxxx"
-            />
-          </EditorField>
-        </>
-      )}
+      <EditorField
+        label={"Base URL"}
+        htmlFor="upstream-editor-baseUrl"
+        required
+        error={errors.baseUrl}
+      >
+        <Input
+          id="upstream-editor-baseUrl"
+          required
+          aria-invalid={Boolean(errors.baseUrl)}
+          aria-describedby={
+            errors.baseUrl ? "upstream-editor-baseUrl-error" : undefined
+          }
+          value={draft.baseUrl}
+          onChange={(event) => onChangeDraft({ baseUrl: event.target.value })}
+          onBlur={() => onFieldBlur("baseUrl")}
+          placeholder="https://api.openai.com"
+        />
+      </EditorField>
+      <EditorField
+        label={"API Keys"}
+        htmlFor="upstream-editor-apiKeys"
+        required={false}
+        error={errors.apiKeys}
+      >
+        <PasswordInput
+          id="upstream-editor-apiKeys"
+          aria-invalid={Boolean(errors.apiKeys)}
+          aria-describedby={
+            errors.apiKeys ? "upstream-editor-apiKeys-error" : undefined
+          }
+          visible={showApiKeys}
+          onVisibilityChange={onToggleApiKeys}
+          value={draft.apiKeys}
+          onChange={(event) => onChangeDraft({ apiKeys: event.target.value })}
+          onBlur={() => onFieldBlur("apiKeys")}
+          placeholder="sk-xxxxxxxxxxxx"
+        />
+      </EditorField>
 
       <EditorField
         label={"ID"}
@@ -218,7 +124,6 @@ function UpstreamConnectionFields({
           aria-invalid={Boolean(errors.id)}
           aria-describedby={errors.id ? "upstream-editor-id-error" : undefined}
           value={draft.id}
-          disabled={isLocked}
           onChange={(event) => onChangeDraft({ id: event.target.value })}
           onBlur={() => onFieldBlur("id")}
           placeholder="openai"

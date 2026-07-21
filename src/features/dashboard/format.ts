@@ -33,18 +33,7 @@ function normalizeProviderPart(value: string | null | undefined) {
   );
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function isLocalProxyRequest(
-  upstreamId: string,
-  provider: string,
-  accountId: string | null | undefined,
-) {
-  if (accountId?.trim()) {
-    return false;
-  }
+function isLocalProxyRequest(upstreamId: string, provider: string) {
   return (
     normalizeProviderPart(upstreamId) === "local" &&
     normalizeProviderPart(provider) === "proxy"
@@ -60,9 +49,7 @@ function containsProviderPart(
   if (!normalizedValue || !normalizedProvider) {
     return false;
   }
-  return new RegExp(`(^| )${escapeRegExp(normalizedProvider)}( |$)`).test(
-    normalizedValue,
-  );
+  return normalizedValue.split(" ").includes(normalizedProvider);
 }
 
 export function createDashboardTimeFormatter(locale: string) {
@@ -119,23 +106,17 @@ export function formatDashboardClockTime(tsMs: number) {
 export function formatDashboardProviderLabel(
   upstreamId: string,
   provider: string,
-  accountId: string | null | undefined,
 ) {
-  if (isLocalProxyRequest(upstreamId, provider, accountId)) {
+  if (isLocalProxyRequest(upstreamId, provider)) {
     return "本地代理";
   }
 
   const trimmedProvider = provider.trim();
   const shouldHideProvider =
     trimmedProvider.length > 0 &&
-    (containsProviderPart(upstreamId, trimmedProvider) ||
-      containsProviderPart(accountId, trimmedProvider));
+    containsProviderPart(upstreamId, trimmedProvider);
 
-  return [
-    upstreamId.trim(),
-    shouldHideProvider ? null : trimmedProvider,
-    accountId?.trim(),
-  ]
+  return [upstreamId.trim(), shouldHideProvider ? null : trimmedProvider]
     .filter(Boolean)
     .join(" · ");
 }

@@ -1,14 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
-import {
-  mergeProviderOptions,
-  UPSTREAM_COLUMNS,
-} from "@/features/config/cards/upstreams/constants";
+import { UPSTREAM_COLUMNS } from "@/features/config/cards/upstreams/constants";
 import {
   cloneUpstreamDraft,
-  coerceProviderSelection,
   createCopiedUpstreamId,
-  isAccountBackedProviderSet,
   normalizeProviders,
   pruneConvertFromMap,
   providersEqual,
@@ -50,10 +45,6 @@ export function UpstreamsCard({
   onRemove,
   onChange,
 }: UpstreamsCardProps) {
-  const mergedProviderOptions = useMemo(
-    () => mergeProviderOptions(providerOptions),
-    [providerOptions],
-  );
   const [editor, setEditor] = useState<UpstreamEditorState>({ open: false });
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({
     open: false,
@@ -73,14 +64,6 @@ export function UpstreamsCard({
     });
   }, []);
   const columns = UPSTREAM_COLUMNS;
-  const isSpecialAccountBackedUpstream = useCallback(
-    (upstream: UpstreamForm) => {
-      const providers = normalizeProviders(upstream.providers);
-      return isAccountBackedProviderSet(providers);
-    },
-    [],
-  );
-
   // 更新 draft，并在 provider 变化时清理不再适用的字段。
   const updateDraft = useCallback((patch: Partial<UpstreamForm>) => {
     setEditorTouchedFields((current) => {
@@ -103,7 +86,7 @@ export function UpstreamsCard({
       const nextProviders =
         patch.providers === undefined
           ? currentProviders
-          : coerceProviderSelection(patch.providers);
+          : normalizeProviders(patch.providers);
       const providersChanged =
         patch.providers !== undefined &&
         !providersEqual(nextProviders, currentProviders);
@@ -117,8 +100,8 @@ export function UpstreamsCard({
           prev.draft.useChatCompletionsForResponses;
         let rewriteDeveloperRoleToSystem =
           prev.draft.rewriteDeveloperRoleToSystem;
-        let baseUrl = patch.baseUrl ?? prev.draft.baseUrl;
-        let proxyUrl = patch.proxyUrl ?? prev.draft.proxyUrl;
+        const baseUrl = patch.baseUrl ?? prev.draft.baseUrl;
+        const proxyUrl = patch.proxyUrl ?? prev.draft.proxyUrl;
         let convertFromMap = patch.convertFromMap ?? prev.draft.convertFromMap;
 
         if (!nextProviders.includes("openai-response")) {
@@ -133,11 +116,6 @@ export function UpstreamsCard({
           )
         ) {
           rewriteDeveloperRoleToSystem = false;
-        }
-        if (isAccountBackedProviderSet(nextProviders)) {
-          baseUrl = "";
-          proxyUrl = "";
-          patch.apiKeys = "";
         }
         if (patch.filterPromptCacheRetention !== undefined) {
           filterPromptCacheRetention = patch.filterPromptCacheRetention;
@@ -283,8 +261,6 @@ export function UpstreamsCard({
             upstreams={upstreams}
             columns={columns}
             disableDelete={false}
-            isCopyDisabled={isSpecialAccountBackedUpstream}
-            isDeleteDisabled={isSpecialAccountBackedUpstream}
             onEdit={openEditDialog}
             onCopy={openCopyDialog}
             onToggleEnabled={(index) => {
@@ -311,7 +287,7 @@ export function UpstreamsCard({
       <UpstreamEditorDialog
         editor={editor}
         errors={visibleEditorErrors}
-        providerOptions={mergedProviderOptions}
+        providerOptions={providerOptions}
         showApiKeys={showApiKeys}
         onToggleApiKeys={onToggleApiKeys}
         onOpenChange={(open) => {

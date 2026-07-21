@@ -97,8 +97,6 @@ export function useDashboardSnapshot({
         range,
         offset,
         upstreamId: selectedUpstreamId,
-        accountId: null,
-        publicOnly: false,
         model: selectedModel,
       });
       if (requestSeq.current !== requestId) {

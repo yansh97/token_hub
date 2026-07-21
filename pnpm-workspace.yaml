@@ -1,4 +1,7 @@
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - '@testing-library/jest-dom'
+  - recharts
 onlyBuiltDependencies:
   - esbuild

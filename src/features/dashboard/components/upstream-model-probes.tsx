@@ -39,9 +39,6 @@ function statusLabel(status: DashboardUpstreamModelProbeStatus) {
 }
 
 function providerLabel(probe: DashboardUpstreamModelProbe) {
-  if (probe.accountId) {
-    return `${probe.provider} · ${probe.accountId}`;
-  }
   return probe.provider;
 }
 

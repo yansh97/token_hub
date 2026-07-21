@@ -1,7 +1,6 @@
 import type {
   ConfigForm,
   InboundApiFormat,
-  KiroPreferredEndpoint,
   ModelMappingForm,
   ProxyConfigFile,
   ProxyConfigFileBase,
@@ -10,11 +9,6 @@ import type {
   UpstreamForm,
   UpstreamStrategy,
 } from "@/features/config/types";
-import {
-  ACCOUNT_BACKED_PROVIDERS,
-  isAccountBackedProvider,
-  isAccountBackedProviderSet,
-} from "@/features/config/cards/upstreams/upstream-editor-helpers";
 import {
   createNativeInboundFormatSet,
   removeInboundFormatsInSet,
@@ -36,7 +30,6 @@ const SUPPORTED_PROVIDERS = new Set([
   "openai-response",
   "anthropic",
   "gemini",
-  ...ACCOUNT_BACKED_PROVIDERS,
 ]);
 const DEFAULT_UPSTREAM_PROVIDERS = [
   "openai",
@@ -50,20 +43,6 @@ const INTEGER_PATTERN = /^-?\d+$/;
 const NON_NEGATIVE_INTEGER_PATTERN = /^\d+$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 let modelMappingCounter = 0;
-
-function isKiroPreferredEndpoint(
-  value: string,
-): value is KiroPreferredEndpoint {
-  return value === "ide" || value === "cli";
-}
-
-function normalizeKiroPreferredEndpoint(value: string) {
-  const trimmed = value.trim();
-  if (isKiroPreferredEndpoint(trimmed)) {
-    return trimmed;
-  }
-  return null;
-}
 
 function joinListInput(values: string[] | null | undefined) {
   return values?.length ? values.join(", ") : "";
@@ -101,11 +80,9 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set([
   "app_proxy_url",
   "cors_enabled",
   "model_list_prefix",
-  "kiro_preferred_endpoint",
   "log_level",
   "retryable_failure_cooldown_secs",
   "same_upstream_retry_count",
-  "codex_session_scoped_cooldown_enabled",
   "stream_first_output_timeout_secs",
   "sync_response_timeout_secs",
   "tray_token_rate",
@@ -126,11 +103,9 @@ export const EMPTY_FORM: ConfigForm = {
   appProxyUrl: "",
   corsEnabled: false,
   modelListPrefix: false,
-  kiroPreferredEndpoint: "ide",
   logLevel: "silent",
   retryableFailureCooldownSecs: "15",
   sameUpstreamRetryCount: "1",
-  codexSessionScopedCooldownEnabled: false,
   streamFirstOutputTimeoutSecs: String(
     DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS,
   ),
@@ -156,7 +131,6 @@ export function createEmptyUpstream(): UpstreamForm {
     filterSafetyIdentifier: false,
     useChatCompletionsForResponses: false,
     rewriteDeveloperRoleToSystem: false,
-    preferredEndpoint: "",
     proxyUrl: "",
     priority: DEFAULT_UPSTREAM_PRIORITY,
     enabled: false,
@@ -165,15 +139,6 @@ export function createEmptyUpstream(): UpstreamForm {
     modelMappings: [],
     convertFromMap: {},
     overrides: { header: [] },
-  };
-}
-
-function createAccountBackedUpstream(provider: "kiro" | "codex"): UpstreamForm {
-  return {
-    ...createEmptyUpstream(),
-    id: `${provider}-default`,
-    providers: [provider],
-    enabled: true,
   };
 }
 
@@ -210,6 +175,34 @@ export function mergeConfigExtras(
   };
 }
 
+const KNOWN_UPSTREAM_KEYS: ReadonlySet<string> = new Set([
+  "id",
+  "providers",
+  "base_url",
+  "api_keys",
+  "filter_prompt_cache_retention",
+  "filter_safety_identifier",
+  "use_chat_completions_for_responses",
+  "rewrite_developer_role_to_system",
+  "proxy_url",
+  "priority",
+  "enabled",
+  "available_models",
+  "model_mappings",
+  "convert_from_map",
+  "overrides",
+]);
+
+function extractUpstreamExtras(upstream: ProxyConfigFile["upstreams"][number]) {
+  const extras: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(upstream)) {
+    if (!KNOWN_UPSTREAM_KEYS.has(key)) {
+      extras[key] = value;
+    }
+  }
+  return extras;
+}
+
 export function toForm(config: ProxyConfigFile): ConfigForm {
   return {
     host: config.host,
@@ -218,14 +211,11 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
     appProxyUrl: config.app_proxy_url ?? "",
     corsEnabled: config.cors_enabled ?? false,
     modelListPrefix: config.model_list_prefix ?? false,
-    kiroPreferredEndpoint: config.kiro_preferred_endpoint ?? "ide",
     logLevel: config.log_level ?? "silent",
     retryableFailureCooldownSecs: String(
       config.retryable_failure_cooldown_secs ?? 15,
     ),
     sameUpstreamRetryCount: String(config.same_upstream_retry_count ?? 1),
-    codexSessionScopedCooldownEnabled:
-      config.codex_session_scoped_cooldown_enabled ?? false,
     streamFirstOutputTimeoutSecs: String(
       config.stream_first_output_timeout_secs ??
         DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS,
@@ -238,14 +228,13 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
     hotModelMappings: toModelMappingForm(config.hot_model_mappings ?? {}),
     upstreams: config.upstreams.map((upstream) => {
       const providers = upstream.providers ?? [];
-      const omitNetworkFields = isAccountBackedProviderSet(providers);
       const availableModels = normalizeAvailableModels(
         upstream.available_models ?? [],
       );
       return {
         id: upstream.id,
         providers,
-        baseUrl: omitNetworkFields ? "" : upstream.base_url,
+        baseUrl: upstream.base_url,
         apiKeys: joinListInput(upstream.api_keys),
         filterPromptCacheRetention:
           upstream.filter_prompt_cache_retention ?? false,
@@ -254,8 +243,7 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
           upstream.use_chat_completions_for_responses ?? false,
         rewriteDeveloperRoleToSystem:
           upstream.rewrite_developer_role_to_system ?? false,
-        preferredEndpoint: upstream.preferred_endpoint ?? "",
-        proxyUrl: omitNetworkFields ? "" : (upstream.proxy_url ?? ""),
+        proxyUrl: upstream.proxy_url ?? "",
         priority: upstream.priority === null ? "" : String(upstream.priority),
         enabled: upstream.enabled,
         availableModelsMode: availableModels.length ? "selected" : "all",
@@ -263,6 +251,7 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
         modelMappings: toModelMappingForm(upstream.model_mappings),
         convertFromMap: upstream.convert_from_map ?? {},
         overrides: normalizeOverrides(upstream.overrides),
+        extras: extractUpstreamExtras(upstream),
       };
     }),
   };
@@ -277,9 +266,6 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
     app_proxy_url: form.appProxyUrl.trim() ? form.appProxyUrl.trim() : null,
     cors_enabled: form.corsEnabled,
     model_list_prefix: form.modelListPrefix,
-    kiro_preferred_endpoint: normalizeKiroPreferredEndpoint(
-      form.kiroPreferredEndpoint,
-    ),
     log_level: form.logLevel,
     retryable_failure_cooldown_secs: parseRetryableFailureCooldownSecs(
       form.retryableFailureCooldownSecs,
@@ -287,8 +273,6 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
     same_upstream_retry_count: parseSameUpstreamRetryCount(
       form.sameUpstreamRetryCount,
     ),
-    codex_session_scoped_cooldown_enabled:
-      form.codexSessionScopedCooldownEnabled,
     stream_first_output_timeout_secs: parseTimeoutSecs(
       form.streamFirstOutputTimeoutSecs,
       DEFAULT_STREAM_FIRST_OUTPUT_TIMEOUT_SECS,
@@ -303,27 +287,18 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
     upstreams: form.upstreams.map((upstream) => {
       const providers = normalizeProviders(upstream.providers);
       const apiKeys = parseApiKeysInput(upstream.apiKeys);
-      const omitNetworkFields = isAccountBackedProviderSet(providers);
       return {
+        ...upstream.extras,
         id: upstream.id.trim(),
         providers,
-        base_url: omitNetworkFields ? "" : upstream.baseUrl.trim(),
-        api_keys: !omitNetworkFields && apiKeys.length ? apiKeys : undefined,
-        kiro_account_id: null,
-        codex_account_id: null,
+        base_url: upstream.baseUrl.trim(),
+        api_keys: apiKeys.length ? apiKeys : undefined,
         filter_prompt_cache_retention: upstream.filterPromptCacheRetention,
         filter_safety_identifier: upstream.filterSafetyIdentifier,
         use_chat_completions_for_responses:
           upstream.useChatCompletionsForResponses,
         rewrite_developer_role_to_system: upstream.rewriteDeveloperRoleToSystem,
-        preferred_endpoint: normalizeKiroPreferredEndpoint(
-          upstream.preferredEndpoint,
-        ),
-        proxy_url: omitNetworkFields
-          ? null
-          : upstream.proxyUrl.trim()
-            ? upstream.proxyUrl.trim()
-            : null,
+        proxy_url: upstream.proxyUrl.trim() ? upstream.proxyUrl.trim() : null,
         priority: parseOptionalInt(upstream.priority),
         enabled: upstream.enabled,
         available_models:
@@ -339,47 +314,6 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
       };
     }),
   };
-}
-
-function isSingleProvider(upstream: UpstreamForm, provider: "kiro" | "codex") {
-  const providers = normalizeProviders(upstream.providers);
-  return providers.length === 1 && providers[0] === provider;
-}
-
-export function syncAccountBackedUpstreams(
-  upstreams: UpstreamForm[],
-  accountState: { hasKiroAccount: boolean; hasCodexAccount: boolean },
-) {
-  const filtered = upstreams.filter((upstream) => {
-    if (isSingleProvider(upstream, "kiro")) {
-      return accountState.hasKiroAccount;
-    }
-    if (isSingleProvider(upstream, "codex")) {
-      return accountState.hasCodexAccount;
-    }
-    return true;
-  });
-
-  const next = [...filtered];
-  if (
-    accountState.hasKiroAccount &&
-    !next.some((upstream) => isSingleProvider(upstream, "kiro"))
-  ) {
-    next.push(createAccountBackedUpstream("kiro"));
-  }
-  if (
-    accountState.hasCodexAccount &&
-    !next.some((upstream) => isSingleProvider(upstream, "codex"))
-  ) {
-    next.push(createAccountBackedUpstream("codex"));
-  }
-  if (
-    next.length === upstreams.length &&
-    next.every((upstream, index) => upstream === upstreams[index])
-  ) {
-    return upstreams;
-  }
-  return next;
 }
 
 export type SettingsFieldKey =
@@ -472,13 +406,6 @@ export function validateUpstreamDraft({
   if (!providers.length) {
     addError("providers", "请至少选择一种接口格式。");
   }
-  const specialProviders = providers.filter(isAccountBackedProvider);
-  if (specialProviders.length && providers.length > 1) {
-    addError("providers", "特殊提供商类型不能与其他接口格式同时选择。");
-  }
-  if (specialProviders.length && parseApiKeysInput(draft.apiKeys).length > 1) {
-    addError("apiKeys", "该提供商类型不支持配置多个 API Key。");
-  }
   if (parseApiKeysInput(draft.apiKeys).some(hasInvalidHeaderValueCharacter)) {
     addError("apiKeys", "API Key 包含不能用于 HTTP 请求头的字符。");
   }
@@ -486,9 +413,8 @@ export function validateUpstreamDraft({
     addError("providers", "包含不受支持的接口格式。");
   }
 
-  const canOmitBaseUrl = isAccountBackedProviderSet(providers);
   const baseUrl = draft.baseUrl.trim();
-  if (!canOmitBaseUrl && !baseUrl) {
+  if (!baseUrl) {
     addError("baseUrl", "Base URL 不能为空。");
   } else if (baseUrl && !isValidHttpUrl(baseUrl)) {
     addError("baseUrl", "请输入有效的 HTTP 或 HTTPS URL。");

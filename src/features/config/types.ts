@@ -40,8 +40,6 @@ export const TRAY_TOKEN_RATE_FORMATS = [
 export type TrayTokenRateFormat =
   (typeof TRAY_TOKEN_RATE_FORMATS)[number]["value"];
 
-export type KiroPreferredEndpoint = "ide" | "cli";
-
 export type LogLevel = "silent" | "error" | "warn" | "info" | "debug" | "trace";
 
 export type TrayTokenRateConfig = {
@@ -88,9 +86,6 @@ export type UpstreamConfig = {
    * Whether to rewrite OpenAI-compatible role `developer` to `system` before sending upstream.
    */
   rewrite_developer_role_to_system?: boolean;
-  kiro_account_id?: string | null;
-  codex_account_id?: string | null;
-  preferred_endpoint?: KiroPreferredEndpoint | null;
   proxy_url: string | null;
   priority: number | null;
   enabled: boolean;
@@ -108,7 +103,7 @@ export type UpstreamConfig = {
   overrides?: {
     header?: Record<string, string | null>;
   };
-};
+} & Record<string, unknown>;
 
 export type ProxyConfigFileBase = {
   host: string;
@@ -117,11 +112,9 @@ export type ProxyConfigFileBase = {
   app_proxy_url: string | null;
   cors_enabled?: boolean;
   model_list_prefix?: boolean;
-  kiro_preferred_endpoint?: KiroPreferredEndpoint | null;
   log_level?: LogLevel;
   retryable_failure_cooldown_secs?: number;
   same_upstream_retry_count?: number;
-  codex_session_scoped_cooldown_enabled?: boolean;
   stream_first_output_timeout_secs?: number;
   sync_response_timeout_secs?: number;
   tray_token_rate: TrayTokenRateConfig;
@@ -161,7 +154,6 @@ export type UpstreamForm = {
   filterSafetyIdentifier: boolean;
   useChatCompletionsForResponses: boolean;
   rewriteDeveloperRoleToSystem: boolean;
-  preferredEndpoint: "" | KiroPreferredEndpoint;
   proxyUrl: string;
   priority: string;
   enabled: boolean;
@@ -172,6 +164,7 @@ export type UpstreamForm = {
   overrides: {
     header: HeaderOverrideForm[];
   };
+  extras?: Record<string, unknown>;
 };
 
 export type HeaderOverrideForm = {
@@ -194,11 +187,9 @@ export type ConfigForm = {
   appProxyUrl: string;
   corsEnabled: boolean;
   modelListPrefix: boolean;
-  kiroPreferredEndpoint: "" | KiroPreferredEndpoint;
   logLevel: LogLevel;
   retryableFailureCooldownSecs: string;
   sameUpstreamRetryCount: string;
-  codexSessionScopedCooldownEnabled: boolean;
   streamFirstOutputTimeoutSecs: string;
   syncResponseTimeoutSecs: string;
   trayTokenRate: TrayTokenRateConfig;

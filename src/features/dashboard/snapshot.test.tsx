@@ -206,8 +206,6 @@ describe("dashboard/useDashboardSnapshot", () => {
         },
         offset: 0,
         upstreamId: null,
-        accountId: null,
-        publicOnly: false,
         model: null,
       });
     });
@@ -227,8 +225,6 @@ describe("dashboard/useDashboardSnapshot", () => {
         },
         offset: 0,
         upstreamId: "alpha",
-        accountId: null,
-        publicOnly: false,
         model: null,
       });
     });
@@ -256,8 +252,6 @@ describe("dashboard/useDashboardSnapshot", () => {
         },
         offset: 0,
         upstreamId: null,
-        accountId: null,
-        publicOnly: false,
         model: "gpt-5",
       });
     });

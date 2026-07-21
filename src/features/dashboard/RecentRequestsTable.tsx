@@ -95,7 +95,6 @@ export function RecentRequestsTable({
             const provider = formatDashboardProviderLabel(
               item.upstreamId,
               item.provider,
-              item.accountId,
             );
             const tokens =
               item.totalTokens == null

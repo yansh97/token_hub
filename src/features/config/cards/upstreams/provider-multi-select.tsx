@@ -1,4 +1,3 @@
-import { isAccountBackedProvider } from "@/features/config/cards/upstreams/upstream-editor-helpers";
 import { getProviderLabel } from "@/features/config/cards/upstreams/constants";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
@@ -60,12 +59,7 @@ function toggleProvider(
     return next.length ? next : normalized;
   }
 
-  if (isAccountBackedProvider(provider)) {
-    return [provider];
-  }
-  const specialSelected = normalized.find(isAccountBackedProvider);
-  const next = specialSelected ? [provider] : [...normalized, provider];
-  return orderProviders(next, providerOptions);
+  return orderProviders([...normalized, provider], providerOptions);
 }
 
 export function ProviderMultiSelect({

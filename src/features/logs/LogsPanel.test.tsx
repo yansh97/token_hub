@@ -439,8 +439,6 @@ describe("logs/LogsPanel", () => {
       range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
       offset: 0,
       upstreamId: "alpha",
-      accountId: null,
-      publicOnly: false,
       model: null,
     });
 
@@ -454,8 +452,6 @@ describe("logs/LogsPanel", () => {
         range: { fromTsMs: expect.any(Number), toTsMs: expect.any(Number) },
         offset: 0,
         upstreamId: "alpha",
-        accountId: null,
-        publicOnly: false,
         model: "gpt-5",
       });
     });
@@ -543,7 +539,7 @@ describe("logs/LogsPanel", () => {
     const providerValues = await screen.findAllByText("alpha");
     expect(providerValues.length).toBeGreaterThan(0);
     expect(screen.getByText("接口格式")).toBeInTheDocument();
-    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText("codex")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "复制全部" }),
     ).not.toBeInTheDocument();

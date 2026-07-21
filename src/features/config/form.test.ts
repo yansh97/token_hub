@@ -6,7 +6,6 @@ import {
   createModelMapping,
   extractConfigExtras,
   mergeConfigExtras,
-  syncAccountBackedUpstreams,
   toForm,
   toPayload,
   validate,
@@ -117,34 +116,6 @@ describe("config/form", () => {
     const result = validate({ ...EMPTY_FORM, upstreams: [upstream] });
 
     expect(result.valid).toBe(false);
-  });
-
-  it("allows enabled account-backed upstreams without base urls", () => {
-    const kiroUpstream = createEmptyUpstream();
-    kiroUpstream.id = "kiro-1";
-    kiroUpstream.enabled = true;
-    kiroUpstream.providers = ["kiro"];
-
-    const codexUpstream = createEmptyUpstream();
-    codexUpstream.id = "codex-1";
-    codexUpstream.enabled = true;
-    codexUpstream.providers = ["codex"];
-
-    const antigravityUpstream = createEmptyUpstream();
-    antigravityUpstream.id = "antigravity-1";
-    antigravityUpstream.enabled = true;
-    antigravityUpstream.providers = ["antigravity"];
-    antigravityUpstream.baseUrl = "";
-
-    expect(validate({ ...EMPTY_FORM, upstreams: [kiroUpstream] }).valid).toBe(
-      true,
-    );
-    expect(validate({ ...EMPTY_FORM, upstreams: [codexUpstream] }).valid).toBe(
-      true,
-    );
-    expect(
-      validate({ ...EMPTY_FORM, upstreams: [antigravityUpstream] }).valid,
-    ).toBe(true);
   });
 
   it("validates disabled upstreams as complete configurations", () => {
@@ -271,7 +242,6 @@ describe("config/form", () => {
     expect(payload.model_list_prefix).toBe(true);
     expect(payload.retryable_failure_cooldown_secs).toBe(15);
     expect(payload.same_upstream_retry_count).toBe(1);
-    expect(payload.codex_session_scoped_cooldown_enabled).toBe(false);
     expect(payload.stream_first_output_timeout_secs).toBe(60);
     expect(payload.sync_response_timeout_secs).toBe(300);
     expect(payload.tray_token_rate).toEqual({ enabled: true, format: "split" });
@@ -371,15 +341,6 @@ describe("config/form", () => {
     expect(payload.same_upstream_retry_count).toBe(3);
   });
 
-  it("serializes codex session-scoped cooldown switch", () => {
-    const payload = toPayload({
-      ...EMPTY_FORM,
-      codexSessionScopedCooldownEnabled: true,
-    });
-
-    expect(payload.codex_session_scoped_cooldown_enabled).toBe(true);
-  });
-
   it("defaults split timeout seconds when config omits them", () => {
     expect(EMPTY_FORM.streamFirstOutputTimeoutSecs).toBe("60");
     expect(EMPTY_FORM.syncResponseTimeoutSecs).toBe("300");
@@ -417,7 +378,6 @@ describe("config/form", () => {
     expect(form.syncResponseTimeoutSecs).toBe("300");
     expect(form.corsEnabled).toBe(false);
     expect(form.modelListPrefix).toBe(false);
-    expect(form.codexSessionScopedCooldownEnabled).toBe(false);
     expect(form.upstreams[0]?.apiKeys).toBe("key-a, key-b");
     expect(form.upstreamStrategy).toEqual({
       order: "fill_first",
@@ -427,7 +387,7 @@ describe("config/form", () => {
     });
   });
 
-  it("drops legacy kiro and codex account bindings when loading config", () => {
+  it("preserves upstream fields outside the frontend schema", () => {
     const form = toForm({
       host: "127.0.0.1",
       port: 9208,
@@ -435,24 +395,13 @@ describe("config/form", () => {
       app_proxy_url: null,
       upstreams: [
         {
-          id: "kiro-default",
-          providers: ["kiro"],
-          base_url: "",
+          id: "legacy-upstream",
+          providers: ["openai"],
+          base_url: "https://example.com",
           api_keys: undefined,
           proxy_url: null,
-          kiro_account_id: "kiro-primary.json",
+          xai_account_id: "xai-primary.json",
           priority: 10,
-          enabled: true,
-          model_mappings: {},
-        },
-        {
-          id: "codex-default",
-          providers: ["codex"],
-          base_url: "",
-          api_keys: undefined,
-          proxy_url: null,
-          codex_account_id: "codex-primary.json",
-          priority: 20,
           enabled: true,
           model_mappings: {},
         },
@@ -469,93 +418,11 @@ describe("config/form", () => {
       },
     });
 
-    expect(form.upstreams[0]?.providers).toEqual(["kiro"]);
-    expect(form.upstreams[1]?.providers).toEqual(["codex"]);
+    expect(form.upstreams[0]?.providers).toEqual(["openai"]);
 
     const payload = toPayload(form);
 
-    expect(payload.upstreams[0]?.kiro_account_id).toBeNull();
-    expect(payload.upstreams[1]?.codex_account_id).toBeNull();
-  });
-
-  it("drops upstream base_url and proxy_url for kiro and codex providers", () => {
-    const kiroUpstream = createEmptyUpstream();
-    kiroUpstream.id = "kiro-default";
-    kiroUpstream.providers = ["kiro"];
-    kiroUpstream.baseUrl = "https://should-not-survive.example.com";
-    kiroUpstream.proxyUrl = "http://127.0.0.1:7890";
-
-    const codexUpstream = createEmptyUpstream();
-    codexUpstream.id = "codex-default";
-    codexUpstream.providers = ["codex"];
-    codexUpstream.baseUrl = "https://also-should-not-survive.example.com";
-    codexUpstream.proxyUrl = "socks5://127.0.0.1:1080";
-
-    const payload = toPayload({
-      ...EMPTY_FORM,
-      upstreams: [kiroUpstream, codexUpstream],
-    });
-
-    expect(payload.upstreams[0]?.base_url).toBe("");
-    expect(payload.upstreams[0]?.proxy_url).toBeNull();
-    expect(payload.upstreams[1]?.base_url).toBe("");
-    expect(payload.upstreams[1]?.proxy_url).toBeNull();
-  });
-
-  it("drops api keys and network fields for account-backed providers", () => {
-    const upstream = createEmptyUpstream();
-    upstream.id = "antigravity-default";
-    upstream.providers = ["antigravity"];
-    upstream.baseUrl = "https://should-not-survive.example.com";
-    upstream.apiKeys = "key-a, key-b";
-    upstream.proxyUrl = "http://127.0.0.1:7890";
-
-    const payload = toPayload({
-      ...EMPTY_FORM,
-      upstreams: [upstream],
-    });
-
-    expect(payload.upstreams[0]?.base_url).toBe("");
-    expect(payload.upstreams[0]?.api_keys).toBeUndefined();
-    expect(payload.upstreams[0]?.proxy_url).toBeNull();
-  });
-
-  it("auto-generates kiro and codex upstreams when accounts exist", () => {
-    const upstreams = syncAccountBackedUpstreams([], {
-      hasKiroAccount: true,
-      hasCodexAccount: true,
-    });
-
-    expect(upstreams.map((item) => item.id)).toEqual([
-      "kiro-default",
-      "codex-default",
-    ]);
-    expect(upstreams.map((item) => item.providers)).toEqual([
-      ["kiro"],
-      ["codex"],
-    ]);
-    expect(upstreams.every((item) => item.enabled)).toBe(true);
-  });
-
-  it("removes kiro and codex upstreams when accounts disappear", () => {
-    const regular = createEmptyUpstream();
-    regular.id = "openai-main";
-    regular.providers = ["openai"];
-
-    const kiro = createEmptyUpstream();
-    kiro.id = "kiro-default";
-    kiro.providers = ["kiro"];
-
-    const codex = createEmptyUpstream();
-    codex.id = "codex-default";
-    codex.providers = ["codex"];
-
-    const upstreams = syncAccountBackedUpstreams([regular, kiro, codex], {
-      hasKiroAccount: false,
-      hasCodexAccount: false,
-    });
-
-    expect(upstreams).toEqual([regular]);
+    expect(payload.upstreams[0]?.xai_account_id).toBe("xai-primary.json");
   });
 
   it("serializes split timeout seconds", () => {

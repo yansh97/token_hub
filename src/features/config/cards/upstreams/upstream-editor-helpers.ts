@@ -4,20 +4,6 @@ import {
 } from "@/features/config/inbound-formats";
 import type { UpstreamForm } from "@/features/config/types";
 
-export const ACCOUNT_BACKED_PROVIDERS = [
-  "kiro",
-  "codex",
-  "antigravity",
-] as const;
-
-export function isAccountBackedProvider(provider: string) {
-  return ACCOUNT_BACKED_PROVIDERS.some((value) => value === provider);
-}
-
-export function isAccountBackedProviderSet(providers: readonly string[]) {
-  return providers.length === 1 && providers.some(isAccountBackedProvider);
-}
-
 export function createCopiedUpstreamId(
   sourceId: string,
   upstreams: readonly UpstreamForm[],
@@ -71,15 +57,6 @@ export function providersEqual(
   return true;
 }
 
-export function coerceProviderSelection(next: readonly string[]) {
-  const normalized = normalizeProviders(next);
-  const special = normalized.find(isAccountBackedProvider);
-  if (!special) {
-    return normalized;
-  }
-  return [special];
-}
-
 export function hasProvider(upstream: UpstreamForm, provider: string) {
   return upstream.providers.some((value) => value.trim() === provider);
 }
@@ -116,6 +93,7 @@ export function cloneUpstreamDraft(upstream: UpstreamForm) {
     ...upstream,
     // provider 必选：编辑/复制时也保证至少有一个 provider，避免 UI 出现“看起来有默认值但实际为空”的不同步体验
     providers: providers.length ? providers : ["openai"],
+    extras: upstream.extras ? { ...upstream.extras } : undefined,
     availableModels: [...upstream.availableModels],
     modelMappings: upstream.modelMappings.map((mapping) => ({ ...mapping })),
     overrides: {

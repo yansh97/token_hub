@@ -80,38 +80,16 @@ describe("dashboard/format", () => {
     expect(formatNanoUsdCost(null)).toBe("—");
   });
 
-  it("keeps provider when it adds new information", () => {
-    expect(
-      formatDashboardProviderLabel("primary", "openai", "team-account.json"),
-    ).toBe("primary · openai · team-account.json");
-  });
-
-  it("omits provider when upstream or account already includes it", () => {
-    expect(
-      formatDashboardProviderLabel(
-        "codex-default",
-        "codex",
-        "codex-joane.json",
-      ),
-    ).toBe("codex-default · codex-joane.json");
-    expect(
-      formatDashboardProviderLabel(
-        "fallback",
-        "anthropic",
-        "anthropic-main.json",
-      ),
-    ).toBe("fallback · anthropic-main.json");
-  });
-
-  it("keeps provider when no account label is available", () => {
-    expect(formatDashboardProviderLabel("fallback", "anthropic", null)).toBe(
-      "fallback · anthropic",
+  it("uses upstream and provider labels without account details", () => {
+    expect(formatDashboardProviderLabel("primary", "openai")).toBe(
+      "primary · openai",
+    );
+    expect(formatDashboardProviderLabel("openai-default", "openai")).toBe(
+      "openai-default",
     );
   });
 
   it("uses a dedicated label for local proxy request failures", () => {
-    expect(formatDashboardProviderLabel("local", "proxy", null)).toBe(
-      "本地代理",
-    );
+    expect(formatDashboardProviderLabel("local", "proxy")).toBe("本地代理");
   });
 });

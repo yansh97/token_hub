@@ -28,8 +28,6 @@ const PROVIDER_NATIVE_INBOUND_FORMATS: Readonly<
   "openai-response": ["openai_responses"],
   anthropic: ["anthropic_messages"],
   gemini: ["gemini"],
-  kiro: ["anthropic_messages"],
-  codex: ["openai_responses"],
 };
 
 export function getProviderNativeInboundFormats(provider: string) {

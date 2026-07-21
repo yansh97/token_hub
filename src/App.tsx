@@ -1,10 +1,6 @@
-import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
-import { useEffect } from "react";
-
 import { SettingsPage } from "@/features/config/pages/settings-page";
 import { UpstreamsPage } from "@/features/config/pages/upstreams-page";
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
-import { handleKiroCallback } from "@/features/kiro/api";
 import { LogsPage } from "@/features/logs/pages/logs-page";
 import { UpdateNotifier } from "@/features/update/UpdateNotifier";
 import { UpdaterProvider } from "@/features/update/updater";
@@ -14,26 +10,6 @@ import "./App.css";
 
 function App() {
   const route = useAppRoute();
-
-  useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    onOpenUrl((urls) => {
-      for (const url of urls) {
-        if (url.startsWith("kiro://")) {
-          void handleKiroCallback(url);
-        }
-      }
-    })
-      .then((stop) => {
-        unlisten = stop;
-      })
-      .catch(() => {});
-    return () => {
-      if (unlisten) {
-        unlisten();
-      }
-    };
-  }, []);
 
   const page = (() => {
     switch (route) {

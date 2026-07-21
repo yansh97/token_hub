@@ -5,7 +5,7 @@ import { UPSTREAM_COLUMNS } from "@/features/config/cards/upstreams/constants";
 import { UpstreamsTable } from "@/features/config/cards/upstreams/table";
 import type { UpstreamForm } from "@/features/config/types";
 
-const LONG_ID = "codex-account-with-a-very-long-upstream-id-for-tooltip";
+const LONG_ID = "openai-provider-with-a-very-long-upstream-id-for-tooltip";
 
 afterEach(() => {
   cleanup();
@@ -14,14 +14,13 @@ afterEach(() => {
 function buildUpstream(): UpstreamForm {
   return {
     id: LONG_ID,
-    providers: ["codex"],
+    providers: ["openai"],
     baseUrl: "https://api.example.com/v1",
     apiKeys: "",
     filterPromptCacheRetention: false,
     filterSafetyIdentifier: false,
     useChatCompletionsForResponses: false,
     rewriteDeveloperRoleToSystem: false,
-    preferredEndpoint: "",
     proxyUrl: "",
     priority: "10",
     enabled: true,
@@ -117,43 +116,5 @@ describe("upstreams/table", () => {
     expect(actionCell?.firstElementChild).toHaveClass("justify-start");
     expect(actionCell?.firstElementChild).not.toHaveClass("justify-end");
     expect(actionCell).toHaveClass("w-[20%]");
-  });
-
-  it("disables delete for account-backed special upstream rows", () => {
-    render(
-      <UpstreamsTable
-        upstreams={[buildUpstream()]}
-        columns={UPSTREAM_COLUMNS}
-        disableDelete={false}
-        isDeleteDisabled={(upstream) =>
-          upstream.providers.length === 1 && upstream.providers[0] === "codex"
-        }
-        onEdit={() => undefined}
-        onCopy={() => undefined}
-        onToggleEnabled={() => undefined}
-        onDelete={() => undefined}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "删除提供商 1" })).toBeDisabled();
-  });
-
-  it("disables copy for account-backed special upstream rows", () => {
-    render(
-      <UpstreamsTable
-        upstreams={[buildUpstream()]}
-        columns={UPSTREAM_COLUMNS}
-        disableDelete={false}
-        isCopyDisabled={(upstream) =>
-          upstream.providers.length === 1 && upstream.providers[0] === "codex"
-        }
-        onEdit={() => undefined}
-        onCopy={() => undefined}
-        onToggleEnabled={() => undefined}
-        onDelete={() => undefined}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "复制提供商 1" })).toBeDisabled();
   });
 });

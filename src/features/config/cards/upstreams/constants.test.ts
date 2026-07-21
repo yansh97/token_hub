@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  UPSTREAM_COLUMNS,
-  mergeProviderOptions,
-} from "@/features/config/cards/upstreams/constants";
+import { UPSTREAM_COLUMNS } from "@/features/config/cards/upstreams/constants";
 
 describe("upstreams/constants", () => {
   it("allocates every data column by percentage", () => {
@@ -26,26 +23,5 @@ describe("upstreams/constants", () => {
     expect(priorityColumn?.cellClassName).toBe("w-[10%]");
     expect(statusColumn?.headerClassName).toBe("w-[12%]");
     expect(statusColumn?.cellClassName).toBe("w-[12%]");
-  });
-
-  it("exposes public API provider options first by default", () => {
-    expect(mergeProviderOptions([])).toEqual([
-      "openai",
-      "openai-response",
-      "anthropic",
-      "gemini",
-    ]);
-  });
-
-  it("preserves providers already present in existing config", () => {
-    expect(mergeProviderOptions(["kiro", "codex", "legacy-provider"])).toEqual([
-      "openai",
-      "openai-response",
-      "anthropic",
-      "gemini",
-      "kiro",
-      "codex",
-      "legacy-provider",
-    ]);
   });
 });

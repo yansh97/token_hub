@@ -69,10 +69,7 @@ describe("dashboard/RecentRequestsTable", () => {
     expect(cells[0]).toHaveAttribute("title");
     expect(cells[1]).toHaveTextContent("/v1/responses");
     expect(cells[2]).toHaveTextContent("alpha");
-    expect(cells[2]).toHaveAttribute(
-      "title",
-      "alpha · openai-response · codex-a.json",
-    );
+    expect(cells[2]).toHaveAttribute("title", "alpha · openai-response");
     expect(cells[3]).toHaveTextContent("gpt-5.6-sol");
     expect(cells[3]).toHaveTextContent("gpt-5.6-terra");
   });

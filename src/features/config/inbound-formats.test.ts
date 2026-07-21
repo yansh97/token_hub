@@ -9,7 +9,7 @@ describe("inbound-formats", () => {
   it("creates native inbound format set (trims + unions)", () => {
     const formats = createNativeInboundFormatSet([
       " openai ",
-      "codex",
+      "openai-response",
       "",
       "openai",
     ]);
