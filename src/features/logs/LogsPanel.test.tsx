@@ -1,10 +1,4 @@
-import {
-  act,
-  cleanup,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -675,15 +669,11 @@ describe("logs/LogsPanel", () => {
     expect(statusLabel.closest("div")?.parentElement).toHaveClass(
       "lg:grid-cols-2",
     );
-    expect(
-      screen.getByRole("heading", { name: "请求" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "请求" })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "路由与计费" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "耗时" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "耗时" })).toBeInTheDocument();
     expect(
       document.querySelector('[data-slot="request-detail-groups"]'),
     ).not.toHaveClass("rounded-lg", "border");
@@ -751,9 +741,7 @@ describe("logs/LogsPanel", () => {
       expect(readRequestLogDetailMock).toHaveBeenCalledWith(1);
     });
 
-    expect(
-      await screen.findByText("费用"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("费用")).toBeInTheDocument();
     expect(screen.getByText("$1.21")).toBeInTheDocument();
     expect(screen.getByText("计费模型")).toBeInTheDocument();
     expect(screen.getByText("gpt-5.5")).toBeInTheDocument();
@@ -799,9 +787,11 @@ describe("logs/LogsPanel", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("用量详情 (JSON)")).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        '{"input_tokens":5,"output_tokens":9,"output_tokens_details":{"image_tokens":9}}',
-      ).closest("pre"),
+      screen
+        .getByText(
+          '{"input_tokens":5,"output_tokens":9,"output_tokens_details":{"image_tokens":9}}',
+        )
+        .closest("pre"),
     ).toHaveClass("font-mono", "bg-muted/20");
   });
 

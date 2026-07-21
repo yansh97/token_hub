@@ -82,103 +82,97 @@ export function UpstreamsCard({
   );
 
   // 更新 draft，并在 provider 变化时清理不再适用的字段。
-  const updateDraft = useCallback(
-    (patch: Partial<UpstreamForm>) => {
-      setEditorTouchedFields((current) => {
-        const next = new Set(current);
-        for (const field of Object.keys(patch)) {
-          if (field === "availableModelsMode" || field === "availableModels") {
-            next.add("availableModels");
-          } else if (field === "overrides") {
-            next.add("headerOverrides");
-          } else {
-            next.add(field);
-          }
+  const updateDraft = useCallback((patch: Partial<UpstreamForm>) => {
+    setEditorTouchedFields((current) => {
+      const next = new Set(current);
+      for (const field of Object.keys(patch)) {
+        if (field === "availableModelsMode" || field === "availableModels") {
+          next.add("availableModels");
+        } else if (field === "overrides") {
+          next.add("headerOverrides");
+        } else {
+          next.add(field);
         }
-        return next;
-      });
-      setEditor((prev) => {
-        if (!prev.open) return prev;
+      }
+      return next;
+    });
+    setEditor((prev) => {
+      if (!prev.open) return prev;
 
-        const currentProviders = normalizeProviders(prev.draft.providers);
-        const nextProviders =
-          patch.providers === undefined
-            ? currentProviders
-            : coerceProviderSelection(patch.providers);
-        const providersChanged =
-          patch.providers !== undefined &&
-          !providersEqual(nextProviders, currentProviders);
+      const currentProviders = normalizeProviders(prev.draft.providers);
+      const nextProviders =
+        patch.providers === undefined
+          ? currentProviders
+          : coerceProviderSelection(patch.providers);
+      const providersChanged =
+        patch.providers !== undefined &&
+        !providersEqual(nextProviders, currentProviders);
 
-        // 如果 provider 变化，清理不再适用的 provider 专属字段。
-        if (providersChanged) {
-          // openai-response 专属开关：切换到其它 provider 时清零，避免把无效字段写进配置。
-          let filterPromptCacheRetention =
-            prev.draft.filterPromptCacheRetention;
-          let filterSafetyIdentifier = prev.draft.filterSafetyIdentifier;
-          let useChatCompletionsForResponses =
-            prev.draft.useChatCompletionsForResponses;
-          let rewriteDeveloperRoleToSystem =
-            prev.draft.rewriteDeveloperRoleToSystem;
-          let baseUrl = patch.baseUrl ?? prev.draft.baseUrl;
-          let proxyUrl = patch.proxyUrl ?? prev.draft.proxyUrl;
-          let convertFromMap =
-            patch.convertFromMap ?? prev.draft.convertFromMap;
+      // 如果 provider 变化，清理不再适用的 provider 专属字段。
+      if (providersChanged) {
+        // openai-response 专属开关：切换到其它 provider 时清零，避免把无效字段写进配置。
+        let filterPromptCacheRetention = prev.draft.filterPromptCacheRetention;
+        let filterSafetyIdentifier = prev.draft.filterSafetyIdentifier;
+        let useChatCompletionsForResponses =
+          prev.draft.useChatCompletionsForResponses;
+        let rewriteDeveloperRoleToSystem =
+          prev.draft.rewriteDeveloperRoleToSystem;
+        let baseUrl = patch.baseUrl ?? prev.draft.baseUrl;
+        let proxyUrl = patch.proxyUrl ?? prev.draft.proxyUrl;
+        let convertFromMap = patch.convertFromMap ?? prev.draft.convertFromMap;
 
-          if (!nextProviders.includes("openai-response")) {
-            filterPromptCacheRetention = false;
-            filterSafetyIdentifier = false;
-            useChatCompletionsForResponses = false;
-          }
-          if (
-            !nextProviders.some(
-              (provider) =>
-                provider === "openai" || provider === "openai-response",
-            )
-          ) {
-            rewriteDeveloperRoleToSystem = false;
-          }
-          if (isAccountBackedProviderSet(nextProviders)) {
-            baseUrl = "";
-            proxyUrl = "";
-            patch.apiKeys = "";
-          }
-          if (patch.filterPromptCacheRetention !== undefined) {
-            filterPromptCacheRetention = patch.filterPromptCacheRetention;
-          }
-          if (patch.filterSafetyIdentifier !== undefined) {
-            filterSafetyIdentifier = patch.filterSafetyIdentifier;
-          }
-          if (patch.useChatCompletionsForResponses !== undefined) {
-            useChatCompletionsForResponses =
-              patch.useChatCompletionsForResponses;
-          }
-          if (patch.rewriteDeveloperRoleToSystem !== undefined) {
-            rewriteDeveloperRoleToSystem = patch.rewriteDeveloperRoleToSystem;
-          }
-
-          convertFromMap = pruneConvertFromMap(convertFromMap, nextProviders);
-
-          return {
-            ...prev,
-            draft: {
-              ...prev.draft,
-              ...patch,
-              providers: nextProviders,
-              baseUrl,
-              filterPromptCacheRetention,
-              filterSafetyIdentifier,
-              useChatCompletionsForResponses,
-              rewriteDeveloperRoleToSystem,
-              proxyUrl,
-              convertFromMap,
-            },
-          };
+        if (!nextProviders.includes("openai-response")) {
+          filterPromptCacheRetention = false;
+          filterSafetyIdentifier = false;
+          useChatCompletionsForResponses = false;
         }
-        return { ...prev, draft: { ...prev.draft, ...patch } };
-      });
-    },
-    [],
-  );
+        if (
+          !nextProviders.some(
+            (provider) =>
+              provider === "openai" || provider === "openai-response",
+          )
+        ) {
+          rewriteDeveloperRoleToSystem = false;
+        }
+        if (isAccountBackedProviderSet(nextProviders)) {
+          baseUrl = "";
+          proxyUrl = "";
+          patch.apiKeys = "";
+        }
+        if (patch.filterPromptCacheRetention !== undefined) {
+          filterPromptCacheRetention = patch.filterPromptCacheRetention;
+        }
+        if (patch.filterSafetyIdentifier !== undefined) {
+          filterSafetyIdentifier = patch.filterSafetyIdentifier;
+        }
+        if (patch.useChatCompletionsForResponses !== undefined) {
+          useChatCompletionsForResponses = patch.useChatCompletionsForResponses;
+        }
+        if (patch.rewriteDeveloperRoleToSystem !== undefined) {
+          rewriteDeveloperRoleToSystem = patch.rewriteDeveloperRoleToSystem;
+        }
+
+        convertFromMap = pruneConvertFromMap(convertFromMap, nextProviders);
+
+        return {
+          ...prev,
+          draft: {
+            ...prev.draft,
+            ...patch,
+            providers: nextProviders,
+            baseUrl,
+            filterPromptCacheRetention,
+            filterSafetyIdentifier,
+            useChatCompletionsForResponses,
+            rewriteDeveloperRoleToSystem,
+            proxyUrl,
+            convertFromMap,
+          },
+        };
+      }
+      return { ...prev, draft: { ...prev.draft, ...patch } };
+    });
+  }, []);
 
   const openCreateDialog = () => {
     const draft = createEmptyUpstream();

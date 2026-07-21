@@ -41,7 +41,7 @@ function resolveStatusBadge(status: UpdateStatus) {
       variant = "secondary";
       break;
     case "installed":
-      label = "已安装"
+      label = "已安装";
       variant = "default";
       break;
     case "error":
@@ -89,9 +89,7 @@ function UpdateStatusRow({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-[13px]">
-        <span className="text-muted-foreground">
-          当前版本
-        </span>
+        <span className="text-muted-foreground">当前版本</span>
         <span className="font-mono text-[12px] text-foreground/80">
           {currentVersion || "--"}
         </span>
@@ -118,9 +116,7 @@ function UpdateDetails({ updateInfo }: UpdateDetailsProps) {
   return (
     <div className="space-y-2 text-[13px]">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground">
-          最新版本
-        </span>
+        <span className="text-muted-foreground">最新版本</span>
         <span className="font-mono text-[12px] text-foreground/80">
           {updateInfo.version}
         </span>
@@ -150,7 +146,9 @@ function UpdateProgress({ label }: UpdateProgressProps) {
   if (!label) {
     return null;
   }
-  return <div className="text-[12px] leading-4 text-muted-foreground">{label}</div>;
+  return (
+    <div className="text-[12px] leading-4 text-muted-foreground">{label}</div>
+  );
 }
 
 type UpdateErrorProps = {

@@ -95,9 +95,7 @@ describe("dashboard/RecentRequestsTable", () => {
   it("opens an interactive row with mouse or keyboard", async () => {
     const user = userEvent.setup();
     const onSelectItem = vi.fn();
-    render(
-      <RecentRequestsTable items={[item]} onSelectItem={onSelectItem} />,
-    );
+    render(<RecentRequestsTable items={[item]} onSelectItem={onSelectItem} />);
 
     const row = screen.getByRole("button");
     await user.click(row);

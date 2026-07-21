@@ -476,15 +476,10 @@ export function validateUpstreamDraft({
   if (specialProviders.length && providers.length > 1) {
     addError("providers", "特殊提供商类型不能与其他接口格式同时选择。");
   }
-  if (
-    specialProviders.length &&
-    parseApiKeysInput(draft.apiKeys).length > 1
-  ) {
+  if (specialProviders.length && parseApiKeysInput(draft.apiKeys).length > 1) {
     addError("apiKeys", "该提供商类型不支持配置多个 API Key。");
   }
-  if (
-    parseApiKeysInput(draft.apiKeys).some(hasInvalidHeaderValueCharacter)
-  ) {
+  if (parseApiKeysInput(draft.apiKeys).some(hasInvalidHeaderValueCharacter)) {
     addError("apiKeys", "API Key 包含不能用于 HTTP 请求头的字符。");
   }
   if (providers.some((provider) => !SUPPORTED_PROVIDERS.has(provider))) {
@@ -542,7 +537,10 @@ export function validate(form: ConfigForm) {
     return { valid: false, message: firstSettingsError };
   }
   if (form.appProxyUrl.trim() && !isValidProxyUrl(form.appProxyUrl.trim())) {
-    return { valid: false, message: "应用代理 URL 无效（支持 http(s)://、socks5://、socks5h://）。" };
+    return {
+      valid: false,
+      message: "应用代理 URL 无效（支持 http(s)://、socks5://、socks5h://）。",
+    };
   }
   const upstreamStrategyError = validateUpstreamStrategy(form.upstreamStrategy);
   if (upstreamStrategyError) {
@@ -814,7 +812,10 @@ function validateModelMappingRows(
     const target = mapping?.target.trim() ?? "";
     const fieldPrefix = `modelMappings.${mapping?.id ?? index}`;
     if (!pattern) {
-      addError(`${fieldPrefix}.pattern`, `第 ${row} 行映射的匹配模式不能为空。`);
+      addError(
+        `${fieldPrefix}.pattern`,
+        `第 ${row} 行映射的匹配模式不能为空。`,
+      );
     }
     if (!target) {
       addError(`${fieldPrefix}.target`, `第 ${row} 行映射的目标模型不能为空。`);

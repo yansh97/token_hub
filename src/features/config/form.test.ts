@@ -154,7 +154,9 @@ describe("config/form", () => {
     upstream.providers = [];
     upstream.baseUrl = "";
 
-    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(false);
+    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(
+      false,
+    );
   });
 
   it("requires provider priority even when the provider is disabled", () => {
@@ -210,7 +212,9 @@ describe("config/form", () => {
     expect(upstream.priority).toBe("100");
     expect(upstream.enabled).toBe(false);
     expect(upstream.availableModelsMode).toBe("all");
-    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(false);
+    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(
+      false,
+    );
   });
 
   it("uses development app defaults", () => {

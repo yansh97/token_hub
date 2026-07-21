@@ -240,9 +240,7 @@ function UpstreamConnectionFields({
             errors.priority ? " upstream-editor-priority-error" : ""
           }`}
           value={draft.priority}
-          onChange={(event) =>
-            onChangeDraft({ priority: event.target.value })
-          }
+          onChange={(event) => onChangeDraft({ priority: event.target.value })}
           onBlur={() => onFieldBlur("priority")}
           placeholder="100"
           inputMode="numeric"
@@ -305,7 +303,9 @@ function UpstreamOpenAIResponsesFields({
       {isOpenaiResponses ? (
         <CompatibilitySwitch
           label={"Responses 使用 chat/completions"}
-          help={"将 /v1/responses 请求改走 /v1/chat/completions，并转换返回格式。"}
+          help={
+            "将 /v1/responses 请求改走 /v1/chat/completions，并转换返回格式。"
+          }
           ariaLabel={"切换 Responses 经由 chat/completions"}
           checked={draft.useChatCompletionsForResponses}
           onCheckedChange={(checked) =>
@@ -362,10 +362,7 @@ function UpstreamModelMappingFields({
   };
 
   return (
-    <div
-      data-slot="upstream-model-mapping-fields"
-      className="contents"
-    >
+    <div data-slot="upstream-model-mapping-fields" className="contents">
       <div className="flex items-center gap-1 self-start">
         <Label className="gap-1.5">
           <span>{"模型映射"}</span>
@@ -415,10 +412,7 @@ function UpstreamHeaderOverrideFields({
   };
 
   return (
-    <div
-      data-slot="upstream-header-override-fields"
-      className="contents"
-    >
+    <div data-slot="upstream-header-override-fields" className="contents">
       <div className="flex items-center gap-1 self-start">
         <Label className="gap-1.5">
           <span>{"请求头覆盖"}</span>

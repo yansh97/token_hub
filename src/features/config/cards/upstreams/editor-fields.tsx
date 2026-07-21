@@ -35,9 +35,7 @@ export function EditorField({
 }: EditorFieldProps) {
   return (
     <>
-      <div
-        className={cn("flex items-center self-start pt-2", labelClassName)}
-      >
+      <div className={cn("flex items-center self-start pt-2", labelClassName)}>
         {htmlFor ? (
           <Label htmlFor={htmlFor} className="gap-1.5">
             <span>{label}</span>
@@ -204,9 +202,7 @@ export function HeaderOverridesEditor({
               onChange={(e) => handleUpdate(index, { name: e.target.value })}
               placeholder={"x-forwarded-for"}
               required
-              aria-invalid={Boolean(
-                errors[`headerOverrides.${item.id}.name`],
-              )}
+              aria-invalid={Boolean(errors[`headerOverrides.${item.id}.name`])}
               aria-describedby={
                 errors[`headerOverrides.${item.id}.name`]
                   ? `header-override-${item.id}-name-error`

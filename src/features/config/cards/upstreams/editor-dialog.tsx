@@ -51,11 +51,7 @@ export function UpstreamEditorDialog({
           </div>
           {editor.open ? (
             <Label className="flex shrink-0 items-center gap-2 text-[13px] font-normal">
-              <span>
-                {editor.draft.enabled
-                  ? "启用"
-                  : "禁用"}
-              </span>
+              <span>{editor.draft.enabled ? "启用" : "禁用"}</span>
               <Switch
                 checked={editor.draft.enabled}
                 onCheckedChange={(enabled) => onChangeDraft({ enabled })}
@@ -78,9 +74,7 @@ export function UpstreamEditorDialog({
           ) : null}
         </AlertDialogBody>
         <AlertDialogFooter className="border-t px-4 py-2.5">
-          <AlertDialogCancel>
-            {"取消"}
-          </AlertDialogCancel>
+          <AlertDialogCancel>{"取消"}</AlertDialogCancel>
           <Button type="button" onClick={onSave}>
             {"保存"}
           </Button>

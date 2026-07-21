@@ -7,9 +7,7 @@ function TooltipProvider({
   delayDuration = 450,
   ...props
 }: TooltipPrimitive.Provider.Props & { delayDuration?: number }) {
-  return (
-    <TooltipPrimitive.Provider delay={delayDuration} {...props} />
-  );
+  return <TooltipPrimitive.Provider delay={delayDuration} {...props} />;
 }
 
 function Tooltip(props: TooltipPrimitive.Root.Props) {
@@ -21,17 +19,13 @@ type TooltipTriggerProps = TooltipPrimitive.Trigger.Props & {
   children?: React.ReactNode;
 };
 
-function TooltipTrigger({
-  asChild,
-  children,
-  ...props
-}: TooltipTriggerProps) {
+function TooltipTrigger({ asChild, children, ...props }: TooltipTriggerProps) {
   if (asChild && React.isValidElement(children)) {
-    return (
-      <TooltipPrimitive.Trigger render={children} {...props} />
-    );
+    return <TooltipPrimitive.Trigger render={children} {...props} />;
   }
-  return <TooltipPrimitive.Trigger {...props}>{children}</TooltipPrimitive.Trigger>;
+  return (
+    <TooltipPrimitive.Trigger {...props}>{children}</TooltipPrimitive.Trigger>
+  );
 }
 
 type TooltipContentProps = TooltipPrimitive.Popup.Props & {

@@ -51,7 +51,10 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
 function SheetTitle({ className, ...props }: Dialog.Title.Props) {
   return (
     <Dialog.Title
-      className={cn("text-[15px] font-semibold leading-5 text-foreground", className)}
+      className={cn(
+        "text-[15px] font-semibold leading-5 text-foreground",
+        className,
+      )}
       {...props}
     />
   );
@@ -66,10 +69,4 @@ function SheetDescription({ className, ...props }: Dialog.Description.Props) {
   );
 }
 
-export {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-};
+export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription };

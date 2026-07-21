@@ -77,7 +77,15 @@ function ToggleGroup<T extends ToggleGroupType>({
 
   return (
     <ToggleGroupContext.Provider
-      value={{ type, value: selected, disabled, variant, size, spacing, toggle }}
+      value={{
+        type,
+        value: selected,
+        disabled,
+        variant,
+        size,
+        spacing,
+        toggle,
+      }}
     >
       {/* biome-ignore lint/a11y/useSemanticElements: This is a non-form ARIA button group. */}
       <div
@@ -86,7 +94,11 @@ function ToggleGroup<T extends ToggleGroupType>({
         data-variant={variant}
         data-size={size}
         data-spacing={spacing}
-        className={cn("flex w-fit items-center rounded-md", spacing ? "gap-1" : "", className)}
+        className={cn(
+          "flex w-fit items-center rounded-md",
+          spacing ? "gap-1" : "",
+          className,
+        )}
         {...props}
       >
         {children}
@@ -110,7 +122,8 @@ function ToggleGroupItem({
   ...props
 }: ToggleGroupItemProps) {
   const context = useContext(ToggleGroupContext);
-  if (!context) throw new Error("ToggleGroupItem must be used inside ToggleGroup");
+  if (!context)
+    throw new Error("ToggleGroupItem must be used inside ToggleGroup");
 
   const active = context.value.includes(value);
   const itemVariant = variant ?? context.variant;
@@ -128,9 +141,11 @@ function ToggleGroupItem({
       disabled={context.disabled || props.disabled}
       className={cn(
         "inline-flex min-w-0 shrink-0 items-center justify-center whitespace-nowrap rounded-md text-[13px] font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-accent",
-        itemVariant === "outline" && "border border-input bg-transparent shadow-xs",
+        itemVariant === "outline" &&
+          "border border-input bg-transparent shadow-xs",
         itemSize === "lg" ? "h-9 px-4" : "h-8 px-3",
-        context.spacing === 0 && "rounded-none first:rounded-l-md last:rounded-r-md not-first:border-l-0",
+        context.spacing === 0 &&
+          "rounded-none first:rounded-l-md last:rounded-r-md not-first:border-l-0",
         className,
       )}
       onClick={(event) => {

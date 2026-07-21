@@ -152,10 +152,7 @@ function ChartHeader() {
 
 function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
   return (
-    <ChartContainer
-      config={chartConfig}
-      className="aspect-auto h-full w-full"
-    >
+    <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
       <LineChart data={data}>
         <CartesianGrid vertical={false} />
         <XAxis
@@ -233,21 +230,19 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
 
 function ChartBody({ data, timeFormatter, hasData }: ChartBodyProps) {
   return (
-      <div
-        className={`flex h-[232px] w-full items-center justify-center overflow-hidden rounded-md border p-2 ${
-          hasData
-            ? "border-border/70 bg-muted/10"
-            : "border-dashed border-border"
-        }`}
-      >
-        {hasData ? (
-          <ChartCanvas data={data} timeFormatter={timeFormatter} />
-        ) : (
-          <p className="text-center text-[13px] text-muted-foreground">
-            暂无数据
-          </p>
-        )}
-      </div>
+    <div
+      className={`flex h-[232px] w-full items-center justify-center overflow-hidden rounded-md border p-2 ${
+        hasData ? "border-border/70 bg-muted/10" : "border-dashed border-border"
+      }`}
+    >
+      {hasData ? (
+        <ChartCanvas data={data} timeFormatter={timeFormatter} />
+      ) : (
+        <p className="text-center text-[13px] text-muted-foreground">
+          暂无数据
+        </p>
+      )}
+    </div>
   );
 }
 

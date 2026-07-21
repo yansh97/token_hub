@@ -57,15 +57,11 @@ function ProxyServiceStatusRow({ badge, addr }: ProxyServiceStatusRowProps) {
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
       <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">
-          状态
-        </span>
+        <span className="text-muted-foreground">状态</span>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">
-          地址
-        </span>
+        <span className="text-muted-foreground">地址</span>
         <span className="font-mono text-[12px] text-foreground/80">{addr}</span>
       </div>
     </div>

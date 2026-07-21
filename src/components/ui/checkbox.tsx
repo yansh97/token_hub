@@ -14,7 +14,11 @@ type CheckboxProps = Omit<
 
 function Checkbox({ className, checked = false, ...props }: CheckboxProps) {
   const indeterminate = checked === "indeterminate";
-  const state = indeterminate ? "indeterminate" : checked ? "checked" : "unchecked";
+  const state = indeterminate
+    ? "indeterminate"
+    : checked
+      ? "checked"
+      : "unchecked";
 
   return (
     <CheckboxPrimitive.Root

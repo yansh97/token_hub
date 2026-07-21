@@ -93,7 +93,8 @@ export function SectionCards({ summary }: SectionCardsProps) {
         }
         detail={
           <div className="line-clamp-1">
-            成功 {formatCompact(successRequests)} · 错误 {formatCompact(errorRequests)}
+            成功 {formatCompact(successRequests)} · 错误{" "}
+            {formatCompact(errorRequests)}
           </div>
         }
       />

@@ -100,9 +100,7 @@ describe("config/AppView", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "重试保存" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
   });
@@ -155,11 +153,12 @@ describe("config/AppView", () => {
     expect(screen.queryByTestId("config-file-card")).not.toBeInTheDocument();
     expect(screen.getByTestId("storage-usage-card")).toBeInTheDocument();
     expect(screen.queryByTestId("validation-card")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "应用" })).not.toBeInTheDocument();
-    expect(document.querySelector('[data-slot="settings-content"]')).not.toHaveClass(
-      "mx-auto",
-      "max-w-[720px]",
-    );
+    expect(
+      screen.queryByRole("heading", { name: "应用" }),
+    ).not.toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="settings-content"]'),
+    ).not.toHaveClass("mx-auto", "max-w-[720px]");
   });
 
   it("uses a fixed workspace for the provider table", () => {

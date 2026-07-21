@@ -106,7 +106,10 @@ function ConfigSectionBody({
   switch (activeSectionId) {
     case "settings":
       return (
-        <div data-slot="settings-content" className="flex w-full flex-col gap-0">
+        <div
+          data-slot="settings-content"
+          className="flex w-full flex-col gap-0"
+        >
           <ProxyCoreCard
             form={props.form}
             showLocalKey={props.showLocalKey}

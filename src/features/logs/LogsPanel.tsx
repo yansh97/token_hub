@@ -47,8 +47,7 @@ const REQUEST_DETAIL_CAPTURE_EVENT = "request-detail-capture-changed";
 const CAPTURE_COUNTDOWN_TICK_MS = 1_000;
 const DETAIL_FIELD_ROW_CLASS =
   "grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-x-3 py-1";
-const DETAIL_FIELD_LABEL_CLASS =
-  "text-[12px] leading-5 text-muted-foreground";
+const DETAIL_FIELD_LABEL_CLASS = "text-[12px] leading-5 text-muted-foreground";
 const DETAIL_FIELD_VALUE_CLASS =
   "min-w-0 justify-self-start text-[13px] leading-5 text-foreground";
 const IDLE_CAPTURE_STATE: RequestDetailCaptureState = {
@@ -173,9 +172,7 @@ type BasicInfoSectionProps = {
 
 function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
   const timestamp = formatDashboardTimestamp(detail.tsMs, formatter);
-  const streamText = detail.stream
-    ? "流式"
-    : "非流式";
+  const streamText = detail.stream ? "流式" : "非流式";
   const combinedProviderText = formatDashboardProviderLabel(
     detail.upstreamId,
     detail.provider,
@@ -232,14 +229,8 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
             ) : null}
           </div>
         </div>
-        <DetailField
-          label={"费用"}
-          value={formatUsdCost(detail.costNanoUsd)}
-        />
-        <DetailField
-          label={"计费模型"}
-          value={detail.pricingModel}
-        />
+        <DetailField label={"费用"} value={formatUsdCost(detail.costNanoUsd)} />
+        <DetailField label={"计费模型"} value={detail.pricingModel} />
       </DetailGroup>
 
       <DetailGroup title="耗时">
@@ -327,9 +318,7 @@ function RequestDetailSheet({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
           <div className="px-5 py-5">
             {status === "loading" ? (
-              <p className="text-[13px] text-muted-foreground">
-                {"加载中…"}
-              </p>
+              <p className="text-[13px] text-muted-foreground">{"加载中…"}</p>
             ) : null}
             {status === "error" ? (
               <Alert variant="destructive">
@@ -343,18 +332,9 @@ function RequestDetailSheet({
             {status === "idle" && detail ? (
               <div className="space-y-4">
                 <BasicInfoSection detail={detail} formatter={formatter} />
-                <DetailSection
-                  title={"用量详情"}
-                  value={detail.usageJson}
-                />
-                <DetailSection
-                  title={"请求头"}
-                  value={detail.requestHeaders}
-                />
-                <DetailSection
-                  title={"请求体"}
-                  value={detail.requestBody}
-                />
+                <DetailSection title={"用量详情"} value={detail.usageJson} />
+                <DetailSection title={"请求头"} value={detail.requestHeaders} />
+                <DetailSection title={"请求体"} value={detail.requestBody} />
                 <DetailSection
                   title={"错误响应"}
                   value={getResponseDetailValue(detail)}

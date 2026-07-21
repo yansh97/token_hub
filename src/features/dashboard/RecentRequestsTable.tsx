@@ -22,7 +22,9 @@ function statusVariant(status: number) {
 
 function tokenDetail(item: DashboardRequestItem) {
   const parts = [
-    item.outputTokens == null ? null : `输出 ${formatCompact(item.outputTokens)}`,
+    item.outputTokens == null
+      ? null
+      : `输出 ${formatCompact(item.outputTokens)}`,
     item.cachedTokens ? `缓存 ${formatCompact(item.cachedTokens)}` : null,
   ].filter(Boolean);
   return parts.join(" · ");
@@ -62,14 +64,30 @@ export function RecentRequestsTable({
         </colgroup>
         <thead className="sticky top-0 z-10">
           <tr className="text-left text-[11px] font-medium text-muted-foreground">
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">时间</th>
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">路径</th>
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">提供商</th>
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">模型</th>
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">状态</th>
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">Tokens</th>
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">费用</th>
-            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">响应头</th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              时间
+            </th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              路径
+            </th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              提供商
+            </th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              模型
+            </th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              状态
+            </th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              Tokens
+            </th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              费用
+            </th>
+            <th className="bg-background px-2 py-2 shadow-[inset_0_-1px_0_var(--border)]">
+              响应头
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -107,14 +125,27 @@ export function RecentRequestsTable({
                 >
                   {formatDashboardClockTime(item.tsMs)}
                 </td>
-                <td className="truncate px-2 py-2 font-medium" title={item.path}>
+                <td
+                  className="truncate px-2 py-2 font-medium"
+                  title={item.path}
+                >
                   {item.path}
                 </td>
-                <td className="truncate px-2 py-2 text-muted-foreground" title={provider}>
+                <td
+                  className="truncate px-2 py-2 text-muted-foreground"
+                  title={provider}
+                >
                   {item.upstreamId}
                 </td>
-                <td className="px-2 py-2" title={[item.model, item.mappedModel].filter(Boolean).join("\n")}>
-                  <div className="truncate font-medium">{item.model || EMPTY_VALUE}</div>
+                <td
+                  className="px-2 py-2"
+                  title={[item.model, item.mappedModel]
+                    .filter(Boolean)
+                    .join("\n")}
+                >
+                  <div className="truncate font-medium">
+                    {item.model || EMPTY_VALUE}
+                  </div>
                   {item.mappedModel ? (
                     <div className="truncate text-[11px] text-muted-foreground">
                       {item.mappedModel}
@@ -122,7 +153,9 @@ export function RecentRequestsTable({
                   ) : null}
                 </td>
                 <td className="px-2 py-2">
-                  <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                  <Badge variant={statusVariant(item.status)}>
+                    {item.status}
+                  </Badge>
                 </td>
                 <td className="px-2 py-2" title={tokenDetail(item)}>
                   <div className="font-medium tabular-nums">{tokens}</div>

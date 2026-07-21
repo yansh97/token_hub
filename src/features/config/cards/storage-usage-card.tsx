@@ -78,29 +78,27 @@ export function StorageUsageCard() {
             应用数据、数据库和配置文件的磁盘占用。
           </p>
         </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={() => {
-              setStatus("loading");
-              setErrorMessage("");
-              void loadUsage();
-            }}
-            disabled={isLoading}
-            aria-label="刷新存储占用"
-          >
-            <RefreshCw
-              className={isLoading ? "animate-spin" : undefined}
-              aria-hidden="true"
-            />
-          </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={() => {
+            setStatus("loading");
+            setErrorMessage("");
+            void loadUsage();
+          }}
+          disabled={isLoading}
+          aria-label="刷新存储占用"
+        >
+          <RefreshCw
+            className={isLoading ? "animate-spin" : undefined}
+            aria-hidden="true"
+          />
+        </Button>
       </div>
       <div className="mt-3 space-y-3">
         <div className="flex min-w-0 items-center justify-between gap-4 text-[12px]">
-          <span className="shrink-0 text-muted-foreground">
-            数据目录
-          </span>
+          <span className="shrink-0 text-muted-foreground">数据目录</span>
           <span className="min-w-0 truncate font-mono text-foreground/80">
             {usage?.dataDir || "--"}
           </span>
@@ -129,9 +127,7 @@ export function StorageUsageCard() {
           </p>
         ) : null}
         {status === "error" ? (
-          <p className="text-[12px] leading-4 text-destructive">
-            {errorText}
-          </p>
+          <p className="text-[12px] leading-4 text-destructive">{errorText}</p>
         ) : null}
       </div>
     </section>

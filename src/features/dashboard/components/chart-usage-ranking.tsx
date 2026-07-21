@@ -71,17 +71,13 @@ function RankingTooltip({
     <div className="grid min-w-[10rem] gap-1.5">
       <div className="font-medium break-all">{label}</div>
       <div className="flex items-center justify-between gap-4 text-xs">
-        <span className="text-muted-foreground">
-          总 Tokens
-        </span>
+        <span className="text-muted-foreground">总 Tokens</span>
         <span className="font-medium tabular-nums">
           {formatInteger(totalTokens)}
         </span>
       </div>
       <div className="flex items-center justify-between gap-4 text-xs">
-        <span className="text-muted-foreground">
-          请求数
-        </span>
+        <span className="text-muted-foreground">请求数</span>
         <span className="font-medium tabular-nums">
           {formatInteger(requests)}
         </span>
@@ -114,80 +110,80 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
         <h2 className="text-[15px] font-semibold leading-5">{title}</h2>
         <span className="text-[11px] text-muted-foreground">Top 5</span>
       </div>
-        <div
-          className={`flex w-full items-center justify-center overflow-hidden rounded-md border ${
-            chartData.length
-              ? "border-border/70 bg-muted/10"
-              : "border-dashed border-border"
-          }`}
-          style={{ height }}
-        >
-          {chartData.length === 0 ? (
-            <p className="text-center text-[13px] text-muted-foreground">
-              暂无数据
-            </p>
-          ) : (
-            <ChartContainer
-              config={chartConfig}
-              className="aspect-auto h-full w-full"
+      <div
+        className={`flex w-full items-center justify-center overflow-hidden rounded-md border ${
+          chartData.length
+            ? "border-border/70 bg-muted/10"
+            : "border-dashed border-border"
+        }`}
+        style={{ height }}
+      >
+        {chartData.length === 0 ? (
+          <p className="text-center text-[13px] text-muted-foreground">
+            暂无数据
+          </p>
+        ) : (
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-full w-full"
+          >
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ left: 4, right: 12, top: 4, bottom: 4 }}
             >
-              <BarChart
-                data={chartData}
-                layout="vertical"
-                margin={{ left: 4, right: 12, top: 4, bottom: 4 }}
-              >
-                <CartesianGrid horizontal={false} />
-                <XAxis
-                  type="number"
-                  dataKey="totalTokens"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(value) => formatCompact(Number(value))}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="tickLabel"
-                  width={Y_AXIS_WIDTH}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tick={{ fontSize: 11 }}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) {
-                      return null;
-                    }
-                    const row = payload[0]?.payload as RankingRow | undefined;
-                    if (!row) {
-                      return null;
-                    }
-                    // 自定义 tooltip，避免 ChartTooltipContent 单值 formatter 套娃。
-                    return (
-                      <div className="border-border/50 bg-background rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
-                        <RankingTooltip
-                          label={row.label}
-                          requests={row.requests}
-                          totalTokens={row.totalTokens}
-                          costNanoUsd={row.costNanoUsd}
-                        />
-                      </div>
-                    );
-                  }}
-                />
-                <Bar
-                  dataKey="totalTokens"
-                  fill="var(--color-totalTokens)"
-                  radius={4}
-                  maxBarSize={28}
-                />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </div>
+              <CartesianGrid horizontal={false} />
+              <XAxis
+                type="number"
+                dataKey="totalTokens"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tick={{ fontSize: 11 }}
+                tickFormatter={(value) => formatCompact(Number(value))}
+              />
+              <YAxis
+                type="category"
+                dataKey="tickLabel"
+                width={Y_AXIS_WIDTH}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tick={{ fontSize: 11 }}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) {
+                    return null;
+                  }
+                  const row = payload[0]?.payload as RankingRow | undefined;
+                  if (!row) {
+                    return null;
+                  }
+                  // 自定义 tooltip，避免 ChartTooltipContent 单值 formatter 套娃。
+                  return (
+                    <div className="border-border/50 bg-background rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
+                      <RankingTooltip
+                        label={row.label}
+                        requests={row.requests}
+                        totalTokens={row.totalTokens}
+                        costNanoUsd={row.costNanoUsd}
+                      />
+                    </div>
+                  );
+                }}
+              />
+              <Bar
+                dataKey="totalTokens"
+                fill="var(--color-totalTokens)"
+                radius={4}
+                maxBarSize={28}
+              />
+            </BarChart>
+          </ChartContainer>
+        )}
+      </div>
     </section>
   );
 }

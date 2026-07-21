@@ -31,9 +31,7 @@ function AlertDialogHeader({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  return (
-    <div className={cn("flex flex-col gap-2", className)} {...props} />
-  );
+  return <div className={cn("flex flex-col gap-2", className)} {...props} />;
 }
 
 function AlertDialogFooter({
@@ -41,10 +39,7 @@ function AlertDialogFooter({
   ...props
 }: React.ComponentProps<"div">) {
   return (
-    <div
-      className={cn("flex justify-end gap-2 pt-1", className)}
-      {...props}
-    />
+    <div className={cn("flex justify-end gap-2 pt-1", className)} {...props} />
   );
 }
 

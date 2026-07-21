@@ -1,4 +1,7 @@
-import { CONFIG_SECTIONS, DEFAULT_CONFIG_SECTION } from "@/features/config/sections";
+import {
+  CONFIG_SECTIONS,
+  DEFAULT_CONFIG_SECTION,
+} from "@/features/config/sections";
 import { getRouteHash, useAppRoute } from "@/lib/router";
 
 export function AppSidebar() {

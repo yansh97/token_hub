@@ -225,10 +225,7 @@ export function UpdateNotifier() {
     }
 
     if (state.status === "downloading" || state.status === "installing") {
-      const title =
-        state.status === "downloading"
-          ? "下载中"
-          : "安装中";
+      const title = state.status === "downloading" ? "下载中" : "安装中";
       if (progressToastIdRef.current) {
         toast.loading(title, {
           id: progressToastIdRef.current,
@@ -321,9 +318,7 @@ export function UpdateNotifier() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {"更新已准备就绪"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{"更新已准备就绪"}</AlertDialogTitle>
             <AlertDialogDescription>
               {"是否现在重启以完成更新？"}
             </AlertDialogDescription>

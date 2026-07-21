@@ -1,18 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  LayoutDashboard,
-  Server,
-  ScrollText,
-  Settings,
-} from "lucide-react";
+import { LayoutDashboard, Server, ScrollText, Settings } from "lucide-react";
 
-export type ConfigSectionId =
-  | "dashboard"
-  | "logs"
-  | "upstreams"
-  | "settings";
+export type ConfigSectionId = "dashboard" | "logs" | "upstreams" | "settings";
 
-export type ConfigEditorSectionId = Extract<ConfigSectionId, "upstreams" | "settings">;
+export type ConfigEditorSectionId = Extract<
+  ConfigSectionId,
+  "upstreams" | "settings"
+>;
 
 export type ConfigSection = {
   id: ConfigSectionId;

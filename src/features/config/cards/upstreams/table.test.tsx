@@ -69,7 +69,6 @@ describe("upstreams/table", () => {
   });
 
   it("keeps the full id available for truncated cells", () => {
-
     render(
       <UpstreamsTable
         upstreams={[buildUpstream()]}
@@ -136,9 +135,7 @@ describe("upstreams/table", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "删除提供商 1" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "删除提供商 1" })).toBeDisabled();
   });
 
   it("disables copy for account-backed special upstream rows", () => {
@@ -157,8 +154,6 @@ describe("upstreams/table", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "复制提供商 1" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "复制提供商 1" })).toBeDisabled();
   });
 });

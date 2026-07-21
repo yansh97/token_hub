@@ -31,12 +31,12 @@ export function AutoStartCard({
             登录系统后自动启动 Token Hub。
           </p>
         </div>
-          <Switch
-            checked={enabled}
-            onCheckedChange={onChange}
-            disabled={isLoading || isError}
-            aria-label="启用开机启动"
-          />
+        <Switch
+          checked={enabled}
+          onCheckedChange={onChange}
+          disabled={isLoading || isError}
+          aria-label="启用开机启动"
+        />
       </div>
       {isLoading || isError ? (
         <div className="space-y-1 pt-2 text-[12px] leading-4 text-muted-foreground">

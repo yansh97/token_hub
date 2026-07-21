@@ -71,9 +71,7 @@ export function AvailableModelsEditor({
     : visibleSelectedCount > 0
       ? "indeterminate"
       : false;
-  const visibleModelsBulkLabel = allVisibleModelsSelected
-    ? "取消全选"
-    : "全选";
+  const visibleModelsBulkLabel = allVisibleModelsSelected ? "取消全选" : "全选";
 
   const updateSelectedModels = (models: readonly string[]) => {
     onChangeDraft({ availableModels: mergeModels(models) });

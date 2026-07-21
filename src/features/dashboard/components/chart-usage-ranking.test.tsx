@@ -53,12 +53,8 @@ describe("dashboard/chart-usage-ranking", () => {
     );
     expect(chart?.parentElement).not.toHaveClass("border-dashed");
     expect(chart?.parentElement).toHaveStyle({ height: "232px" });
-    expect(
-      within(section as HTMLElement).getByText("模型用量"),
-    ).toBeTruthy();
-    expect(
-      within(section as HTMLElement).queryByText("暂无数据"),
-    ).toBeNull();
+    expect(within(section as HTMLElement).getByText("模型用量")).toBeTruthy();
+    expect(within(section as HTMLElement).queryByText("暂无数据")).toBeNull();
     // recharts 挂载在 ChartContainer 上。
   });
 

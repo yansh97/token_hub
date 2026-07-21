@@ -46,17 +46,11 @@ describe("dashboard/SectionCards", () => {
 
     const labels = screen
       .getAllByText(
-        (_, element) =>
-          element?.getAttribute("data-slot") === "metric-label",
+        (_, element) => element?.getAttribute("data-slot") === "metric-label",
       )
       .map((node) => node.textContent);
 
-    expect(labels).toEqual([
-      "请求数",
-      "总 Tokens",
-      "平均响应",
-      "费用",
-    ]);
+    expect(labels).toEqual(["请求数", "总 Tokens", "平均响应", "费用"]);
     expect(screen.getByText("1.21")).toBeInTheDocument();
     expect(screen.getByText("1.21")).toHaveClass("whitespace-nowrap");
     expect(screen.getByText("1.21")).not.toHaveClass("truncate");
@@ -86,8 +80,6 @@ describe("dashboard/SectionCards", () => {
       />,
     );
 
-    expect(
-      screen.queryByText("成功率 0%"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("成功率 0%")).not.toBeInTheDocument();
   });
 });

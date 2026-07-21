@@ -41,18 +41,14 @@ describe("upstreams/editor-dialog-form", () => {
 
     expect(connectionSection).toContainElement(idInput);
     expect(connectionSection).toContainElement(priorityInput);
-    expect(providerSelect).toHaveClass(
-      "sm:grid-cols-[1fr_1.25fr_1fr_1fr]",
-    );
+    expect(providerSelect).toHaveClass("sm:grid-cols-[1fr_1.25fr_1fr_1fr]");
     expect(idInput).toHaveAttribute("placeholder", "openai");
     expect(apiKeysInput).toHaveAttribute("placeholder", "sk-xxxxxxxxxxxx");
     expect(advancedSettings).not.toBeNull();
     expect(screen.getByText("高级设置").closest("details")).toBeNull();
     expect(priorityInput).toHaveValue("100");
     expect(priorityInput).toBeRequired();
-    expect(
-      compatibilityFields,
-    ).toHaveClass("border-t");
+    expect(compatibilityFields).toHaveClass("border-t");
     expect(compatibilityFields).not.toHaveClass("border-y");
     expect(compatibilityFields?.lastElementChild).toHaveClass("last:pb-0");
   });
@@ -74,7 +70,9 @@ describe("upstreams/editor-dialog-form", () => {
       screen.queryByText("提供商的 API 根地址，启用前必须填写。"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText("多个密钥使用逗号分隔；留空时沿用入站请求的鉴权信息。"),
+      screen.queryByText(
+        "多个密钥使用逗号分隔；留空时沿用入站请求的鉴权信息。",
+      ),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText("整数，数值越大优先级越高；相同优先级按列表顺序选择。"),
@@ -184,9 +182,7 @@ describe("upstreams/editor-dialog-form", () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "从提供商获取模型" }),
-    );
+    await user.click(screen.getByRole("button", { name: "从提供商获取模型" }));
     const selectAll = await screen.findByRole("checkbox", {
       name: "全选",
     });
@@ -219,9 +215,7 @@ describe("upstreams/editor-dialog-form", () => {
     const searchInput = screen.getByPlaceholderText("搜索已获取的模型");
     expect(searchInput).toHaveClass("pl-9!");
     await user.type(searchInput, "gpt");
-    await user.click(
-      screen.getByRole("checkbox", { name: "取消全选" }),
-    );
+    await user.click(screen.getByRole("checkbox", { name: "取消全选" }));
 
     expect(onChangeDraft).toHaveBeenCalledWith({
       availableModels: ["claude-sonnet-4.6"],
@@ -247,9 +241,7 @@ describe("upstreams/editor-dialog-form", () => {
       screen.queryByRole("combobox", { name: "Kiro 账户" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("代理 URL"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("代理 URL")).not.toBeInTheDocument();
     expect(screen.getByLabelText("ID")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Kiro 账户" })).toBeDisabled();
   });
@@ -273,9 +265,7 @@ describe("upstreams/editor-dialog-form", () => {
       screen.queryByRole("combobox", { name: "Codex 账户" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("代理 URL"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("代理 URL")).not.toBeInTheDocument();
     expect(screen.getByLabelText("ID")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Codex 账户" })).toBeDisabled();
   });
@@ -296,9 +286,7 @@ describe("upstreams/editor-dialog-form", () => {
     );
 
     expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("代理 URL"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("代理 URL")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("API Keys")).not.toBeInTheDocument();
     expect(screen.getByLabelText("ID")).toBeEnabled();
     expect(screen.getByRole("button", { name: /antigravity/i })).toBeEnabled();

@@ -215,7 +215,10 @@ function UpstreamRowActions({
           title={enabled ? "停用" : "启用"}
         >
           {enabled ? (
-            <PowerOff className="size-4 text-muted-foreground" aria-hidden="true" />
+            <PowerOff
+              className="size-4 text-muted-foreground"
+              aria-hidden="true"
+            />
           ) : (
             <Power className="size-4 text-foreground" aria-hidden="true" />
           )}
@@ -271,7 +274,10 @@ function UpstreamsTableRow({
       {columns.map((column) => (
         <td
           key={column.id}
-          className={["px-3 py-2 align-middle text-[13px]", column.cellClassName]
+          className={[
+            "px-3 py-2 align-middle text-[13px]",
+            column.cellClassName,
+          ]
             .filter(Boolean)
             .join(" ")}
         >

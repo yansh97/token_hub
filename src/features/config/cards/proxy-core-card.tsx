@@ -59,7 +59,10 @@ function CoreField({
           {help}
         </p>
       ) : null}
-      <FieldError id={htmlFor ? `${htmlFor}-error` : undefined} message={error} />
+      <FieldError
+        id={htmlFor ? `${htmlFor}-error` : undefined}
+        message={error}
+      />
     </div>
   );
 }
@@ -72,9 +75,7 @@ type CoreSectionProps = {
 
 function CoreSection({ title, children, separated = true }: CoreSectionProps) {
   return (
-    <section
-      className={separated ? "mt-5 border-t border-border/70 pt-5" : ""}
-    >
+    <section className={separated ? "mt-5 border-t border-border/70 pt-5" : ""}>
       <h2 className="text-[15px] font-semibold leading-5">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
@@ -270,29 +271,26 @@ export function ProxyCoreCard({
   proxyService,
 }: ProxyCoreCardProps) {
   return (
-    <div
-      data-slot="proxy-core-card"
-      className="space-y-0"
-    >
-        <CoreSection title="连接" separated={false}>
-          <ProxyCoreFields
-            form={form}
-            showLocalKey={showLocalKey}
-            onToggleLocalKey={onToggleLocalKey}
-            onChange={onChange}
-            section="connection"
-          />
-        </CoreSection>
-        <CoreSection title="高级设置">
-          <ProxyCoreFields
-            form={form}
-            showLocalKey={showLocalKey}
-            onToggleLocalKey={onToggleLocalKey}
-            onChange={onChange}
-            section="advanced"
-          />
-        </CoreSection>
-        <ProxyCoreServiceSection proxyService={proxyService} />
+    <div data-slot="proxy-core-card" className="space-y-0">
+      <CoreSection title="连接" separated={false}>
+        <ProxyCoreFields
+          form={form}
+          showLocalKey={showLocalKey}
+          onToggleLocalKey={onToggleLocalKey}
+          onChange={onChange}
+          section="connection"
+        />
+      </CoreSection>
+      <CoreSection title="高级设置">
+        <ProxyCoreFields
+          form={form}
+          showLocalKey={showLocalKey}
+          onToggleLocalKey={onToggleLocalKey}
+          onChange={onChange}
+          section="advanced"
+        />
+      </CoreSection>
+      <ProxyCoreServiceSection proxyService={proxyService} />
     </div>
   );
 }

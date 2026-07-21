@@ -84,11 +84,7 @@ function ProbeModels({ models }: { models: string[] }) {
   }, [models.length]);
 
   if (models.length === 0) {
-    return (
-      <span className="text-[13px] text-muted-foreground">
-        暂无模型
-      </span>
-    );
+    return <span className="text-[13px] text-muted-foreground">暂无模型</span>;
   }
 
   const minColumnWidth = 176;
@@ -177,19 +173,15 @@ export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
         </span>
       </div>
       <div>
-          {probes.length > 0 ? (
-            probes.map((probe, index) => (
-              <ProbeRow
-                key={probe.upstreamId}
-                probe={probe}
-                index={index}
-              />
-            ))
-          ) : (
-            <div className="text-[13px] text-muted-foreground">
-              暂无提供商模型
-            </div>
-          )}
+        {probes.length > 0 ? (
+          probes.map((probe, index) => (
+            <ProbeRow key={probe.upstreamId} probe={probe} index={index} />
+          ))
+        ) : (
+          <div className="text-[13px] text-muted-foreground">
+            暂无提供商模型
+          </div>
+        )}
       </div>
     </section>
   );

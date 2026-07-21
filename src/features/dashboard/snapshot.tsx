@@ -293,114 +293,114 @@ export function DashboardFilters({
             aria-label="时间范围"
             className="inline-flex h-8 overflow-hidden rounded-md border border-border bg-background"
           >
-              {DASHBOARD_RANGE_OPTIONS.map((option) => (
-                <button
-                  type="button"
-                  key={option.value}
-                  aria-pressed={range === option.value}
-                  onClick={() => onRangeChange(option.value)}
-                  className="border-r border-border px-3 text-[12px] text-muted-foreground outline-none transition-colors last:border-r-0 hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/20 aria-pressed:bg-foreground aria-pressed:text-background"
-                >
-                  {option.label}
-                </button>
-              ))}
+            {DASHBOARD_RANGE_OPTIONS.map((option) => (
+              <button
+                type="button"
+                key={option.value}
+                aria-pressed={range === option.value}
+                onClick={() => onRangeChange(option.value)}
+                className="border-r border-border px-3 text-[12px] text-muted-foreground outline-none transition-colors last:border-r-0 hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/20 aria-pressed:bg-foreground aria-pressed:text-background"
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
 
           <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
             <span>提供商</span>
             <select
-                id="dashboard-upstream"
-                value={resolveUpstreamSelectValue(upstreamId)}
-                onChange={(event) =>
-                  onUpstreamChange(toUpstreamFilterValue(event.target.value))
-                }
-                className="h-8 min-w-28 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-              >
-                <option value={ALL_UPSTREAMS_VALUE}>全部</option>
-                {upstreamOptions.map((option) => (
-                  <option key={option.upstreamId} value={option.upstreamId}>
-                    {option.upstreamId}
-                  </option>
-                ))}
-              </select>
+              id="dashboard-upstream"
+              value={resolveUpstreamSelectValue(upstreamId)}
+              onChange={(event) =>
+                onUpstreamChange(toUpstreamFilterValue(event.target.value))
+              }
+              className="h-8 min-w-28 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            >
+              <option value={ALL_UPSTREAMS_VALUE}>全部</option>
+              {upstreamOptions.map((option) => (
+                <option key={option.upstreamId} value={option.upstreamId}>
+                  {option.upstreamId}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
             <span>模型</span>
             <select
-                id="dashboard-model"
-                value={resolveModelFilterValue(model)}
-                onChange={(event) =>
-                  onModelChange(toModelFilterValue(event.target.value))
-                }
-                className="h-8 min-w-32 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-              >
-                <option value={ALL_MODELS_VALUE}>全部</option>
-                {modelOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+              id="dashboard-model"
+              value={resolveModelFilterValue(model)}
+              onChange={(event) =>
+                onModelChange(toModelFilterValue(event.target.value))
+              }
+              className="h-8 min-w-32 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            >
+              <option value={ALL_MODELS_VALUE}>全部</option>
+              {modelOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
         <div className="flex items-center gap-2">
-            {capture ? (
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "size-2 rounded-full",
-                    capture.enabled ? "bg-success" : "bg-muted-foreground/40",
-                  )}
-                  aria-hidden="true"
-                />
-                {capture.enabled ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        title="停止记录"
-                        aria-label="停止记录"
-                        className="text-destructive"
-                        onClick={() => capture.onToggle(false)}
-                        disabled={capture.loading}
-                      >
-                        <PowerOff className="size-3.5" />
-                      </Button>
-                ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        title="记录 10 分钟请求详情"
-                        aria-label="记录 10 分钟请求详情"
-                        className="text-success"
-                        onClick={() => {
-                          capture.onToggle(true);
-                        }}
-                        disabled={capture.loading}
-                      >
-                        <Power className="size-3.5" />
-                      </Button>
+          {capture ? (
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  capture.enabled ? "bg-success" : "bg-muted-foreground/40",
                 )}
-                {capture.enabled && capture.statusText ? (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {capture.statusText}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              title="刷新"
-              aria-label="刷新"
-              onClick={onRefresh}
-              disabled={loading}
-            >
-              <RefreshCcw className={cn("size-4", loading && "animate-spin")} />
-            </Button>
+                aria-hidden="true"
+              />
+              {capture.enabled ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="停止记录"
+                  aria-label="停止记录"
+                  className="text-destructive"
+                  onClick={() => capture.onToggle(false)}
+                  disabled={capture.loading}
+                >
+                  <PowerOff className="size-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="记录 10 分钟请求详情"
+                  aria-label="记录 10 分钟请求详情"
+                  className="text-success"
+                  onClick={() => {
+                    capture.onToggle(true);
+                  }}
+                  disabled={capture.loading}
+                >
+                  <Power className="size-3.5" />
+                </Button>
+              )}
+              {capture.enabled && capture.statusText ? (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {capture.statusText}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            title="刷新"
+            aria-label="刷新"
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            <RefreshCcw className={cn("size-4", loading && "animate-spin")} />
+          </Button>
         </div>
       </div>
     </div>
