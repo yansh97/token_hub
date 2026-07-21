@@ -5,14 +5,6 @@ import { AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   canStartUpdateCheck,
   formatBytes,
   useUpdater,
@@ -20,41 +12,40 @@ import {
   type UpdateInfo,
   type UpdateStatus,
 } from "@/features/update/updater";
-import { m } from "@/paraglide/messages.js";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
 function resolveStatusBadge(status: UpdateStatus) {
-  let label = m.update_status_idle();
+  let label = "待检查";
   let variant: BadgeVariant = "outline";
 
   switch (status) {
     case "checking":
-      label = m.update_status_checking();
+      label = "检查中";
       variant = "secondary";
       break;
     case "available":
-      label = m.update_status_available();
+      label = "可更新";
       variant = "default";
       break;
     case "uptodate":
-      label = m.update_status_uptodate();
+      label = "已是最新";
       variant = "outline";
       break;
     case "downloading":
-      label = m.update_status_downloading();
+      label = "下载中";
       variant = "secondary";
       break;
     case "installing":
-      label = m.update_status_installing();
+      label = "安装中";
       variant = "secondary";
       break;
     case "installed":
-      label = m.update_status_installed();
+      label = "已安装"
       variant = "default";
       break;
     case "error":
-      label = m.update_status_error();
+      label = "更新失败";
       variant = "destructive";
       break;
     default:
@@ -99,7 +90,7 @@ function UpdateStatusRow({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-[13px]">
         <span className="text-muted-foreground">
-          {m.update_current_version_label()}
+          当前版本
         </span>
         <span className="font-mono text-[12px] text-foreground/80">
           {currentVersion || "--"}
@@ -108,7 +99,7 @@ function UpdateStatusRow({
       </div>
       {lastCheckedAt ? (
         <p className="text-[11px] leading-4 text-muted-foreground">
-          {m.update_last_checked({ time: lastCheckedAt })}
+          上次检查：{lastCheckedAt}
         </p>
       ) : null}
     </div>
@@ -128,7 +119,7 @@ function UpdateDetails({ updateInfo }: UpdateDetailsProps) {
     <div className="space-y-2 text-[13px]">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground">
-          {m.update_latest_version_label()}
+          最新版本
         </span>
         <span className="font-mono text-[12px] text-foreground/80">
           {updateInfo.version}
@@ -136,15 +127,15 @@ function UpdateDetails({ updateInfo }: UpdateDetailsProps) {
       </div>
       {updateInfo.date ? (
         <div className="text-[11px] leading-4 text-muted-foreground">
-          {m.update_release_date_label()} {updateInfo.date}
+          发布日期：{updateInfo.date}
         </div>
       ) : null}
       <div>
         <p className="text-[11px] font-medium text-muted-foreground">
-          {m.update_release_notes_label()}
+          更新说明
         </p>
         <div className="mt-1 rounded-md border border-border/60 bg-background/60 p-2.5 text-[12px] leading-5 text-muted-foreground whitespace-pre-wrap">
-          {updateInfo.body || m.update_release_notes_empty()}
+          {updateInfo.body || "暂无更新说明。"}
         </div>
       </div>
     </div>
@@ -206,7 +197,7 @@ function UpdateActions({
         onClick={onCheck}
         disabled={!canCheck}
       >
-        {m.update_check()}
+        检查更新
       </Button>
       <Button
         type="button"
@@ -214,7 +205,7 @@ function UpdateActions({
         onClick={onInstall}
         disabled={!canInstall}
       >
-        {m.update_download_install()}
+        下载并安装
       </Button>
       {canRelaunch ? (
         <Button
@@ -223,7 +214,7 @@ function UpdateActions({
           size="sm"
           onClick={onRelaunch}
         >
-          {m.update_restart_now()}
+          立即重启
         </Button>
       ) : null}
     </div>
@@ -242,10 +233,7 @@ function resolveProgressLabel(
   if (!total && !downloaded) {
     return "";
   }
-  return m.update_download_progress({
-    downloaded: formatBytes(downloaded),
-    total: total ? formatBytes(total) : "--",
-  });
+  return `下载进度：${formatBytes(downloaded)} / ${total ? formatBytes(total) : "--"}`;
 }
 
 export function UpdateCard() {
@@ -267,18 +255,18 @@ export function UpdateCard() {
   }, [actions]);
 
   return (
-    <Card
+    <section
       data-slot="update-card"
-      className="gap-0 rounded-none border-0 bg-transparent py-4 pb-6 shadow-none"
+      className="mt-5 border-t border-border/70 pt-5 pb-1"
     >
-      <CardHeader className="gap-1 px-0 py-0">
-        <CardTitle className="text-[15px] leading-5">
-          {m.update_title()}
-        </CardTitle>
-        <CardDescription className="text-[12px] leading-4">
-          {m.update_desc()}
-        </CardDescription>
-        <CardAction className="max-sm:col-span-2 max-sm:row-start-3 max-sm:justify-self-start max-sm:pt-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[15px] font-semibold leading-5">应用更新</h2>
+          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+            检查并安装最新稳定版本。
+          </p>
+        </div>
+        <div>
           <UpdateActions
             canCheck={canCheck}
             canInstall={canInstall}
@@ -287,9 +275,9 @@ export function UpdateCard() {
             onInstall={actions.downloadAndInstall}
             onRelaunch={actions.relaunchApp}
           />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3 px-0 pt-3">
+        </div>
+      </div>
+      <div className="space-y-3 pt-3">
         <UpdateStatusRow
           currentVersion={currentVersion}
           badge={statusBadge}
@@ -298,7 +286,7 @@ export function UpdateCard() {
         <UpdateDetails updateInfo={state.updateInfo} />
         <UpdateProgress label={progressLabel} />
         <UpdateError message={state.statusMessage} />
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

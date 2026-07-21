@@ -3,7 +3,6 @@
 import * as React from "react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
   ChartLegend,
@@ -21,8 +20,6 @@ import type {
   DashboardRange,
   DashboardSeriesPoint,
 } from "@/features/dashboard/types";
-import { useI18n } from "@/lib/i18n";
-import { m } from "@/paraglide/messages.js";
 
 type ChartPoint = {
   tsMs: number;
@@ -34,19 +31,19 @@ type ChartPoint = {
 
 const chartConfig = {
   inputTokens: {
-    label: m.dashboard_chart_input_tokens(),
+    label: "输入",
     color: "var(--chart-1)",
   },
   outputTokens: {
-    label: m.dashboard_chart_output_tokens(),
+    label: "输出",
     color: "var(--chart-2)",
   },
   cachedTokens: {
-    label: m.dashboard_chart_cached_tokens(),
+    label: "缓存读取",
     color: "var(--chart-3)",
   },
   totalTokens: {
-    label: m.dashboard_chart_total_tokens(),
+    label: "总 Tokens",
     color: "var(--chart-4)",
   },
 } satisfies ChartConfig;
@@ -146,11 +143,10 @@ function buildZeroSeries(range: DashboardRange) {
 
 function ChartHeader() {
   return (
-    <CardHeader className="gap-0 px-4 py-3">
-      <CardTitle className="text-[15px] font-semibold leading-5">
-        {m.dashboard_chart_title_usage_trend()}
-      </CardTitle>
-    </CardHeader>
+    <div className="mb-3 flex items-center justify-between">
+      <h2 className="text-[15px] font-semibold leading-5">使用趋势</h2>
+      <span className="text-[11px] text-muted-foreground">Tokens</span>
+    </div>
   );
 }
 
@@ -237,17 +233,21 @@ function ChartCanvas({ data, timeFormatter }: ChartBodyProps) {
 
 function ChartBody({ data, timeFormatter, hasData }: ChartBodyProps) {
   return (
-    <CardContent className="px-2 pb-3 pt-1 sm:px-4">
-      <div className="flex h-[196px] w-full items-center justify-center overflow-hidden rounded-md border border-border/60">
+      <div
+        className={`flex h-[232px] w-full items-center justify-center overflow-hidden rounded-md border p-2 ${
+          hasData
+            ? "border-border/70 bg-muted/10"
+            : "border-dashed border-border"
+        }`}
+      >
         {hasData ? (
           <ChartCanvas data={data} timeFormatter={timeFormatter} />
         ) : (
           <p className="text-center text-[13px] text-muted-foreground">
-            {m.dashboard_no_data()}
+            暂无数据
           </p>
         )}
       </div>
-    </CardContent>
   );
 }
 
@@ -255,10 +255,9 @@ export function ChartAreaInteractive({
   series,
   range,
 }: ChartAreaInteractiveProps) {
-  const { locale } = useI18n();
   const timeFormatter = React.useMemo(
-    () => createDashboardMinuteFormatter(locale),
-    [locale],
+    () => createDashboardMinuteFormatter("zh-CN"),
+    [],
   );
   const chartData = React.useMemo(() => {
     if (!series.length) {
@@ -274,13 +273,13 @@ export function ChartAreaInteractive({
   }, [range, series]);
 
   return (
-    <Card className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
+    <section className="min-w-0">
       <ChartHeader />
       <ChartBody
         data={chartData}
         timeFormatter={timeFormatter}
         hasData={series.some((item) => item.totalRequests > 0)}
       />
-    </Card>
+    </section>
   );
 }

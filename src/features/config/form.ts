@@ -19,7 +19,6 @@ import {
   createNativeInboundFormatSet,
   removeInboundFormatsInSet,
 } from "@/features/config/inbound-formats";
-import { m } from "@/paraglide/messages.js";
 
 const DEFAULT_TRAY_TOKEN_RATE: TrayTokenRateConfig = {
   enabled: true,
@@ -45,9 +44,8 @@ const DEFAULT_UPSTREAM_PROVIDERS = [
   "anthropic",
   "gemini",
 ] as const;
-const DEFAULT_UPSTREAM_ID = "airouter.mxyhi.com";
-const DEFAULT_UPSTREAM_BASE_URL = "https://airouter.mxyhi.com";
-const DEFAULT_UPSTREAM_PRIORITY = "19";
+const DEFAULT_PROXY_PORT = import.meta.env.DEV ? "19208" : "9208";
+const DEFAULT_UPSTREAM_PRIORITY = "100";
 const INTEGER_PATTERN = /^-?\d+$/;
 const NON_NEGATIVE_INTEGER_PATTERN = /^\d+$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
@@ -123,7 +121,7 @@ const REMOVED_CONFIG_KEYS: ReadonlySet<string> = new Set([
 
 export const EMPTY_FORM: ConfigForm = {
   host: "127.0.0.1",
-  port: "9208",
+  port: DEFAULT_PROXY_PORT,
   localApiKey: "",
   appProxyUrl: "",
   corsEnabled: false,
@@ -150,9 +148,9 @@ export const EMPTY_FORM: ConfigForm = {
 
 export function createEmptyUpstream(): UpstreamForm {
   return {
-    id: DEFAULT_UPSTREAM_ID,
+    id: "",
     providers: [...DEFAULT_UPSTREAM_PROVIDERS],
-    baseUrl: DEFAULT_UPSTREAM_BASE_URL,
+    baseUrl: "",
     apiKeys: "",
     filterPromptCacheRetention: false,
     filterSafetyIdentifier: false,
@@ -161,7 +159,6 @@ export function createEmptyUpstream(): UpstreamForm {
     preferredEndpoint: "",
     proxyUrl: "",
     priority: DEFAULT_UPSTREAM_PRIORITY,
-    // 新增上游默认作为草稿，避免用户尚未填完必填项时被“无法保存”阻塞。
     enabled: false,
     availableModelsMode: "all",
     availableModels: [],
@@ -385,40 +382,167 @@ export function syncAccountBackedUpstreams(
   return next;
 }
 
-export function validate(form: ConfigForm) {
+export type SettingsFieldKey =
+  | "host"
+  | "port"
+  | "retryableFailureCooldownSecs"
+  | "sameUpstreamRetryCount"
+  | "streamFirstOutputTimeoutSecs"
+  | "syncResponseTimeoutSecs";
+
+export type SettingsFieldErrors = Partial<Record<SettingsFieldKey, string>>;
+
+export function validateSettingsFields(form: ConfigForm): SettingsFieldErrors {
+  const errors: SettingsFieldErrors = {};
   if (!form.host.trim()) {
-    return { valid: false, message: m.error_host_required() };
+    errors.host = "监听地址不能为空。";
   }
-  const port = Number.parseInt(form.port, 10);
-  if (!Number.isFinite(port) || port < 1 || port > 65535) {
-    return { valid: false, message: m.error_port_range() };
-  }
-  if (form.appProxyUrl.trim() && !isValidProxyUrl(form.appProxyUrl.trim())) {
-    return { valid: false, message: m.error_app_proxy_url_invalid() };
+  if (!NON_NEGATIVE_INTEGER_PATTERN.test(form.port.trim())) {
+    errors.port = "端口必须是 1 到 65535 之间的整数。";
+  } else {
+    const port = Number(form.port.trim());
+    if (port < 1 || port > 65535) {
+      errors.port = "端口必须是 1 到 65535 之间的整数。";
+    }
   }
   if (!isValidRetryableFailureCooldownSecs(form.retryableFailureCooldownSecs)) {
-    return {
-      valid: false,
-      message: m.error_retryable_failure_cooldown_secs_integer(),
-    };
+    errors.retryableFailureCooldownSecs = "必须是大于等于 0 的整数。";
   }
   if (!isValidSameUpstreamRetryCount(form.sameUpstreamRetryCount)) {
-    return {
-      valid: false,
-      message: m.error_same_upstream_retry_count_range(),
-    };
+    errors.sameUpstreamRetryCount = "必须是 0 到 5 之间的整数。";
   }
   if (!isValidTimeoutSecs(form.streamFirstOutputTimeoutSecs)) {
-    return {
-      valid: false,
-      message: m.error_stream_first_output_timeout_secs_integer(),
-    };
+    errors.streamFirstOutputTimeoutSecs = "必须是大于等于 1 的整数。";
   }
   if (!isValidTimeoutSecs(form.syncResponseTimeoutSecs)) {
-    return {
-      valid: false,
-      message: m.error_sync_response_timeout_secs_integer(),
-    };
+    errors.syncResponseTimeoutSecs = "必须是大于等于 1 的整数。";
+  }
+  return errors;
+}
+
+export type UpstreamDraftValidation = {
+  valid: boolean;
+  message: string;
+  errors: Record<string, string>;
+};
+
+type ValidateUpstreamDraftArgs = {
+  draft: UpstreamForm;
+  upstreams: readonly UpstreamForm[];
+  index: number | null;
+  appProxyUrl: string;
+};
+
+function hasInvalidHeaderValueCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x08 || (code >= 0x0a && code <= 0x1f) || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function validateUpstreamDraft({
+  draft,
+  upstreams,
+  index,
+  appProxyUrl,
+}: ValidateUpstreamDraftArgs): UpstreamDraftValidation {
+  const errors: Record<string, string> = {};
+  let message = "";
+  const addError = (field: string, value: string) => {
+    errors[field] = value;
+    if (!message) {
+      message = value;
+    }
+  };
+  const id = draft.id.trim();
+  if (!id) {
+    addError("id", "提供商 ID 不能为空。");
+  } else if (
+    upstreams.some(
+      (upstream, current) => current !== index && upstream.id.trim() === id,
+    )
+  ) {
+    addError("id", `提供商 ID 已存在：${id}。`);
+  }
+
+  const providers = normalizeProviders(draft.providers);
+  if (!providers.length) {
+    addError("providers", "请至少选择一种接口格式。");
+  }
+  const specialProviders = providers.filter(isAccountBackedProvider);
+  if (specialProviders.length && providers.length > 1) {
+    addError("providers", "特殊提供商类型不能与其他接口格式同时选择。");
+  }
+  if (
+    specialProviders.length &&
+    parseApiKeysInput(draft.apiKeys).length > 1
+  ) {
+    addError("apiKeys", "该提供商类型不支持配置多个 API Key。");
+  }
+  if (
+    parseApiKeysInput(draft.apiKeys).some(hasInvalidHeaderValueCharacter)
+  ) {
+    addError("apiKeys", "API Key 包含不能用于 HTTP 请求头的字符。");
+  }
+  if (providers.some((provider) => !SUPPORTED_PROVIDERS.has(provider))) {
+    addError("providers", "包含不受支持的接口格式。");
+  }
+
+  const canOmitBaseUrl = isAccountBackedProviderSet(providers);
+  const baseUrl = draft.baseUrl.trim();
+  if (!canOmitBaseUrl && !baseUrl) {
+    addError("baseUrl", "Base URL 不能为空。");
+  } else if (baseUrl && !isValidHttpUrl(baseUrl)) {
+    addError("baseUrl", "请输入有效的 HTTP 或 HTTPS URL。");
+  }
+
+  if (
+    draft.availableModelsMode === "selected" &&
+    normalizeAvailableModels(draft.availableModels).length === 0
+  ) {
+    addError("availableModels", "请至少添加一个可用模型。");
+  }
+
+  for (const provider of Object.keys(draft.convertFromMap)) {
+    if (!providers.includes(provider)) {
+      addError("convertFromMap", "可转格式包含未选择的目标接口格式。");
+      break;
+    }
+  }
+
+  const upstreamProxyUrl = draft.proxyUrl.trim();
+  if (upstreamProxyUrl) {
+    if (upstreamProxyUrl === APP_PROXY_URL_PLACEHOLDER) {
+      if (!appProxyUrl.trim()) {
+        addError("proxyUrl", "使用 $app_proxy_url 前必须先配置应用代理。");
+      }
+    } else if (!isValidProxyUrl(upstreamProxyUrl)) {
+      addError("proxyUrl", "代理 URL 格式无效。");
+    }
+  }
+  if (!draft.priority.trim()) {
+    addError("priority", "优先级不能为空。");
+  } else if (!isValidOptionalInt(draft.priority)) {
+    addError("priority", "优先级必须是有效的整数。");
+  }
+
+  validateModelMappingRows(draft.modelMappings, addError);
+  validateHeaderOverrideRows(draft.overrides.header, addError);
+
+  return { valid: !message, message, errors };
+}
+
+export function validate(form: ConfigForm) {
+  const settingsErrors = validateSettingsFields(form);
+  const firstSettingsError = Object.values(settingsErrors)[0];
+  if (firstSettingsError) {
+    return { valid: false, message: firstSettingsError };
+  }
+  if (form.appProxyUrl.trim() && !isValidProxyUrl(form.appProxyUrl.trim())) {
+    return { valid: false, message: "应用代理 URL 无效（支持 http(s)://、socks5://、socks5h://）。" };
   }
   const upstreamStrategyError = validateUpstreamStrategy(form.upstreamStrategy);
   if (upstreamStrategyError) {
@@ -432,112 +556,15 @@ export function validate(form: ConfigForm) {
     return { valid: false, message: hotModelMappingError };
   }
 
-  const ids = new Set<string>();
-  for (const upstream of form.upstreams) {
-    const id = upstream.id.trim();
-    if (!id) {
-      return { valid: false, message: m.error_upstream_id_required() };
-    }
-    if (ids.has(id)) {
-      return { valid: false, message: m.error_upstream_id_unique({ id }) };
-    }
-    ids.add(id);
-
-    // 允许上游为空 / 全部禁用：仅对启用中的上游做强校验；禁用项保留为“草稿”。
-    if (!upstream.enabled) {
-      continue;
-    }
-
-    if (
-      upstream.availableModelsMode === "selected" &&
-      normalizeAvailableModels(upstream.availableModels).length === 0
-    ) {
-      return {
-        valid: false,
-        message: m.error_upstream_available_models_required({ id }),
-      };
-    }
-
-    const providers = normalizeProviders(upstream.providers);
-    if (!providers.length) {
-      return {
-        valid: false,
-        message: m.error_upstream_provider_required({ id }),
-      };
-    }
-    const specialProviders = providers.filter(isAccountBackedProvider);
-    if (specialProviders.length && providers.length > 1) {
-      return {
-        valid: false,
-        message: m.error_upstream_provider_required({ id }),
-      };
-    }
-    if (
-      specialProviders.length &&
-      parseApiKeysInput(upstream.apiKeys).length > 1
-    ) {
-      return {
-        valid: false,
-        message: m.error_upstream_multiple_api_keys_unsupported({ id }),
-      };
-    }
-    if (providers.some((provider) => !SUPPORTED_PROVIDERS.has(provider))) {
-      return {
-        valid: false,
-        message: m.error_upstream_provider_required({ id }),
-      };
-    }
-
-    const canOmitBaseUrl = isAccountBackedProviderSet(providers);
-    if (!canOmitBaseUrl && !upstream.baseUrl.trim()) {
-      return {
-        valid: false,
-        message: m.error_upstream_base_url_required({ id }),
-      };
-    }
-
-    const convertFromMapProviders = Object.keys(upstream.convertFromMap);
-    for (const provider of convertFromMapProviders) {
-      if (!providers.includes(provider)) {
-        return {
-          valid: false,
-          message: m.error_upstream_provider_required({ id }),
-        };
-      }
-    }
-
-    const upstreamProxyUrl = upstream.proxyUrl.trim();
-    if (upstreamProxyUrl) {
-      if (upstreamProxyUrl === APP_PROXY_URL_PLACEHOLDER) {
-        if (!form.appProxyUrl.trim()) {
-          return {
-            valid: false,
-            message: m.error_upstream_proxy_url_requires_app({ id }),
-          };
-        }
-      } else if (!isValidProxyUrl(upstreamProxyUrl)) {
-        return {
-          valid: false,
-          message: m.error_upstream_proxy_url_invalid({ id }),
-        };
-      }
-    }
-    if (!isValidOptionalInt(upstream.priority)) {
-      return {
-        valid: false,
-        message: m.error_upstream_priority_integer({ id }),
-      };
-    }
-    const mappingError = validateModelMappings(upstream.modelMappings, id);
-    if (mappingError) {
-      return { valid: false, message: mappingError };
-    }
-    const headerOverrideError = validateHeaderOverrides(
-      upstream.overrides.header,
-      id,
-    );
-    if (headerOverrideError) {
-      return { valid: false, message: headerOverrideError };
+  for (let index = 0; index < form.upstreams.length; index += 1) {
+    const result = validateUpstreamDraft({
+      draft: form.upstreams[index],
+      upstreams: form.upstreams,
+      index,
+      appProxyUrl: form.appProxyUrl,
+    });
+    if (!result.valid) {
+      return { valid: false, message: result.message };
     }
   }
 
@@ -557,6 +584,15 @@ function isValidProxyUrl(value: string) {
   try {
     const parsed = new URL(value);
     return PROXY_URL_PROTOCOLS.has(parsed.protocol);
+  } catch (_) {
+    return false;
+  }
+}
+
+function isValidHttpUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch (_) {
     return false;
   }
@@ -686,12 +722,10 @@ function validateUpstreamStrategy(strategy: ConfigForm["upstreamStrategy"]) {
     strategy.dispatchType === "hedged" &&
     !isPositiveInteger(strategy.hedgeDelayMs)
   ) {
-    return m.error_upstream_strategy_delay_ms_positive_integer();
+    return "Hedge 延迟必须是正整数。";
   }
   if (!isValidMinParallel(strategy.maxParallel)) {
-    return m.error_upstream_strategy_max_parallel_min({
-      min: String(MIN_PARALLEL_ATTEMPTS),
-    });
+    return `最大并发数必须是不小于 ${MIN_PARALLEL_ATTEMPTS} 的整数。`;
   }
   return "";
 }
@@ -758,70 +792,90 @@ function validateModelMappings(
   mappings: ModelMappingForm[],
   upstreamId: string,
 ) {
+  let firstError = "";
+  validateModelMappingRows(mappings, (_field, message) => {
+    if (!firstError) {
+      firstError = `提供商 ${upstreamId} ${message}`;
+    }
+  });
+  return firstError;
+}
+
+function validateModelMappingRows(
+  mappings: ModelMappingForm[],
+  addError: (field: string, message: string) => void,
+) {
   const seen = new Set<string>();
   let wildcardSeen = false;
   for (let index = 0; index < mappings.length; index += 1) {
     const row = String(index + 1);
-    const pattern = mappings[index]?.pattern.trim() ?? "";
-    const target = mappings[index]?.target.trim() ?? "";
+    const mapping = mappings[index];
+    const pattern = mapping?.pattern.trim() ?? "";
+    const target = mapping?.target.trim() ?? "";
+    const fieldPrefix = `modelMappings.${mapping?.id ?? index}`;
     if (!pattern) {
-      return m.error_model_mapping_pattern_required({ id: upstreamId, row });
+      addError(`${fieldPrefix}.pattern`, `第 ${row} 行映射的匹配模式不能为空。`);
     }
     if (!target) {
-      return m.error_model_mapping_target_required({ id: upstreamId, row });
+      addError(`${fieldPrefix}.target`, `第 ${row} 行映射的目标模型不能为空。`);
     }
-    if (seen.has(pattern)) {
-      return m.error_model_mapping_pattern_duplicate({
-        id: upstreamId,
-        pattern,
-      });
+    if (pattern && seen.has(pattern)) {
+      addError(`${fieldPrefix}.pattern`, `匹配模式重复：${pattern}。`);
     }
-    seen.add(pattern);
+    if (pattern) {
+      seen.add(pattern);
+    }
 
     if (pattern === "*") {
       if (wildcardSeen) {
-        return m.error_model_mapping_wildcard_multiple({ id: upstreamId });
+        addError(`${fieldPrefix}.pattern`, "只能定义一个通配映射“*”。");
       }
       wildcardSeen = true;
       continue;
     }
 
     if (pattern.includes("*") && !pattern.endsWith("*")) {
-      return m.error_model_mapping_pattern_invalid({ id: upstreamId, pattern });
+      addError(`${fieldPrefix}.pattern`, `匹配模式无效：${pattern}。`);
     }
 
     if (pattern.endsWith("*")) {
       const prefix = pattern.slice(0, -1).trim();
       if (!prefix) {
-        return m.error_model_mapping_prefix_required({ id: upstreamId, row });
+        addError(`${fieldPrefix}.pattern`, `第 ${row} 行映射的前缀不能为空。`);
       }
       if (prefix.includes("*")) {
-        return m.error_model_mapping_pattern_invalid({
-          id: upstreamId,
-          pattern,
-        });
+        addError(`${fieldPrefix}.pattern`, `匹配模式无效：${pattern}。`);
       }
     }
   }
-  return "";
 }
 
-function validateHeaderOverrides(
+function validateHeaderOverrideRows(
   overrides: ConfigForm["upstreams"][number]["overrides"]["header"],
-  upstreamId: string,
+  addError: (field: string, message: string) => void,
 ) {
+  const seen = new Set<string>();
   for (let index = 0; index < overrides.length; index += 1) {
     const row = String(index + 1);
-    const name = overrides[index]?.name.trim() ?? "";
+    const item = overrides[index];
+    const name = item?.name.trim() ?? "";
+    const field = `headerOverrides.${item?.id ?? index}.name`;
     if (!name) {
-      return m.error_header_override_name_required({ id: upstreamId, row });
+      addError(field, `第 ${row} 行的请求头名称不能为空。`);
+      continue;
     }
     const isValid = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name);
     if (!isValid) {
-      return m.error_header_override_name_invalid({ id: upstreamId, row });
+      addError(field, `第 ${row} 行的请求头名称格式无效。`);
+      continue;
     }
+    const normalizedName = name.toLowerCase();
+    if (seen.has(normalizedName)) {
+      addError(field, `第 ${row} 行的请求头名称重复。`);
+      continue;
+    }
+    seen.add(normalizedName);
   }
-  return "";
 }
 
 function isValidOptionalInt(value: string) {
@@ -829,7 +883,15 @@ function isValidOptionalInt(value: string) {
   if (!trimmed) {
     return true;
   }
-  return INTEGER_PATTERN.test(trimmed);
+  if (!INTEGER_PATTERN.test(trimmed)) {
+    return false;
+  }
+  const number = Number(trimmed);
+  return (
+    Number.isSafeInteger(number) &&
+    number >= -2_147_483_648 &&
+    number <= 2_147_483_647
+  );
 }
 
 function parseOptionalInt(value: string) {

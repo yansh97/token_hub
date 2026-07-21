@@ -29,7 +29,7 @@ const {
   eventHandlers: new Map<string, TauriEventHandler>(),
   listenMock:
     vi.fn<(event: string, handler: TauriEventHandler) => Promise<() => void>>(),
-  navigateMock: vi.fn<() => Promise<void>>(),
+  navigateMock: vi.fn(),
   toastDismissMock: vi.fn<(id?: string | number) => void>(),
   toastErrorMock: vi
     .fn<(...args: unknown[]) => string>()
@@ -71,8 +71,8 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: listenMock,
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => navigateMock,
+vi.mock("@/lib/router", () => ({
+  navigateTo: navigateMock,
 }));
 
 vi.mock("sonner", () => ({

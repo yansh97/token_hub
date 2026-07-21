@@ -2,21 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Power, PowerOff, RefreshCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import {
   readDashboardSnapshot,
@@ -26,7 +11,6 @@ import {
   DASHBOARD_RANGE_OPTIONS,
   type DashboardTimeRange,
   resolveDashboardRange,
-  toDashboardTimeRange,
 } from "@/features/dashboard/range";
 import type {
   DashboardRange,
@@ -34,7 +18,6 @@ import type {
   DashboardUpstreamOption,
 } from "@/features/dashboard/types";
 import { parseError } from "@/lib/error";
-import { m } from "@/paraglide/messages.js";
 
 export const RECENT_PAGE_SIZE = 50;
 const ALL_UPSTREAMS_VALUE = "__all_upstreams__";
@@ -266,6 +249,7 @@ type DashboardFiltersProps = {
   onModelChange: (model: string | null) => void;
   onRefresh: () => void;
   className?: string;
+  sticky?: boolean;
   /** 请求详情捕获相关，仅 LogsPanel 使用 */
   capture?: {
     enabled: boolean;
@@ -287,175 +271,116 @@ export function DashboardFilters({
   onModelChange,
   onRefresh,
   className,
+  sticky = false,
   capture,
 }: DashboardFiltersProps) {
   return (
     <div
       data-slot="dashboard-filters"
-      className={cn("sticky top-2.5 z-20 px-4 lg:px-6", className)}
+      data-sticky={sticky ? "true" : "false"}
+      className={cn(
+        "shrink-0 border-b border-border/70 pb-4",
+        sticky &&
+          "sticky top-0 z-20 -mx-1 -mt-5 bg-background/95 px-1 pt-5 backdrop-blur lg:-mt-6 lg:pt-6",
+        className,
+      )}
     >
-      <Card className="gap-0 rounded-lg border-border/70 bg-card/95 py-0 shadow-none">
-        <CardContent className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-          <div className="flex min-w-0 flex-nowrap items-center gap-2">
-            <Label className="whitespace-nowrap text-[13px] font-medium text-muted-foreground">
-              {m.dashboard_range_label()}
-            </Label>
-            <ToggleGroup
-              type="single"
-              value={range}
-              onValueChange={(value) => {
-                const next = toDashboardTimeRange(value);
-                if (next) {
-                  onRangeChange(next);
-                }
-              }}
-              variant="default"
-              size="sm"
-              spacing={0}
-              aria-label={m.dashboard_range_label()}
-              className="overflow-hidden rounded-md border border-border/60 bg-transparent"
-            >
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <div
+            role="group"
+            aria-label="时间范围"
+            className="inline-flex h-8 overflow-hidden rounded-md border border-border bg-background"
+          >
               {DASHBOARD_RANGE_OPTIONS.map((option) => (
-                <ToggleGroupItem
+                <button
+                  type="button"
                   key={option.value}
-                  value={option.value}
-                  className="border-r border-border/60 px-2.5 text-[13px] font-normal last:border-r-0 data-[state=on]:bg-muted data-[state=on]:font-semibold"
+                  aria-pressed={range === option.value}
+                  onClick={() => onRangeChange(option.value)}
+                  className="border-r border-border px-3 text-[12px] text-muted-foreground outline-none transition-colors last:border-r-0 hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/20 aria-pressed:bg-foreground aria-pressed:text-background"
                 >
-                  {option.label()}
-                </ToggleGroupItem>
+                  {option.label}
+                </button>
               ))}
-            </ToggleGroup>
-
-            <Label
-              htmlFor="dashboard-upstream"
-              className="whitespace-nowrap text-[13px] font-medium text-muted-foreground"
-            >
-              {m.dashboard_upstream_label()}
-            </Label>
-            <Select
-              value={resolveUpstreamSelectValue(upstreamId)}
-              onValueChange={(value) => {
-                onUpstreamChange(toUpstreamFilterValue(value));
-              }}
-            >
-              <SelectTrigger
-                id="dashboard-upstream"
-                size="sm"
-                className="w-28 text-[13px] font-normal"
-                aria-label={m.dashboard_upstream_label()}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-[13px]">
-                <SelectItem
-                  value={ALL_UPSTREAMS_VALUE}
-                  className="text-[13px] font-normal"
-                >
-                  {m.dashboard_upstream_all()}
-                </SelectItem>
-                {upstreamOptions.map((option) => (
-                  <SelectItem
-                    key={option.upstreamId}
-                    value={option.upstreamId}
-                    className="text-[13px] font-normal"
-                  >
-                    {option.upstreamId}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Label
-              htmlFor="dashboard-model"
-              className="whitespace-nowrap text-[13px] font-medium text-muted-foreground"
-            >
-              {m.dashboard_model_label()}
-            </Label>
-            <Select
-              value={resolveModelFilterValue(model)}
-              onValueChange={(value) => {
-                onModelChange(toModelFilterValue(value));
-              }}
-            >
-              <SelectTrigger
-                id="dashboard-model"
-                size="sm"
-                className="w-28 text-[13px] font-normal"
-                aria-label={m.dashboard_model_label()}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-[13px]">
-                <SelectItem
-                  value={ALL_MODELS_VALUE}
-                  className="text-[13px] font-normal"
-                >
-                  {m.dashboard_model_all()}
-                </SelectItem>
-                {modelOptions.map((option) => (
-                  <SelectItem
-                    key={option}
-                    value={option}
-                    className="text-[13px] font-normal"
-                  >
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
-          <div className="flex items-center gap-3">
+
+          <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
+            <span>提供商</span>
+            <select
+                id="dashboard-upstream"
+                value={resolveUpstreamSelectValue(upstreamId)}
+                onChange={(event) =>
+                  onUpstreamChange(toUpstreamFilterValue(event.target.value))
+                }
+                className="h-8 min-w-28 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+              >
+                <option value={ALL_UPSTREAMS_VALUE}>全部</option>
+                {upstreamOptions.map((option) => (
+                  <option key={option.upstreamId} value={option.upstreamId}>
+                    {option.upstreamId}
+                  </option>
+                ))}
+              </select>
+          </label>
+
+          <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
+            <span>模型</span>
+            <select
+                id="dashboard-model"
+                value={resolveModelFilterValue(model)}
+                onChange={(event) =>
+                  onModelChange(toModelFilterValue(event.target.value))
+                }
+                className="h-8 min-w-32 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+              >
+                <option value={ALL_MODELS_VALUE}>全部</option>
+                {modelOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
             {capture ? (
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
                     "size-2 rounded-full",
-                    capture.enabled ? "bg-green-500" : "bg-muted-foreground/40",
+                    capture.enabled ? "bg-success" : "bg-muted-foreground/40",
                   )}
                   aria-hidden="true"
                 />
                 {capture.enabled ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        className="size-7 text-destructive"
+                        size="icon-sm"
+                        title="停止记录"
+                        aria-label="停止记录"
+                        className="text-destructive"
                         onClick={() => capture.onToggle(false)}
                         disabled={capture.loading}
                       >
                         <PowerOff className="size-3.5" />
-                        <span className="sr-only">{m.logs_capture_stop()}</span>
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {m.logs_capture_stop()}
-                    </TooltipContent>
-                  </Tooltip>
                 ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        className="size-7 text-green-600"
+                        size="icon-sm"
+                        title="记录 10 分钟请求详情"
+                        aria-label="记录 10 分钟请求详情"
+                        className="text-success"
                         onClick={() => {
                           capture.onToggle(true);
                         }}
                         disabled={capture.loading}
                       >
                         <Power className="size-3.5" />
-                        <span className="sr-only">
-                          {m.logs_capture_start()}
-                        </span>
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {m.logs_capture_start()}
-                    </TooltipContent>
-                  </Tooltip>
                 )}
                 {capture.enabled && capture.statusText ? (
                   <span className="text-xs text-muted-foreground tabular-nums">
@@ -467,16 +392,16 @@ export function DashboardFilters({
             <Button
               type="button"
               variant="outline"
-              size="icon"
+              size="icon-sm"
+              title="刷新"
+              aria-label="刷新"
               onClick={onRefresh}
               disabled={loading}
             >
               <RefreshCcw className={cn("size-4", loading && "animate-spin")} />
-              <span className="sr-only">{m.common_refresh()}</span>
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

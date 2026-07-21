@@ -1,13 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   mergeProviderOptions,
   UPSTREAM_COLUMNS,
 } from "@/features/config/cards/upstreams/constants";
@@ -19,7 +12,6 @@ import {
   normalizeProviders,
   pruneConvertFromMap,
   providersEqual,
-  resolveUpstreamIdForProviderChange,
 } from "@/features/config/cards/upstreams/upstream-editor-helpers";
 import { DeleteUpstreamDialog } from "@/features/config/cards/upstreams/delete-dialog";
 import { UpstreamEditorDialog } from "@/features/config/cards/upstreams/editor-dialog";
@@ -31,14 +23,17 @@ import type {
   DeleteDialogState,
   UpstreamEditorState,
 } from "@/features/config/cards/upstreams/types";
-import { createEmptyUpstream } from "@/features/config/form";
+import {
+  createEmptyUpstream,
+  validateUpstreamDraft,
+} from "@/features/config/form";
 import type { UpstreamForm } from "@/features/config/types";
-import { m } from "@/paraglide/messages.js";
 
 type UpstreamsCardProps = {
   upstreams: UpstreamForm[];
   showApiKeys: boolean;
   providerOptions: string[];
+  appProxyUrl: string;
   onToggleApiKeys: () => void;
   onAdd: (upstream: UpstreamForm) => void;
   onRemove: (index: number) => void;
@@ -49,6 +44,7 @@ export function UpstreamsCard({
   upstreams,
   showApiKeys,
   providerOptions,
+  appProxyUrl,
   onToggleApiKeys,
   onAdd,
   onRemove,
@@ -62,6 +58,20 @@ export function UpstreamsCard({
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({
     open: false,
   });
+  const [editorTouchedFields, setEditorTouchedFields] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [editorSubmitted, setEditorSubmitted] = useState(false);
+  const touchEditorField = useCallback((field: string) => {
+    setEditorTouchedFields((current) => {
+      if (current.has(field)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(field);
+      return next;
+    });
+  }, []);
   const columns = UPSTREAM_COLUMNS;
   const isSpecialAccountBackedUpstream = useCallback(
     (upstream: UpstreamForm) => {
@@ -71,13 +81,25 @@ export function UpstreamsCard({
     [],
   );
 
-  // 更新 draft，处理 provider 变化时的自动逻辑
+  // 更新 draft，并在 provider 变化时清理不再适用的字段。
   const updateDraft = useCallback(
     (patch: Partial<UpstreamForm>) => {
+      setEditorTouchedFields((current) => {
+        const next = new Set(current);
+        for (const field of Object.keys(patch)) {
+          if (field === "availableModelsMode" || field === "availableModels") {
+            next.add("availableModels");
+          } else if (field === "overrides") {
+            next.add("headerOverrides");
+          } else {
+            next.add(field);
+          }
+        }
+        return next;
+      });
       setEditor((prev) => {
         if (!prev.open) return prev;
 
-        const editingIndex = prev.mode === "edit" ? prev.index : undefined;
         const currentProviders = normalizeProviders(prev.draft.providers);
         const nextProviders =
           patch.providers === undefined
@@ -87,9 +109,7 @@ export function UpstreamsCard({
           patch.providers !== undefined &&
           !providersEqual(nextProviders, currentProviders);
 
-        // 如果 provider 变化，处理 ID / provider 专属字段的自动逻辑：
-        // - 新增：根据 provider 自动生成 ID
-        // - 编辑：保持现有 ID，避免统计/引用被拆分
+        // 如果 provider 变化，清理不再适用的 provider 专属字段。
         if (providersChanged) {
           // openai-response 专属开关：切换到其它 provider 时清零，避免把无效字段写进配置。
           let filterPromptCacheRetention =
@@ -138,22 +158,12 @@ export function UpstreamsCard({
 
           convertFromMap = pruneConvertFromMap(convertFromMap, nextProviders);
 
-          const id = resolveUpstreamIdForProviderChange({
-            mode: prev.mode,
-            currentId: prev.draft.id,
-            currentProviders,
-            nextProviders,
-            upstreams,
-            editingIndex,
-          });
-
           return {
             ...prev,
             draft: {
               ...prev.draft,
               ...patch,
               providers: nextProviders,
-              id,
               baseUrl,
               filterPromptCacheRetention,
               filterSafetyIdentifier,
@@ -167,23 +177,19 @@ export function UpstreamsCard({
         return { ...prev, draft: { ...prev.draft, ...patch } };
       });
     },
-    [upstreams],
+    [],
   );
 
   const openCreateDialog = () => {
     const draft = createEmptyUpstream();
     const nextProviders = normalizeProviders(draft.providers);
-    const hasDuplicateId = upstreams.some(
-      (upstream) => upstream.id.trim() === draft.id.trim(),
-    );
-    const nextId = hasDuplicateId
-      ? createCopiedUpstreamId(draft.id, upstreams)
-      : draft.id;
     setEditor({
       open: true,
       mode: "create",
-      draft: { ...draft, id: nextId, providers: nextProviders },
+      draft: { ...draft, providers: nextProviders },
     });
+    setEditorTouchedFields(new Set());
+    setEditorSubmitted(false);
   };
 
   const openEditDialog = (index: number) => {
@@ -197,6 +203,8 @@ export function UpstreamsCard({
       index,
       draft: cloneUpstreamDraft(upstream),
     });
+    setEditorTouchedFields(new Set());
+    setEditorSubmitted(false);
   };
 
   const openCopyDialog = (index: number) => {
@@ -210,10 +218,31 @@ export function UpstreamsCard({
       id: nextId,
     };
     setEditor({ open: true, mode: "create", draft });
+    setEditorTouchedFields(new Set());
+    setEditorSubmitted(false);
   };
+
+  const editorValidation = editor.open
+    ? validateUpstreamDraft({
+        draft: editor.draft,
+        upstreams,
+        index: editor.mode === "edit" ? editor.index : null,
+        appProxyUrl,
+      })
+    : null;
+  const visibleEditorErrors = Object.fromEntries(
+    Object.entries(editorValidation?.errors ?? {}).filter(([field]) => {
+      const rootField = field.split(".")[0] ?? field;
+      return editorSubmitted || editorTouchedFields.has(rootField);
+    }),
+  );
 
   const saveDraft = () => {
     if (!editor.open) {
+      return;
+    }
+    if (!editorValidation?.valid) {
+      setEditorSubmitted(true);
       return;
     }
 
@@ -234,19 +263,27 @@ export function UpstreamsCard({
   };
 
   return (
-    <Card
+    <section
       data-slot="upstreams-card"
-      className="max-h-full min-h-0 gap-0 overflow-hidden rounded-none border-0 bg-transparent py-0 shadow-none"
+      className="flex max-h-full min-h-0 flex-1 flex-col"
     >
-      <CardHeader className="shrink-0 gap-0 px-4 py-3 lg:px-6">
-        <CardTitle className="text-[15px] font-semibold leading-5">
-          {m.upstreams_title()}
-        </CardTitle>
-        <CardAction>
+      <header className="flex shrink-0 items-center gap-3 border-b border-border/70 pb-4">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-[15px] font-semibold leading-5">提供商</h2>
+            <span className="text-[12px] text-muted-foreground">
+              {upstreams.length} 个
+            </span>
+          </div>
+          <p className="mt-1 text-[12px] leading-4 text-muted-foreground">
+            管理请求转发目标、协议、优先级和可用状态。
+          </p>
+        </div>
+        <div className="ml-auto shrink-0">
           <UpstreamsToolbar onAddClick={openCreateDialog} />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-0 lg:px-6">
+        </div>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col pt-4">
         {upstreams.length ? (
           <UpstreamsTable
             upstreams={upstreams}
@@ -266,17 +303,32 @@ export function UpstreamsCard({
             onDelete={(index) => setDeleteDialog({ open: true, index })}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">{m.upstreams_empty()}</p>
+          <div className="flex min-h-48 flex-1 items-center justify-center rounded-md border border-dashed border-border/80">
+            <div className="text-center">
+              <p className="text-[13px] font-medium">尚未添加提供商</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                添加一个提供商后即可开始转发请求。
+              </p>
+            </div>
+          </div>
         )}
-      </CardContent>
+      </div>
 
       <UpstreamEditorDialog
         editor={editor}
+        errors={visibleEditorErrors}
         providerOptions={mergedProviderOptions}
         showApiKeys={showApiKeys}
         onToggleApiKeys={onToggleApiKeys}
-        onOpenChange={(open) => !open && setEditor({ open: false })}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditor({ open: false });
+            setEditorTouchedFields(new Set());
+            setEditorSubmitted(false);
+          }
+        }}
         onChangeDraft={updateDraft}
+        onFieldBlur={touchEditorField}
         onSave={saveDraft}
       />
       <DeleteUpstreamDialog
@@ -284,6 +336,6 @@ export function UpstreamsCard({
         onOpenChange={(open) => !open && setDeleteDialog({ open: false })}
         onConfirm={confirmDelete}
       />
-    </Card>
+    </section>
   );
 }

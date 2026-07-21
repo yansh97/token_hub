@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { listen } from "@tauri-apps/api/event";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { AlertCircle, Check, Copy } from "lucide-react";
-import { toast } from "sonner";
+import { AlertCircle } from "lucide-react";
 
 import { DataTable } from "@/features/dashboard/components/data-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
   SheetContent,
@@ -37,15 +39,14 @@ import type {
   RequestDetailCaptureState,
   RequestLogDetail,
 } from "@/features/logs/types";
-import { useI18n } from "@/lib/i18n";
 import { parseError } from "@/lib/error";
-import { m } from "@/paraglide/messages.js";
+import { cn } from "@/lib/utils";
 
 const DETAIL_PLACEHOLDER = "—";
 const REQUEST_DETAIL_CAPTURE_EVENT = "request-detail-capture-changed";
 const CAPTURE_COUNTDOWN_TICK_MS = 1_000;
 const DETAIL_FIELD_ROW_CLASS =
-  "grid grid-cols-[8.5rem_minmax(0,1fr)] items-start gap-x-3 py-1.5";
+  "grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-x-3 py-1";
 const DETAIL_FIELD_LABEL_CLASS =
   "text-[12px] leading-5 text-muted-foreground";
 const DETAIL_FIELD_VALUE_CLASS =
@@ -53,6 +54,15 @@ const DETAIL_FIELD_VALUE_CLASS =
 const IDLE_CAPTURE_STATE: RequestDetailCaptureState = {
   enabled: false,
   expiresAtMs: null,
+};
+const PROVIDER_TYPE_LABELS: Readonly<Record<string, string>> = {
+  openai: "OpenAI",
+  "openai-response": "OpenAI Responses",
+  anthropic: "Anthropic",
+  gemini: "Gemini",
+  kiro: "Kiro",
+  codex: "Codex",
+  proxy: "内部代理",
 };
 
 type DetailStatus = "idle" | "loading" | "error";
@@ -66,6 +76,26 @@ function statusToVariant(status: number): BadgeVariant {
   if (status >= 400) return "destructive";
   if (status >= 300) return "secondary";
   return "outline";
+}
+
+function formatHttpStatus(status: number) {
+  let label = "";
+  if (status >= 100 && status < 200) label = "信息";
+  if (status >= 200 && status < 300) label = "成功";
+  if (status >= 300 && status < 400) label = "重定向";
+  if (status >= 400 && status < 500) label = "客户端错误";
+  if (status >= 500 && status < 600) label = "服务端错误";
+  return label ? `${status} ${label}` : String(status);
+}
+
+function formatProviderType(provider: string) {
+  const trimmed = provider.trim();
+  return PROVIDER_TYPE_LABELS[trimmed.toLowerCase()] ?? trimmed;
+}
+
+function formatUsdCost(value: number | null | undefined) {
+  const amount = formatNanoUsdCost(value);
+  return amount === DETAIL_PLACEHOLDER ? amount : `$${amount}`;
 }
 
 function isCaptureWindowActive(
@@ -105,11 +135,12 @@ function getResponseDetailValue(detail: RequestLogDetail) {
 type DetailFieldProps = {
   label: string;
   value: string | null | undefined;
+  className?: string;
 };
 
-function DetailField({ label, value }: DetailFieldProps) {
+function DetailField({ label, value, className }: DetailFieldProps) {
   return (
-    <div className={DETAIL_FIELD_ROW_CLASS}>
+    <div className={cn(DETAIL_FIELD_ROW_CLASS, className)}>
       <span className={DETAIL_FIELD_LABEL_CLASS}>{label}</span>
       <span className={`${DETAIL_FIELD_VALUE_CLASS} truncate`}>
         {value?.trim() || DETAIL_PLACEHOLDER}
@@ -118,22 +149,42 @@ function DetailField({ label, value }: DetailFieldProps) {
   );
 }
 
+function DetailGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-2.5 border-t border-border/60 pt-4 first:border-t-0 first:pt-0">
+      <h3 className="text-[13px] font-semibold leading-5 text-foreground">
+        {title}
+      </h3>
+      <div className="grid gap-x-6 lg:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
 type BasicInfoSectionProps = {
   detail: RequestLogDetail;
   formatter: Intl.DateTimeFormat;
 };
 
-// 基础信息区域：展示表格中的字段
 function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
   const timestamp = formatDashboardTimestamp(detail.tsMs, formatter);
   const streamText = detail.stream
-    ? m.logs_detail_stream_yes()
-    : m.logs_detail_stream_no();
-  const providerText = formatDashboardProviderLabel(
+    ? "流式"
+    : "非流式";
+  const combinedProviderText = formatDashboardProviderLabel(
     detail.upstreamId,
     detail.provider,
     detail.accountId,
   );
+  const providerText =
+    combinedProviderText === "本地代理"
+      ? combinedProviderText
+      : detail.upstreamId.trim();
   // 只有当 mappedModel 与 model 不同时才展示（相同说明没有实际映射）
   const hasMappedModel =
     detail.mappedModel?.trim() &&
@@ -141,27 +192,35 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
     detail.mappedModel.trim() !== detail.model.trim();
 
   return (
-    <section className="space-y-2.5">
-      <h3 className="text-[13px] font-semibold leading-5 text-foreground">
-        {m.logs_detail_basic_info()}
-      </h3>
-      <div className="grid rounded-lg border border-border/60 bg-muted/20 px-3.5 py-2 lg:grid-cols-2 lg:gap-x-6">
-        <DetailField label="ID" value={String(detail.id)} />
-        <DetailField label={m.dashboard_table_time()} value={timestamp} />
+    <div data-slot="request-detail-groups" className="space-y-4">
+      <DetailGroup title="请求">
+        <DetailField label="请求 ID" value={`#${detail.id}`} />
+        <DetailField label={"时间"} value={timestamp} />
+        <DetailField label={"路径"} value={detail.path} />
         <DetailField
-          label={m.dashboard_table_ip()}
+          label={"客户端"}
           value={formatDashboardClientIp(detail.clientIp)}
         />
-        <DetailField label={m.dashboard_table_path()} value={detail.path} />
-        <DetailField
-          label={m.dashboard_table_provider()}
-          value={providerText}
-        />
-        {/* Model 展示逻辑与表格一致：主模型在上，映射模型在下 */}
         <div className={DETAIL_FIELD_ROW_CLASS}>
-          <span className={DETAIL_FIELD_LABEL_CLASS}>
-            {m.dashboard_table_model()}
-          </span>
+          <span className={DETAIL_FIELD_LABEL_CLASS}>{"状态"}</span>
+          <Badge
+            variant={statusToVariant(detail.status)}
+            className="justify-self-start"
+          >
+            {formatHttpStatus(detail.status)}
+          </Badge>
+        </div>
+        <DetailField label={"响应模式"} value={streamText} />
+      </DetailGroup>
+
+      <DetailGroup title="路由与计费">
+        <DetailField label={"提供商"} value={providerText} />
+        <DetailField
+          label={"接口格式"}
+          value={formatProviderType(detail.provider)}
+        />
+        <div className={DETAIL_FIELD_ROW_CLASS}>
+          <span className={DETAIL_FIELD_LABEL_CLASS}>{"模型"}</span>
           <div className="flex min-w-0 flex-col items-start">
             <span className="w-full truncate text-[13px] text-foreground">
               {detail.model?.trim() || DETAIL_PLACEHOLDER}
@@ -173,66 +232,37 @@ function BasicInfoSection({ detail, formatter }: BasicInfoSectionProps) {
             ) : null}
           </div>
         </div>
-        <div className={DETAIL_FIELD_ROW_CLASS}>
-          <span className={DETAIL_FIELD_LABEL_CLASS}>
-            {m.dashboard_table_status()}
-          </span>
-          <Badge
-            variant={statusToVariant(detail.status)}
-            className="justify-self-start"
-          >
-            {detail.status}
-          </Badge>
-        </div>
-        <DetailField label={m.logs_detail_stream()} value={streamText} />
         <DetailField
-          label={m.dashboard_table_cost()}
-          value={formatNanoUsdCost(detail.costNanoUsd)}
+          label={"费用"}
+          value={formatUsdCost(detail.costNanoUsd)}
         />
         <DetailField
-          label={m.logs_detail_image_output_tokens()}
-          value={formatOptionalInteger(detail.imageOutputTokens)}
-        />
-        <DetailField
-          label={m.logs_detail_pricing_model()}
+          label={"计费模型"}
           value={detail.pricingModel}
         />
+      </DetailGroup>
+
+      <DetailGroup title="耗时">
         <DetailField
-          label={m.logs_detail_pricing_context_tier()}
-          value={formatPricingContextTier(detail.pricingContextTier)}
+          label={"上游响应头"}
+          value={formatOptionalMilliseconds(detail.upstreamResponseHeadersMs)}
         />
         <DetailField
-          label={m.logs_detail_pricing_version()}
-          value={detail.pricingVersion}
-        />
-        <DetailField
-          label={m.dashboard_table_latency_ms()}
-          value={formatInteger(detail.latencyMs)}
-        />
-        <DetailField
-          label={m.logs_timing_upstream_response_headers_ms()}
-          value={formatOptionalInteger(detail.upstreamResponseHeadersMs)}
-        />
-        <DetailField
-          label={m.logs_timing_upstream_first_body_chunk_ms()}
-          value={formatOptionalInteger(
+          label={"上游首块"}
+          value={formatOptionalMilliseconds(
             detail.upstreamFirstBodyChunkMs ?? detail.upstreamFirstByteMs,
           )}
         />
         <DetailField
-          label={m.logs_timing_first_client_flush_ms()}
-          value={formatOptionalInteger(detail.firstClientFlushMs)}
+          label={"代理首块"}
+          value={formatOptionalMilliseconds(detail.firstClientFlushMs)}
         />
         <DetailField
-          label={m.logs_timing_first_output_ms()}
-          value={formatOptionalInteger(detail.firstOutputMs)}
+          label={"代理有效输出"}
+          value={formatOptionalMilliseconds(detail.firstOutputMs)}
         />
-        <DetailField
-          label={m.logs_detail_upstream_request_id()}
-          value={detail.upstreamRequestId}
-        />
-      </div>
-    </section>
+      </DetailGroup>
+    </div>
   );
 }
 
@@ -243,138 +273,27 @@ type DetailSectionProps = {
 
 function DetailSection({ title, value }: DetailSectionProps) {
   const content = value?.trim() ? value : null;
+  if (!content) {
+    return null;
+  }
   return (
     <section className="space-y-2.5 border-t border-border/60 pt-4">
       <h3 className="text-[13px] font-semibold leading-5 text-foreground">
         {title}
       </h3>
-      {content ? (
-        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3 font-mono text-[12px] leading-5 text-foreground/85">
-          {content}
-        </pre>
-      ) : (
-        <p className="text-[12px] leading-5 text-muted-foreground">
-          {DETAIL_PLACEHOLDER}
-        </p>
-      )}
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3 font-mono text-[12px] leading-5 text-foreground/85">
+        {content}
+      </pre>
     </section>
   );
 }
 
-// 将详情格式化为可复制的文本
-function formatDetailAsText(
-  detail: RequestLogDetail,
-  formatter: Intl.DateTimeFormat,
-): string {
-  const lines: string[] = [];
-  const providerText = formatDashboardProviderLabel(
-    detail.upstreamId,
-    detail.provider,
-    detail.accountId,
-  );
-  const hasMappedModel =
-    detail.mappedModel?.trim() &&
-    detail.model?.trim() &&
-    detail.mappedModel.trim() !== detail.model.trim();
-
-  lines.push(`ID: ${detail.id}`);
-  lines.push(
-    `${m.dashboard_table_time()}: ${formatDashboardTimestamp(detail.tsMs, formatter)}`,
-  );
-  lines.push(
-    `${m.dashboard_table_ip()}: ${formatDashboardClientIp(detail.clientIp)}`,
-  );
-  lines.push(`${m.dashboard_table_path()}: ${detail.path}`);
-  lines.push(`${m.dashboard_table_provider()}: ${providerText}`);
-  lines.push(
-    `${m.dashboard_table_model()}: ${detail.model?.trim() || DETAIL_PLACEHOLDER}`,
-  );
-  if (hasMappedModel) {
-    lines.push(`${m.logs_detail_model_mapped()}: ${detail.mappedModel}`);
-  }
-  lines.push(`${m.dashboard_table_status()}: ${detail.status}`);
-  lines.push(
-    `${m.logs_detail_stream()}: ${detail.stream ? m.logs_detail_stream_yes() : m.logs_detail_stream_no()}`,
-  );
-  lines.push(
-    `${m.dashboard_table_cost()}: ${formatNanoUsdCost(detail.costNanoUsd)}`,
-  );
-  lines.push(
-    `${m.logs_detail_image_output_tokens()}: ${formatOptionalInteger(detail.imageOutputTokens)}`,
-  );
-  lines.push(
-    `${m.logs_detail_pricing_model()}: ${detail.pricingModel?.trim() || DETAIL_PLACEHOLDER}`,
-  );
-  lines.push(
-    `${m.logs_detail_pricing_context_tier()}: ${formatPricingContextTier(detail.pricingContextTier)}`,
-  );
-  lines.push(
-    `${m.logs_detail_pricing_version()}: ${detail.pricingVersion?.trim() || DETAIL_PLACEHOLDER}`,
-  );
-  lines.push(
-    `${m.dashboard_table_latency_ms()}: ${formatInteger(detail.latencyMs)}`,
-  );
-  lines.push(
-    `${m.logs_timing_upstream_response_headers_ms()}: ${formatOptionalInteger(detail.upstreamResponseHeadersMs)}`,
-  );
-  lines.push(
-    `${m.logs_timing_upstream_first_body_chunk_ms()}: ${formatOptionalInteger(detail.upstreamFirstBodyChunkMs ?? detail.upstreamFirstByteMs)}`,
-  );
-  lines.push(
-    `${m.logs_timing_first_client_flush_ms()}: ${formatOptionalInteger(detail.firstClientFlushMs)}`,
-  );
-  lines.push(
-    `${m.logs_timing_first_output_ms()}: ${formatOptionalInteger(detail.firstOutputMs)}`,
-  );
-  lines.push(
-    `${m.logs_detail_upstream_request_id()}: ${detail.upstreamRequestId?.trim() || DETAIL_PLACEHOLDER}`,
-  );
-
-  if (detail.usageJson?.trim()) {
-    lines.push("");
-    lines.push(`--- ${m.logs_detail_usage_json()} ---`);
-    lines.push(detail.usageJson);
-  }
-
-  if (detail.requestHeaders?.trim()) {
-    lines.push("");
-    lines.push(`--- ${m.logs_detail_headers()} ---`);
-    lines.push(detail.requestHeaders);
-  }
-
-  if (detail.requestBody?.trim()) {
-    lines.push("");
-    lines.push(`--- ${m.logs_detail_body()} ---`);
-    lines.push(detail.requestBody);
-  }
-
-  if (detail.responseBody?.trim()) {
-    lines.push("");
-    lines.push(`--- ${m.logs_detail_response()} ---`);
-    lines.push(detail.responseBody);
-  }
-
-  if (detail.responseError?.trim()) {
-    lines.push("");
-    lines.push("--- response_error ---");
-    lines.push(detail.responseError);
-  }
-
-  return lines.join("\n");
+function formatMilliseconds(value: number) {
+  return `${formatInteger(value)} ms`;
 }
 
-function formatOptionalInteger(value: number | null | undefined) {
-  return value == null ? DETAIL_PLACEHOLDER : formatInteger(value);
-}
-
-function formatPricingContextTier(tier: string | null | undefined) {
-  if (tier === "long") {
-    return m.logs_detail_pricing_context_long();
-  }
-  if (tier === "short") {
-    return m.logs_detail_pricing_context_short();
-  }
-  return DETAIL_PLACEHOLDER;
+function formatOptionalMilliseconds(value: number | null | undefined) {
+  return value == null ? DETAIL_PLACEHOLDER : formatMilliseconds(value);
 }
 
 type RequestDetailSheetProps = {
@@ -394,78 +313,29 @@ function RequestDetailSheet({
   detail,
   formatter,
 }: RequestDetailSheetProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    if (!detail) return;
-    const text = formatDetailAsText(detail, formatter);
-    try {
-      await writeText(text);
-      setCopied(true);
-      toast.success(m.logs_detail_copied());
-    } catch {
-      toast.error(m.logs_detail_copy_failed());
-    }
-  }, [detail, formatter]);
-
-  // 重置复制状态当 sheet 关闭时，并清理 timeout
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen) {
-        setCopied(false);
-      }
-      onOpenChange(nextOpen);
-    },
-    [onOpenChange],
-  );
-
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="gap-0 sm:max-w-2xl">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="gap-0">
         <SheetHeader className="shrink-0 gap-1 border-b border-border/60 px-5 py-4 pr-14">
-          <div className="flex items-center gap-2">
-            <SheetTitle className="text-[15px] leading-5">
-              {m.logs_detail_title()}
-            </SheetTitle>
-            {status === "idle" && detail ? (
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={handleCopy}
-              >
-                {copied ? (
-                  <Check className="size-3.5" aria-hidden="true" />
-                ) : (
-                  <Copy className="size-3.5" aria-hidden="true" />
-                )}
-                <span className="sr-only">
-                  {copied ? m.logs_detail_copied() : m.logs_detail_copy()}
-                </span>
-              </Button>
-            ) : null}
-          </div>
+          <SheetTitle className="text-[15px] leading-5">
+            {"请求详情"}
+          </SheetTitle>
           <SheetDescription className="text-[12px] leading-4">
-            {m.logs_detail_desc()}
+            {"请求头/体仅在开启记录后出现；错误响应会在失败请求中始终记录。"}
           </SheetDescription>
         </SheetHeader>
-        <ScrollArea className="flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
           <div className="px-5 py-5">
             {status === "loading" ? (
               <p className="text-[13px] text-muted-foreground">
-                {m.logs_detail_loading()}
+                {"加载中…"}
               </p>
             ) : null}
             {status === "error" ? (
               <Alert variant="destructive">
                 <AlertCircle className="size-4" aria-hidden="true" />
                 <div>
-                  <AlertTitle>{m.logs_detail_error()}</AlertTitle>
+                  <AlertTitle>{"加载失败"}</AlertTitle>
                   <AlertDescription>{statusMessage}</AlertDescription>
                 </div>
               </Alert>
@@ -474,25 +344,25 @@ function RequestDetailSheet({
               <div className="space-y-4">
                 <BasicInfoSection detail={detail} formatter={formatter} />
                 <DetailSection
-                  title={m.logs_detail_usage_json()}
+                  title={"用量详情"}
                   value={detail.usageJson}
                 />
                 <DetailSection
-                  title={m.logs_detail_headers()}
+                  title={"请求头"}
                   value={detail.requestHeaders}
                 />
                 <DetailSection
-                  title={m.logs_detail_body()}
+                  title={"请求体"}
                   value={detail.requestBody}
                 />
                 <DetailSection
-                  title={m.logs_detail_response()}
+                  title={"错误响应"}
                   value={getResponseDetailValue(detail)}
                 />
               </div>
             ) : null}
           </div>
-        </ScrollArea>
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -517,8 +387,7 @@ export function LogsPanel() {
     onNextPage,
   } = useDashboardSnapshot();
 
-  const { locale } = useI18n();
-  const formatter = createDashboardTimeFormatter(locale);
+  const formatter = createDashboardTimeFormatter("zh-CN");
 
   const [captureState, setCaptureState] =
     useState<RequestDetailCaptureState>(IDLE_CAPTURE_STATE);
@@ -537,7 +406,7 @@ export function LogsPanel() {
     captureNowMs,
   );
   const captureStatusText = captureRemainingSeconds
-    ? m.logs_capture_status_countdown({ seconds: captureRemainingSeconds })
+    ? `剩余 ${captureRemainingSeconds}s`
     : "";
 
   const updateCaptureState = useCallback(
@@ -684,10 +553,10 @@ export function LogsPanel() {
       className="flex h-full min-h-0 flex-1 flex-col gap-4"
     >
       {status === "error" ? (
-        <Alert variant="destructive" className="mx-4 lg:mx-6">
+        <Alert variant="destructive">
           <AlertCircle className="size-4" aria-hidden="true" />
           <div>
-            <AlertTitle>{m.dashboard_load_failed()}</AlertTitle>
+            <AlertTitle>{"加载失败"}</AlertTitle>
             <AlertDescription>{statusMessage}</AlertDescription>
           </div>
         </Alert>

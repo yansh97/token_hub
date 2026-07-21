@@ -1,20 +1,21 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UpstreamsCard } from "@/features/config/cards/upstreams-card";
-import { m } from "@/paraglide/messages.js";
 
 afterEach(() => {
   cleanup();
 });
 
 describe("config/upstreams-card", () => {
-  it("places the title and add action in the card header", () => {
+  it("places the title, count, and add action in the section header", () => {
     render(
       <UpstreamsCard
         upstreams={[]}
         showApiKeys={false}
         providerOptions={[]}
+        appProxyUrl=""
         onToggleApiKeys={() => undefined}
         onAdd={() => undefined}
         onRemove={() => undefined}
@@ -22,12 +23,106 @@ describe("config/upstreams-card", () => {
       />,
     );
 
-    const title = screen.getByText(m.upstreams_title());
-    const addButton = screen.getByRole("button", { name: m.upstreams_add() });
-    const header = title.closest('[data-slot="card-header"]');
+    const title = screen.getByRole("heading", { name: "提供商" });
+    const addButton = screen.getByRole("button", { name: "添加提供商" });
+    const header = title.closest("header");
 
     expect(header).not.toBeNull();
     expect(header).toContainElement(addButton);
-    expect(addButton.closest('[data-slot="card-action"]')).not.toBeNull();
+    expect(screen.getByText("0 个")).toBeInTheDocument();
+    expect(screen.getByText("尚未添加提供商")).toBeInTheDocument();
+  });
+
+  it("keeps the entered id when interface formats change", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <UpstreamsCard
+        upstreams={[]}
+        showApiKeys={false}
+        providerOptions={[]}
+        appProxyUrl=""
+        onToggleApiKeys={vi.fn()}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "添加提供商" }));
+    const idInput = screen.getByLabelText("ID");
+    await user.type(idInput, "custom-id");
+    await user.click(screen.getByRole("button", { name: "Gemini" }));
+
+    expect(idInput).toHaveValue("custom-id");
+  });
+
+  it("keeps an invalid provider editor open and validates fields in real time", async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+
+    render(
+      <UpstreamsCard
+        upstreams={[]}
+        showApiKeys={false}
+        providerOptions={[]}
+        appProxyUrl=""
+        onToggleApiKeys={vi.fn()}
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "添加提供商" }));
+    const idInput = screen.getByLabelText("ID");
+    fireEvent.blur(idInput);
+    expect(screen.getByText("提供商 ID 不能为空。")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "仅指定模型" }));
+    expect(screen.getByText("请至少添加一个可用模型。")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "全部模型" }));
+
+    await user.click(screen.getByRole("button", { name: "添加映射" }));
+    expect(
+      screen.getByText("第 1 行映射的匹配模式不能为空。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("第 1 行映射的目标模型不能为空。"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "删除映射" }));
+
+    await user.click(screen.getByRole("button", { name: "添加请求头" }));
+    expect(
+      screen.getByText("第 1 行的请求头名称不能为空。"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "删除Header" }));
+
+    const priorityInput = screen.getByLabelText("优先级");
+    fireEvent.change(priorityInput, { target: { value: "" } });
+    expect(screen.getByText("优先级不能为空。")).toBeInTheDocument();
+    fireEvent.change(priorityInput, { target: { value: "100" } });
+
+    const baseUrlInput = screen.getByLabelText("Base URL");
+    fireEvent.change(baseUrlInput, { target: { value: "invalid" } });
+
+    expect(
+      screen.getByText("请输入有效的 HTTP 或 HTTPS URL。"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByText("提供商 ID 不能为空。")).toBeInTheDocument();
+    expect(onAdd).not.toHaveBeenCalled();
+
+    fireEvent.change(idInput, { target: { value: "openai" } });
+    fireEvent.change(baseUrlInput, {
+      target: { value: "https://api.openai.com" },
+    });
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 });

@@ -1,82 +1,143 @@
-"use client";
-
-import * as React from "react";
-import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group";
-import { type VariantProps } from "class-variance-authority";
+import {
+  createContext,
+  useContext,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@/lib/utils";
-import { toggleVariants } from "@/components/ui/toggle";
 
-const ToggleGroupContext = React.createContext<
-  VariantProps<typeof toggleVariants> & {
-    spacing?: number;
-  }
->({
-  size: "default",
-  variant: "default",
-  spacing: 0,
-});
+type ToggleGroupType = "single" | "multiple";
 
-function ToggleGroup({
+type ToggleGroupContextValue = {
+  type: ToggleGroupType;
+  value: readonly string[];
+  disabled: boolean;
+  variant: "default" | "outline";
+  size: "default" | "sm" | "lg";
+  spacing: number;
+  toggle: (value: string) => void;
+};
+
+const ToggleGroupContext = createContext<ToggleGroupContextValue | null>(null);
+
+type ToggleGroupValue<T extends ToggleGroupType> = T extends "multiple"
+  ? string[]
+  : string;
+
+type ToggleGroupProps<T extends ToggleGroupType> = Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  "defaultValue" | "onChange"
+> & {
+  type: T;
+  value?: string | string[];
+  defaultValue?: string | string[];
+  onValueChange?: (value: ToggleGroupValue<T>) => void;
+  disabled?: boolean;
+  variant?: "default" | "outline";
+  size?: "default" | "sm" | "lg";
+  spacing?: number;
+  children: ReactNode;
+};
+
+function normalizeValue(type: ToggleGroupType, value?: string | string[]) {
+  if (type === "multiple") return Array.isArray(value) ? value : [];
+  return typeof value === "string" && value ? [value] : [];
+}
+
+function ToggleGroup<T extends ToggleGroupType>({
   className,
-  variant,
-  size,
+  type,
+  value,
+  defaultValue,
+  onValueChange,
+  disabled = false,
+  variant = "default",
+  size = "default",
   spacing = 0,
   children,
   ...props
-}: React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
-  VariantProps<typeof toggleVariants> & {
-    spacing?: number;
-  }) {
+}: ToggleGroupProps<T>) {
+  const selected = normalizeValue(type, value ?? defaultValue);
+
+  const toggle = (itemValue: string) => {
+    if (disabled) return;
+    if (type === "multiple") {
+      (onValueChange as ((value: string[]) => void) | undefined)?.(
+        selected.includes(itemValue)
+          ? selected.filter((item) => item !== itemValue)
+          : [...selected, itemValue],
+      );
+      return;
+    }
+    (onValueChange as ((value: string) => void) | undefined)?.(
+      selected.includes(itemValue) ? "" : itemValue,
+    );
+  };
+
   return (
-    <ToggleGroupPrimitive.Root
-      data-slot="toggle-group"
-      data-variant={variant}
-      data-size={size}
-      data-spacing={spacing}
-      style={{ "--gap": spacing } as React.CSSProperties}
-      className={cn(
-        "group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs",
-        className,
-      )}
-      {...props}
+    <ToggleGroupContext.Provider
+      value={{ type, value: selected, disabled, variant, size, spacing, toggle }}
     >
-      <ToggleGroupContext.Provider value={{ variant, size, spacing }}>
+      <div
+        role="group"
+        data-slot="toggle-group"
+        data-variant={variant}
+        data-size={size}
+        data-spacing={spacing}
+        className={cn("flex w-fit items-center rounded-md", spacing ? "gap-1" : "", className)}
+        {...props}
+      >
         {children}
-      </ToggleGroupContext.Provider>
-    </ToggleGroupPrimitive.Root>
+      </div>
+    </ToggleGroupContext.Provider>
   );
 }
 
+type ToggleGroupItemProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  value: string;
+  variant?: "default" | "outline";
+  size?: "default" | "sm" | "lg";
+};
+
 function ToggleGroupItem({
   className,
-  children,
+  value,
   variant,
   size,
+  onClick,
   ...props
-}: React.ComponentProps<typeof ToggleGroupPrimitive.Item> &
-  VariantProps<typeof toggleVariants>) {
-  const context = React.useContext(ToggleGroupContext);
+}: ToggleGroupItemProps) {
+  const context = useContext(ToggleGroupContext);
+  if (!context) throw new Error("ToggleGroupItem must be used inside ToggleGroup");
+
+  const active = context.value.includes(value);
+  const itemVariant = variant ?? context.variant;
+  const itemSize = size ?? context.size;
 
   return (
-    <ToggleGroupPrimitive.Item
+    <button
+      type="button"
+      aria-pressed={active}
       data-slot="toggle-group-item"
-      data-variant={context.variant || variant}
-      data-size={context.size || size}
+      data-state={active ? "on" : "off"}
+      data-variant={itemVariant}
+      data-size={itemSize}
       data-spacing={context.spacing}
+      disabled={context.disabled || props.disabled}
       className={cn(
-        toggleVariants({
-          variant: context.variant || variant,
-          size: context.size || size,
-        }),
-        "w-auto min-w-0 shrink-0 px-3 focus:z-10 focus-visible:z-10",
-        "data-[spacing=0]:rounded-none data-[spacing=0]:shadow-none data-[spacing=0]:first:rounded-l-md data-[spacing=0]:last:rounded-r-md data-[spacing=0]:data-[variant=outline]:border-l-0 data-[spacing=0]:data-[variant=outline]:first:border-l",
+        "inline-flex min-w-0 shrink-0 items-center justify-center whitespace-nowrap rounded-md text-[13px] font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-accent",
+        itemVariant === "outline" && "border border-input bg-transparent shadow-xs",
+        itemSize === "lg" ? "h-9 px-4" : "h-8 px-3",
+        context.spacing === 0 && "rounded-none first:rounded-l-md last:rounded-r-md not-first:border-l-0",
         className,
       )}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) context.toggle(value);
+      }}
       {...props}
-    >
-      {children}
-    </ToggleGroupPrimitive.Item>
+    />
   );
 }
 

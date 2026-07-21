@@ -3,17 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { formatBytes } from "@/features/update/updater";
 import { parseError } from "@/lib/error";
-import { m } from "@/paraglide/messages.js";
 
 type DataStorageUsage = {
   dataDir: string;
@@ -72,24 +63,21 @@ export function StorageUsageCard() {
   }, [loadUsage]);
 
   const isLoading = status === "loading";
-  const errorText = m.storage_usage_error({
-    message: errorMessage || m.common_unknown(),
-  });
+  const errorText = `读取存储占用失败：${errorMessage || "未知错误"}`;
 
   return (
-    <Card
+    <section
       data-slot="storage-usage-card"
       data-testid="storage-usage-card"
-      className="gap-0 rounded-none border-0 bg-transparent py-4 shadow-none first:pt-2"
+      className="mt-5 border-t border-border/70 pt-5"
     >
-      <CardHeader className="gap-1 px-0 pb-3 pt-0">
-        <CardTitle className="text-[15px] leading-5">
-          {m.storage_usage_title()}
-        </CardTitle>
-        <CardDescription className="text-[12px] leading-4">
-          {m.storage_usage_desc()}
-        </CardDescription>
-        <CardAction>
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold leading-5">存储占用</h2>
+          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+            应用数据、数据库和配置文件的磁盘占用。
+          </p>
+        </div>
           <Button
             type="button"
             variant="outline"
@@ -100,19 +88,18 @@ export function StorageUsageCard() {
               void loadUsage();
             }}
             disabled={isLoading}
-            aria-label={m.storage_usage_refresh()}
+            aria-label="刷新存储占用"
           >
             <RefreshCw
               className={isLoading ? "animate-spin" : undefined}
               aria-hidden="true"
             />
           </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3 px-0">
+      </div>
+      <div className="mt-3 space-y-3">
         <div className="flex min-w-0 items-center justify-between gap-4 text-[12px]">
           <span className="shrink-0 text-muted-foreground">
-            {m.storage_usage_data_dir_label()}
+            数据目录
           </span>
           <span className="min-w-0 truncate font-mono text-foreground/80">
             {usage?.dataDir || "--"}
@@ -120,25 +107,25 @@ export function StorageUsageCard() {
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
           <StorageMetric
-            label={m.storage_usage_total_label()}
+            label="合计"
             value={usage ? formatBytes(usage.totalBytes) : "--"}
           />
           <StorageMetric
-            label={m.storage_usage_database_label()}
+            label="数据库"
             value={usage ? formatBytes(usage.databaseBytes) : "--"}
           />
           <StorageMetric
-            label={m.storage_usage_config_label()}
+            label="配置"
             value={usage ? formatBytes(usage.configBytes) : "--"}
           />
           <StorageMetric
-            label={m.storage_usage_other_label()}
+            label="其他"
             value={usage ? formatBytes(usage.otherBytes) : "--"}
           />
         </div>
         {isLoading ? (
           <p className="text-[12px] leading-4 text-muted-foreground">
-            {m.storage_usage_loading()}
+            正在计算占用...
           </p>
         ) : null}
         {status === "error" ? (
@@ -146,7 +133,7 @@ export function StorageUsageCard() {
             {errorText}
           </p>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

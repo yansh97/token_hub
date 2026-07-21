@@ -1,10 +1,12 @@
 import { isAccountBackedProvider } from "@/features/config/cards/upstreams/upstream-editor-helpers";
+import { getProviderLabel } from "@/features/config/cards/upstreams/constants";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type ProviderMultiSelectProps = {
   providerOptions: readonly string[];
   value: readonly string[];
   disabled?: boolean;
+  error?: string;
   onChange: (next: string[]) => void;
 };
 
@@ -68,6 +70,7 @@ export function ProviderMultiSelect({
   providerOptions,
   value,
   disabled = false,
+  error,
   onChange,
 }: ProviderMultiSelectProps) {
   const selected = orderProviders(normalizeProviders(value), providerOptions);
@@ -76,8 +79,9 @@ export function ProviderMultiSelect({
       type="multiple"
       variant="outline"
       size="sm"
-      spacing={0}
+      spacing={1}
       disabled={disabled}
+      aria-invalid={Boolean(error)}
       value={selected}
       onValueChange={(next) => {
         const nextSet = new Set(next);
@@ -96,16 +100,16 @@ export function ProviderMultiSelect({
           ),
         );
       }}
-      className="max-w-full overflow-x-auto"
+      className="grid w-full grid-cols-2 gap-1 sm:grid-cols-[1fr_1.25fr_1fr_1fr]"
       data-slot="provider-multi-select"
     >
       {providerOptions.map((option) => (
         <ToggleGroupItem
           key={option}
           value={option}
-          className="data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          className="w-full px-2 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
-          {option}
+          {getProviderLabel(option)}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

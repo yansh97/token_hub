@@ -1,28 +1,42 @@
-import * as React from "react";
-import * as SwitchPrimitive from "@radix-ui/react-switch";
+import type { ButtonHTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
+type SwitchProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> & {
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+};
+
 function Switch({
   className,
+  checked = false,
+  onCheckedChange,
+  onClick,
   ...props
-}: React.ComponentProps<typeof SwitchPrimitive.Root>) {
+}: SwitchProps) {
   return (
-    <SwitchPrimitive.Root
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
       data-slot="switch"
+      data-state={checked ? "checked" : "unchecked"}
       className={cn(
-        "peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex h-5 w-8 shrink-0 items-center rounded-full border border-transparent bg-input shadow-xs outline-none transition-colors data-[state=checked]:bg-primary focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) onCheckedChange?.(!checked);
+      }}
       {...props}
     >
-      <SwitchPrimitive.Thumb
+      <span
         data-slot="switch-thumb"
-        className={cn(
-          "bg-background dark:data-[state=unchecked]:bg-foreground dark:data-[state=checked]:bg-primary-foreground pointer-events-none block size-4 rounded-full ring-0 transition-transform data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0",
-        )}
+        className="block size-4 translate-x-0 rounded-full bg-background shadow-sm transition-transform data-[state=checked]:translate-x-3"
+        data-state={checked ? "checked" : "unchecked"}
       />
-    </SwitchPrimitive.Root>
+    </button>
   );
 }
 

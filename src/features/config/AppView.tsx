@@ -1,5 +1,4 @@
 import { AlertCircle } from "lucide-react";
-import { useMemo } from "react";
 
 import { AppShell } from "@/layouts/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,14 +12,11 @@ import {
 } from "@/features/config/cards";
 import type { ProxyServiceViewProps } from "@/features/config/cards/proxy-service-card";
 import type { ConfigEditorSectionId } from "@/features/config/sections";
-import { findSection } from "@/features/config/sections";
 import type {
   ConfigForm,
   ProxyServiceRequestState,
   ProxyServiceStatus,
 } from "@/features/config/types";
-import { cn } from "@/lib/utils";
-import { m } from "@/paraglide/messages.js";
 
 type AppViewProps = {
   activeSectionId: ConfigEditorSectionId;
@@ -38,7 +34,6 @@ type AppViewProps = {
   statusMessage: string;
   canSave: boolean;
   isDirty: boolean;
-  validation: { valid: boolean; message: string };
   onToggleLocalKey: () => void;
   onToggleUpstreamKeys: () => void;
   onFormChange: (patch: Partial<ConfigForm>) => void;
@@ -65,30 +60,6 @@ type StatusAlertProps = {
   onSave: () => void;
 };
 
-type ValidationAlertProps = {
-  validation: AppViewProps["validation"];
-};
-
-function ValidationAlert({ validation }: ValidationAlertProps) {
-  if (validation.valid) {
-    return null;
-  }
-
-  const message = validation.message || m.config_invalid_configuration();
-
-  return (
-    <Alert variant="destructive" className="mb-4">
-      <AlertCircle className="size-4" aria-hidden="true" />
-      <div className="flex flex-1 items-start gap-3">
-        <div>
-          <AlertTitle>{m.config_invalid_configuration()}</AlertTitle>
-          <AlertDescription>{message}</AlertDescription>
-        </div>
-      </div>
-    </Alert>
-  );
-}
-
 function StatusAlert({
   status,
   statusMessage,
@@ -107,12 +78,12 @@ function StatusAlert({
       <AlertCircle className="size-4" aria-hidden="true" />
       <div className="flex flex-1 items-start justify-between gap-3">
         <div>
-          <AlertTitle>{m.config_request_failed_title()}</AlertTitle>
+          <AlertTitle>请求失败</AlertTitle>
           <AlertDescription>{statusMessage}</AlertDescription>
         </div>
         {canRetrySave ? (
           <Button type="button" variant="outline" size="sm" onClick={onSave}>
-            {m.config_retry_save()}
+            重试保存
           </Button>
         ) : null}
       </div>
@@ -135,7 +106,7 @@ function ConfigSectionBody({
   switch (activeSectionId) {
     case "settings":
       return (
-        <div className="flex flex-col gap-0">
+        <div data-slot="settings-content" className="flex w-full flex-col gap-0">
           <ProxyCoreCard
             form={props.form}
             showLocalKey={props.showLocalKey}
@@ -143,21 +114,14 @@ function ConfigSectionBody({
             onChange={props.onFormChange}
             proxyService={proxyService}
           />
-          <section className="mt-5 border-t border-border/70 pt-5">
-            <h2 className="text-[15px] font-semibold leading-5">
-              {m.config_application_group_title()}
-            </h2>
-            <div className="mt-3 flex flex-col divide-y divide-border/70">
-              <StorageUsageCard />
-              <AutoStartCard
-                enabled={props.autoStartEnabled}
-                status={props.autoStartStatus}
-                message={props.autoStartMessage}
-                onChange={props.onAutoStartChange}
-              />
-              <UpdateCard />
-            </div>
-          </section>
+          <StorageUsageCard />
+          <AutoStartCard
+            enabled={props.autoStartEnabled}
+            status={props.autoStartStatus}
+            message={props.autoStartMessage}
+            onChange={props.onAutoStartChange}
+          />
+          <UpdateCard />
         </div>
       );
     case "upstreams":
@@ -167,6 +131,7 @@ function ConfigSectionBody({
             upstreams={props.form.upstreams}
             showApiKeys={props.showUpstreamKeys}
             providerOptions={props.providerOptions}
+            appProxyUrl={props.form.appProxyUrl}
             onToggleApiKeys={props.onToggleUpstreamKeys}
             onAdd={props.onAddUpstream}
             onRemove={props.onRemoveUpstream}
@@ -185,15 +150,7 @@ function ConfigSectionContent({
   ...props
 }: ConfigSectionContentProps) {
   return (
-    <div
-      className={cn(
-        "flex min-h-0 w-full flex-1 flex-col gap-4",
-        activeSectionId === "upstreams"
-          ? "px-0 pb-0"
-          : "px-4 pb-6 lg:px-6",
-      )}
-    >
-      <ValidationAlert validation={props.validation} />
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
       <StatusAlert
         status={props.status}
         statusMessage={props.statusMessage}
@@ -226,14 +183,12 @@ function toProxyServiceViewProps(props: AppViewProps) {
 
 export function AppView(props: AppViewProps) {
   const { activeSectionId, ...viewProps } = props;
-  const sectionMeta = useMemo(
-    () => findSection(activeSectionId),
-    [activeSectionId],
-  );
   const proxyService = toProxyServiceViewProps(props);
 
   return (
-    <AppShell title={sectionMeta.label()}>
+    <AppShell
+      contentMode={activeSectionId === "upstreams" ? "workspace" : "document"}
+    >
       <ConfigSectionContent
         {...viewProps}
         activeSectionId={activeSectionId}

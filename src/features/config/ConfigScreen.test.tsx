@@ -15,7 +15,6 @@ import type {
   ProxyServiceStatus,
   SaveProxyConfigResult,
 } from "@/features/config/types";
-import { I18nProvider } from "@/lib/i18n";
 
 const { setAppProxyUrlMock } = vi.hoisted(() => ({
   setAppProxyUrlMock: vi.fn<(value: string) => void>(),
@@ -156,11 +155,7 @@ describe("config/ConfigScreen auto save", () => {
       throw new Error(`unexpected command: ${command}`);
     });
 
-    render(
-      <I18nProvider>
-        <ConfigScreen activeSectionId="settings" />
-      </I18nProvider>,
-    );
+    render(<ConfigScreen activeSectionId="settings" />);
 
     const hostInput = screen.getByLabelText("host");
     await waitFor(() => {
@@ -206,11 +201,7 @@ describe("config/ConfigScreen auto save", () => {
       throw new Error(`unexpected command: ${command}`);
     });
 
-    render(
-      <I18nProvider>
-        <ConfigScreen activeSectionId="settings" />
-      </I18nProvider>,
-    );
+    render(<ConfigScreen activeSectionId="settings" />);
 
     const hostInput = screen.getByLabelText("host");
     await waitFor(() => {
@@ -263,11 +254,7 @@ describe("config/ConfigScreen auto save", () => {
       throw new Error(`unexpected command: ${command}`);
     });
 
-    render(
-      <I18nProvider>
-        <ConfigScreen activeSectionId="settings" />
-      </I18nProvider>,
-    );
+    render(<ConfigScreen activeSectionId="settings" />);
 
     await waitFor(() => {
       expect(
@@ -306,11 +293,7 @@ describe("config/ConfigScreen auto save", () => {
       throw new Error(`unexpected command: ${command}`);
     });
 
-    render(
-      <I18nProvider>
-        <ConfigScreen activeSectionId="settings" />
-      </I18nProvider>,
-    );
+    render(<ConfigScreen activeSectionId="settings" />);
 
     const hostInput = screen.getByLabelText("host");
     await waitFor(() => {
@@ -360,11 +343,7 @@ describe("config/ConfigScreen auto save", () => {
       throw new Error(`unexpected command: ${command}`);
     });
 
-    render(
-      <I18nProvider>
-        <ConfigScreen activeSectionId="settings" />
-      </I18nProvider>,
-    );
+    render(<ConfigScreen activeSectionId="settings" />);
 
     const hostInput = screen.getByLabelText("host");
     await waitFor(() => {
@@ -403,11 +382,7 @@ describe("config/ConfigScreen auto save", () => {
       throw new Error(`unexpected command: ${command}`);
     });
 
-    render(
-      <I18nProvider>
-        <ConfigScreen activeSectionId="settings" />
-      </I18nProvider>,
-    );
+    render(<ConfigScreen activeSectionId="settings" />);
 
     const hostInput = screen.getByLabelText("host");
     await waitFor(() => {

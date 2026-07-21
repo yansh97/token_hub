@@ -1,19 +1,17 @@
 import type { ReactNode } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import {
   formatCompact,
   formatInteger,
   formatNanoUsdCost,
 } from "@/features/dashboard/format";
 import type { DashboardSummary } from "@/features/dashboard/types";
-import { m } from "@/paraglide/messages.js";
 
 type SectionCardsProps = {
   summary: DashboardSummary | null;
 };
 
-type MetricCardProps = {
+type MetricItemProps = {
   label: ReactNode;
   value: ReactNode;
   badge?: ReactNode;
@@ -21,31 +19,34 @@ type MetricCardProps = {
   className?: string;
 };
 
-function MetricCard({
+function MetricItem({
   label,
   value,
   badge,
   detail,
   className,
-}: MetricCardProps) {
+}: MetricItemProps) {
   return (
     <article
-      className={`flex min-h-[112px] min-w-0 flex-col gap-2 px-4 py-4 ${className ?? ""}`}
+      className={`min-w-0 border-l border-border/70 px-5 first:border-l-0 first:pl-0 last:pr-0 ${className ?? ""}`}
     >
       <div
-        data-slot="card-description"
-        className="text-xs font-medium text-muted-foreground"
+        data-slot="metric-label"
+        className="text-[12px] font-medium text-muted-foreground"
       >
         {label}
       </div>
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className="truncate text-[2rem] font-semibold leading-none tabular-nums tracking-[-0.02em]">
+      <div className="mt-2 flex min-w-0 items-baseline gap-2.5">
+        <div
+          data-slot="metric-value"
+          className="whitespace-nowrap text-[28px] font-semibold leading-8 tabular-nums"
+        >
           {value}
         </div>
         {badge ? <div className="shrink-0">{badge}</div> : null}
       </div>
       {detail ? (
-        <div className="truncate text-[13px] leading-5 text-foreground/80">
+        <div className="mt-1 truncate text-[12px] leading-5 text-muted-foreground">
           {detail}
         </div>
       ) : null}
@@ -75,75 +76,53 @@ export function SectionCards({ summary }: SectionCardsProps) {
   const cacheHitRate = inputTokens > 0 ? cacheReadTokens / inputTokens : 0;
 
   const tokensHint = cachedTokens
-    ? m.dashboard_tokens_hint_with_cache({
-        input: formatCompact(inputTokens),
-        cached: formatCompact(cachedTokens),
-        output: formatCompact(outputTokens),
-      })
-    : m.dashboard_tokens_hint_no_cache({
-        input: formatCompact(inputTokens),
-        output: formatCompact(outputTokens),
-      });
+    ? `输入 ${formatCompact(inputTokens)} · 缓存 ${formatCompact(cachedTokens)} · 输出 ${formatCompact(outputTokens)}`
+    : `输入 ${formatCompact(inputTokens)} · 输出 ${formatCompact(outputTokens)}`;
 
   return (
-    <section className="grid grid-cols-1 px-4 lg:px-6 @xl/main:grid-cols-[3fr_4fr_2.5fr_2.5fr]">
-      <MetricCard
-        label={m.dashboard_stat_requests()}
+    <section className="dashboard-metrics-grid grid border-b border-border/70 pb-6">
+      <MetricItem
+        label="请求数"
         value={formatCompact(totalRequests)}
         badge={
           totalRequests > 0 ? (
-          <Badge
-            variant="outline"
-            className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium"
-          >
-            {m.dashboard_hint_success_rate({
-              rate: PERCENT_FORMAT.format(successRate),
-            })}
-          </Badge>
+            <span className="text-[11px] font-medium text-success">
+              成功率 {PERCENT_FORMAT.format(successRate)}
+            </span>
           ) : null
         }
         detail={
           <div className="line-clamp-1">
-            {m.dashboard_requests_footer({
-              success: formatCompact(successRequests),
-              errors: formatCompact(errorRequests),
-            })}
+            成功 {formatCompact(successRequests)} · 错误 {formatCompact(errorRequests)}
           </div>
         }
       />
 
-      <MetricCard
-        label={m.dashboard_stat_total_tokens()}
+      <MetricItem
+        label="总 Tokens"
         value={formatCompact(totalTokens)}
         badge={
           cacheReadTokens ? (
-            <Badge
-              variant="outline"
-              className="h-7 rounded-md bg-muted/40 px-2 text-xs font-medium"
-            >
-              {m.dashboard_cache_hit_rate({
-                rate: PERCENT_FORMAT.format(cacheHitRate),
-              })}
-            </Badge>
+            <span className="text-[11px] font-medium text-muted-foreground">
+              缓存命中 {PERCENT_FORMAT.format(cacheHitRate)}
+            </span>
           ) : null
         }
         detail={<div className="line-clamp-1">{tokensHint}</div>}
       />
 
-      <MetricCard
-        label={m.dashboard_stat_latency_ms()}
+      <MetricItem
+        label="平均响应"
         value={formatInteger(avgLatencyMs)}
         detail={
           <div className="line-clamp-1">
-            {m.dashboard_latency_hint({
-              median: formatInteger(medianLatencyMs),
-            })}
+            中位数 {formatInteger(medianLatencyMs)} ms
           </div>
         }
       />
 
-      <MetricCard
-        label={m.dashboard_stat_cost()}
+      <MetricItem
+        label="费用"
         value={formatNanoUsdCost(costNanoUsd)}
         detail="USD"
       />

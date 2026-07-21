@@ -7,7 +7,6 @@ import type {
   ProxyServiceStatus,
 } from "@/features/config/types";
 import { cn } from "@/lib/utils";
-import { m } from "@/paraglide/messages.js";
 
 export type ProxyServiceViewProps = {
   status: ProxyServiceStatus | null;
@@ -25,24 +24,24 @@ function resolveBadge(status: ProxyServiceStatus | null, message: string) {
   const hasError = Boolean(message || status?.last_error);
   if (hasError) {
     return {
-      label: m.proxy_service_badge_error(),
+      label: "错误",
       variant: "destructive" as const,
     };
   }
   if (!status) {
     return {
-      label: m.proxy_service_badge_unknown(),
+      label: "未知",
       variant: "outline" as const,
     };
   }
   if (status.state === "running") {
     return {
-      label: m.proxy_service_badge_running(),
+      label: "运行中",
       variant: "default" as const,
     };
   }
   return {
-    label: m.proxy_service_badge_stopped(),
+    label: "已停止",
     variant: "secondary" as const,
   };
 }
@@ -59,13 +58,13 @@ function ProxyServiceStatusRow({ badge, addr }: ProxyServiceStatusRowProps) {
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground">
-          {m.proxy_service_state_label()}
+          状态
         </span>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground">
-          {m.proxy_service_addr_label()}
+          地址
         </span>
         <span className="font-mono text-[12px] text-foreground/80">{addr}</span>
       </div>
@@ -117,7 +116,7 @@ function ProxyServiceActions({
         size="icon-sm"
         onClick={onRefresh}
         disabled={isWorking}
-        aria-label={m.common_refresh()}
+        aria-label="刷新服务状态"
       >
         <RefreshCw
           className={cn("size-4", isWorking && "animate-spin")}
@@ -135,7 +134,7 @@ function ProxyServiceActions({
         ) : (
           <Play aria-hidden="true" />
         )}
-        {m.proxy_service_start()}
+        启动
       </Button>
       <Button
         type="button"
@@ -145,7 +144,7 @@ function ProxyServiceActions({
         disabled={isWorking || !isRunning}
       >
         <Square aria-hidden="true" />
-        {m.proxy_service_stop()}
+        停止
       </Button>
       <Button
         type="button"
@@ -155,7 +154,7 @@ function ProxyServiceActions({
         disabled={isWorking || !isRunning || isDirty}
       >
         <RotateCcw aria-hidden="true" />
-        {m.proxy_service_restart()}
+        重启
       </Button>
       <Button
         type="button"
@@ -164,7 +163,7 @@ function ProxyServiceActions({
         onClick={onReload}
         disabled={isWorking || isDirty}
       >
-        {m.proxy_service_reload_config()}
+        重新载入配置
       </Button>
     </div>
   );
@@ -180,7 +179,7 @@ function ProxyServiceDirtyNotice({ isDirty }: ProxyServiceDirtyNoticeProps) {
   }
   return (
     <div className="rounded-md border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground">
-      {m.proxy_service_unsaved_notice()}
+      当前有未保存的更改。保存后才能重启服务或重新载入配置。
     </div>
   );
 }
@@ -237,10 +236,10 @@ export function ProxyServicePanel({
     >
       <div className="space-y-1">
         <p className="text-[15px] font-semibold leading-5 text-foreground">
-          {m.proxy_service_title()}
+          代理服务
         </p>
         <p className="text-[13px] leading-5 text-muted-foreground">
-          {m.proxy_service_desc()}
+          查看运行状态，并安全地启动、停止或重新载入服务。
         </p>
       </div>
       <ProxyServiceContent {...props} />

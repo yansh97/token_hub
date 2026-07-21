@@ -1,7 +1,8 @@
-import { CirclePlus, HelpCircle } from "lucide-react";
+import { CirclePlus } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FieldRequirement } from "@/components/ui/field-meta";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -13,11 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { AvailableModelsEditor } from "@/features/config/cards/upstreams/available-models-editor";
 import { ConvertFromMapEditor } from "@/features/config/cards/upstreams/convert-from-map-editor";
 import {
@@ -33,7 +29,6 @@ import type {
   KiroPreferredEndpoint,
   UpstreamForm,
 } from "@/features/config/types";
-import { m } from "@/paraglide/messages.js";
 
 const KIRO_ENDPOINT_INHERIT = "inherit";
 
@@ -43,10 +38,10 @@ const KIRO_ENDPOINT_OPTIONS: ReadonlyArray<{
 }> = [
   {
     value: KIRO_ENDPOINT_INHERIT,
-    label: () => m.kiro_preferred_endpoint_inherit(),
+    label: () => "使用全局",
   },
-  { value: "ide", label: () => m.kiro_preferred_endpoint_ide() },
-  { value: "cli", label: () => m.kiro_preferred_endpoint_cli() },
+  { value: "ide", label: () => "IDE（CodeWhisperer）" },
+  { value: "cli", label: () => "CLI（Amazon Q）" },
 ];
 
 function isKiroPreferredEndpoint(
@@ -68,10 +63,12 @@ function isLockedAccountBackedUpstream(draft: UpstreamForm) {
 
 export type UpstreamEditorFieldsProps = {
   draft: UpstreamForm;
+  errors?: Readonly<Record<string, string>>;
   providerOptions: readonly string[];
   showApiKeys: boolean;
   onToggleApiKeys: () => void;
   onChangeDraft: (patch: Partial<UpstreamForm>) => void;
+  onFieldBlur?: (field: string) => void;
 };
 
 type EditorSectionProps = {
@@ -81,8 +78,8 @@ type EditorSectionProps = {
 
 function EditorSection({ title, children }: EditorSectionProps) {
   return (
-    <section className="space-y-4 border-b pb-5 last:border-b-0 last:pb-0">
-      <h3 className="text-sm font-semibold">{title}</h3>
+    <section className="space-y-2.5 border-b pb-3.5 last:border-b-0 last:pb-0">
+      <h3 className="text-[13px] font-semibold leading-5">{title}</h3>
       {children}
     </section>
   );
@@ -90,18 +87,22 @@ function EditorSection({ title, children }: EditorSectionProps) {
 
 type UpstreamConnectionFieldsProps = {
   draft: UpstreamForm;
+  errors: Readonly<Record<string, string>>;
   providerOptions: readonly string[];
   showApiKeys: boolean;
   onToggleApiKeys: () => void;
   onChangeDraft: (patch: Partial<UpstreamForm>) => void;
+  onFieldBlur: (field: string) => void;
 };
 
 function UpstreamConnectionFields({
   draft,
+  errors,
   providerOptions,
   showApiKeys,
   onToggleApiKeys,
   onChangeDraft,
+  onFieldBlur,
 }: UpstreamConnectionFieldsProps) {
   const providers = draft.providers
     .map((value) => value.trim())
@@ -114,24 +115,22 @@ function UpstreamConnectionFields({
     : KIRO_ENDPOINT_INHERIT;
 
   return (
-    <div className="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-4 gap-y-4">
-      <EditorField
-        label={m.upstreams_column_provider()}
-        tooltip={m.field_provider_tip()}
-      >
+    <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
+      <EditorField label={"接口格式"} required error={errors.providers}>
         <ProviderMultiSelect
           providerOptions={providerOptions}
           value={draft.providers}
           disabled={isLocked}
+          error={errors.providers}
           onChange={(next) => onChangeDraft({ providers: next })}
         />
       </EditorField>
 
       {isKiro ? (
         <EditorField
-          label={m.field_kiro_preferred_endpoint()}
-          tooltip={m.field_kiro_preferred_endpoint_tip()}
+          label={"Kiro 端点"}
           htmlFor="upstream-editor-kiro-endpoint"
+          required={false}
         >
           <Select
             value={kiroEndpointValue}
@@ -162,37 +161,93 @@ function UpstreamConnectionFields({
       {isAccountBackedProvider ? null : (
         <>
           <EditorField
-            label={m.field_base_url()}
-            tooltip={m.field_base_url_tip()}
+            label={"Base URL"}
             htmlFor="upstream-editor-baseUrl"
+            required
+            error={errors.baseUrl}
           >
             <Input
               id="upstream-editor-baseUrl"
+              required
+              aria-invalid={Boolean(errors.baseUrl)}
+              aria-describedby={
+                errors.baseUrl ? "upstream-editor-baseUrl-error" : undefined
+              }
               value={draft.baseUrl}
               onChange={(event) =>
                 onChangeDraft({ baseUrl: event.target.value })
               }
+              onBlur={() => onFieldBlur("baseUrl")}
               placeholder="https://api.openai.com"
             />
           </EditorField>
           <EditorField
-            label={m.field_api_key()}
-            tooltip={m.field_api_key_tip()}
+            label={"API Keys"}
             htmlFor="upstream-editor-apiKeys"
+            required={false}
+            error={errors.apiKeys}
           >
             <PasswordInput
               id="upstream-editor-apiKeys"
+              aria-invalid={Boolean(errors.apiKeys)}
+              aria-describedby={
+                errors.apiKeys ? "upstream-editor-apiKeys-error" : undefined
+              }
               visible={showApiKeys}
               onVisibilityChange={onToggleApiKeys}
               value={draft.apiKeys}
               onChange={(event) =>
                 onChangeDraft({ apiKeys: event.target.value })
               }
-              placeholder={m.common_optional()}
+              onBlur={() => onFieldBlur("apiKeys")}
+              placeholder="sk-xxxxxxxxxxxx"
             />
           </EditorField>
         </>
       )}
+
+      <EditorField
+        label={"ID"}
+        htmlFor="upstream-editor-id"
+        required
+        error={errors.id}
+      >
+        <Input
+          id="upstream-editor-id"
+          required
+          aria-invalid={Boolean(errors.id)}
+          aria-describedby={errors.id ? "upstream-editor-id-error" : undefined}
+          value={draft.id}
+          disabled={isLocked}
+          onChange={(event) => onChangeDraft({ id: event.target.value })}
+          onBlur={() => onFieldBlur("id")}
+          placeholder="openai"
+        />
+      </EditorField>
+
+      <EditorField
+        label={"优先级"}
+        help={"整数，数值越大优先级越高；相同优先级按列表顺序选择。"}
+        htmlFor="upstream-editor-priority"
+        required
+        error={errors.priority}
+      >
+        <Input
+          id="upstream-editor-priority"
+          required
+          aria-invalid={Boolean(errors.priority)}
+          aria-describedby={`upstream-editor-priority-help${
+            errors.priority ? " upstream-editor-priority-error" : ""
+          }`}
+          value={draft.priority}
+          onChange={(event) =>
+            onChangeDraft({ priority: event.target.value })
+          }
+          onBlur={() => onFieldBlur("priority")}
+          placeholder="100"
+          inputMode="numeric"
+        />
+      </EditorField>
     </div>
   );
 }
@@ -204,30 +259,23 @@ type UpstreamOpenAIResponsesFieldsProps = {
 
 function CompatibilitySwitch({
   label,
-  tooltip,
+  help,
   ariaLabel,
   checked,
   onCheckedChange,
 }: {
   label: string;
-  tooltip: string;
+  help: string;
   ariaLabel: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="col-span-2 flex items-center justify-between gap-4 rounded-md border px-3 py-2">
-      <Label className="inline-flex items-center gap-1 font-normal">
-        {label}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <HelpCircle className="size-3.5 cursor-help text-muted-foreground" />
-          </TooltipTrigger>
-          <TooltipContent side="right" className="max-w-xs">
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      </Label>
+    <div className="flex min-h-9 items-center justify-between gap-4 py-2 last:pb-0">
+      <div className="min-w-0 space-y-0.5">
+        <Label className="font-normal">{label}</Label>
+        <p className="text-[11px] leading-4 text-muted-foreground">{help}</p>
+      </div>
       <Switch
         checked={checked}
         onCheckedChange={onCheckedChange}
@@ -250,12 +298,15 @@ function UpstreamOpenAIResponsesFields({
   }
 
   return (
-    <div data-slot="upstream-compatibility-fields" className="contents">
+    <div
+      data-slot="upstream-compatibility-fields"
+      className="col-span-2 divide-y border-t"
+    >
       {isOpenaiResponses ? (
         <CompatibilitySwitch
-          label={m.field_use_chat_completions_for_responses()}
-          tooltip={m.field_use_chat_completions_for_responses_tip()}
-          ariaLabel={m.field_use_chat_completions_for_responses_aria()}
+          label={"Responses 使用 chat/completions"}
+          help={"将 /v1/responses 请求改走 /v1/chat/completions，并转换返回格式。"}
+          ariaLabel={"切换 Responses 经由 chat/completions"}
           checked={draft.useChatCompletionsForResponses}
           onCheckedChange={(checked) =>
             onChangeDraft({ useChatCompletionsForResponses: checked })
@@ -265,18 +316,18 @@ function UpstreamOpenAIResponsesFields({
       {isOpenaiResponses ? (
         <>
           <CompatibilitySwitch
-            label={m.field_filter_prompt_cache_retention()}
-            tooltip={m.field_filter_prompt_cache_retention_tip()}
-            ariaLabel={m.field_filter_prompt_cache_retention_aria()}
+            label={"移除 prompt_cache_retention"}
+            help={"转发 /v1/responses 前移除 prompt_cache_retention。"}
+            ariaLabel={"切换 prompt_cache_retention"}
             checked={draft.filterPromptCacheRetention}
             onCheckedChange={(checked) =>
               onChangeDraft({ filterPromptCacheRetention: checked })
             }
           />
           <CompatibilitySwitch
-            label={m.field_filter_safety_identifier()}
-            tooltip={m.field_filter_safety_identifier_tip()}
-            ariaLabel={m.field_filter_safety_identifier_aria()}
+            label={"移除 safety_identifier"}
+            help={"转发 /v1/responses 前移除 safety_identifier。"}
+            ariaLabel={"切换 safety_identifier"}
             checked={draft.filterSafetyIdentifier}
             onCheckedChange={(checked) =>
               onChangeDraft({ filterSafetyIdentifier: checked })
@@ -285,9 +336,9 @@ function UpstreamOpenAIResponsesFields({
         </>
       ) : null}
       <CompatibilitySwitch
-        label={m.field_rewrite_developer_role_to_system()}
-        tooltip={m.field_rewrite_developer_role_to_system_tip()}
-        ariaLabel={m.field_rewrite_developer_role_to_system_aria()}
+        label={"将 developer 角色改写为 system"}
+        help={"转发前将 OpenAI 兼容消息中的 developer 角色改写为 system。"}
+        ariaLabel={"切换 developer 角色改写"}
         checked={draft.rewriteDeveloperRoleToSystem}
         onCheckedChange={(checked) =>
           onChangeDraft({ rewriteDeveloperRoleToSystem: checked })
@@ -299,8 +350,11 @@ function UpstreamOpenAIResponsesFields({
 
 function UpstreamModelMappingFields({
   draft,
+  errors,
   onChangeDraft,
-}: UpstreamOpenAIResponsesFieldsProps) {
+}: UpstreamOpenAIResponsesFieldsProps & {
+  errors: Readonly<Record<string, string>>;
+}) {
   const handleAdd = () => {
     onChangeDraft({
       modelMappings: [...draft.modelMappings, createModelMapping()],
@@ -310,44 +364,46 @@ function UpstreamModelMappingFields({
   return (
     <div
       data-slot="upstream-model-mapping-fields"
-      className="col-span-2 space-y-2"
+      className="contents"
     >
-      <div className="flex items-center gap-2">
-        <Label className="inline-flex items-center gap-1">
-          {m.field_model_mappings()}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <HelpCircle className="size-3.5 cursor-help text-muted-foreground" />
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs">
-              {m.model_mappings_tip()}
-            </TooltipContent>
-          </Tooltip>
+      <div className="flex items-center gap-1 self-start">
+        <Label className="gap-1.5">
+          <span>{"模型映射"}</span>
+          <FieldRequirement required={false} />
         </Label>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label={m.model_mappings_add()}
+          aria-label={"添加映射"}
           onClick={handleAdd}
         >
           <CirclePlus className="size-4" aria-hidden="true" />
         </Button>
       </div>
-      {draft.modelMappings.length ? (
-        <ModelMappingsEditor
-          mappings={draft.modelMappings}
-          onChange={(modelMappings) => onChangeDraft({ modelMappings })}
-        />
-      ) : null}
+      <div className="min-w-0 space-y-2">
+        {draft.modelMappings.length ? (
+          <ModelMappingsEditor
+            mappings={draft.modelMappings}
+            errors={errors}
+            onChange={(modelMappings) => onChangeDraft({ modelMappings })}
+          />
+        ) : null}
+        <p className="text-[11px] leading-4 text-muted-foreground">
+          精确：gpt-4，前缀：gpt-4*，通配：*；按精确、前缀、通配顺序匹配。
+        </p>
+      </div>
     </div>
   );
 }
 
 function UpstreamHeaderOverrideFields({
   draft,
+  errors,
   onChangeDraft,
-}: UpstreamOpenAIResponsesFieldsProps) {
+}: UpstreamOpenAIResponsesFieldsProps & {
+  errors: Readonly<Record<string, string>>;
+}) {
   const handleAdd = () => {
     const next: HeaderOverrideForm = {
       id: `header-override-${Date.now()}-${draft.overrides.header.length}`,
@@ -361,36 +417,35 @@ function UpstreamHeaderOverrideFields({
   return (
     <div
       data-slot="upstream-header-override-fields"
-      className="col-span-2 space-y-2"
+      className="contents"
     >
-      <div className="flex items-center gap-2">
-        <Label className="inline-flex items-center gap-1">
-          {m.field_header_overrides()}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <HelpCircle className="size-3.5 cursor-help text-muted-foreground" />
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs">
-              {m.header_overrides_tip()}
-            </TooltipContent>
-          </Tooltip>
+      <div className="flex items-center gap-1 self-start">
+        <Label className="gap-1.5">
+          <span>{"请求头覆盖"}</span>
+          <FieldRequirement required={false} />
         </Label>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label={m.header_overrides_add()}
+          aria-label={"添加请求头"}
           onClick={handleAdd}
         >
           <CirclePlus className="size-4" aria-hidden="true" />
         </Button>
       </div>
-      {draft.overrides.header.length ? (
-        <HeaderOverridesEditor
-          overrides={draft.overrides.header}
-          onChange={(header) => onChangeDraft({ overrides: { header } })}
-        />
-      ) : null}
+      <div className="min-w-0 space-y-2">
+        {draft.overrides.header.length ? (
+          <HeaderOverridesEditor
+            overrides={draft.overrides.header}
+            errors={errors}
+            onChange={(header) => onChangeDraft({ overrides: { header } })}
+          />
+        ) : null}
+        <p className="text-[11px] leading-4 text-muted-foreground">
+          在鉴权请求头之后应用；关闭表示删除该请求头，空值表示发送空字符串。
+        </p>
+      </div>
     </div>
   );
 }
@@ -399,46 +454,15 @@ type UpstreamAdvancedFieldsProps = UpstreamOpenAIResponsesFieldsProps;
 
 function UpstreamAdvancedFields({
   draft,
+  errors,
   onChangeDraft,
-}: UpstreamAdvancedFieldsProps) {
-  const isLocked = isLockedAccountBackedUpstream(draft);
-
+}: UpstreamAdvancedFieldsProps & {
+  errors: Readonly<Record<string, string>>;
+}) {
   return (
-    <section className="space-y-4">
-      <h3 className="text-sm font-semibold">
-        {m.upstreams_section_advanced()}
-      </h3>
-      <div className="grid grid-cols-[minmax(7rem,auto)_1fr] items-center gap-x-4 gap-y-4">
-        <EditorField
-          label={m.field_id()}
-          tooltip={m.field_id_tip()}
-          htmlFor="upstream-editor-id"
-        >
-          <Input
-            id="upstream-editor-id"
-            value={draft.id}
-            disabled={isLocked}
-            onChange={(event) => onChangeDraft({ id: event.target.value })}
-            placeholder="openai-default"
-          />
-        </EditorField>
-
-        <EditorField
-          label={m.field_priority()}
-          tooltip={m.field_priority_tip()}
-          htmlFor="upstream-editor-priority"
-        >
-          <Input
-            id="upstream-editor-priority"
-            value={draft.priority}
-            onChange={(event) =>
-              onChangeDraft({ priority: event.target.value })
-            }
-            placeholder="0"
-            inputMode="numeric"
-          />
-        </EditorField>
-
+    <section className="space-y-2.5">
+      <h3 className="text-[13px] font-semibold leading-5">高级设置</h3>
+      <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
         <ConvertFromMapEditor
           key={draft.providers.join("|")}
           providers={draft.providers}
@@ -447,10 +471,12 @@ function UpstreamAdvancedFields({
         />
         <UpstreamModelMappingFields
           draft={draft}
+          errors={errors}
           onChangeDraft={onChangeDraft}
         />
         <UpstreamHeaderOverrideFields
           draft={draft}
+          errors={errors}
           onChangeDraft={onChangeDraft}
         />
         <UpstreamOpenAIResponsesFields
@@ -464,32 +490,41 @@ function UpstreamAdvancedFields({
 
 export function UpstreamEditorFields({
   draft,
+  errors = {},
   providerOptions,
   showApiKeys,
   onToggleApiKeys,
   onChangeDraft,
+  onFieldBlur = () => undefined,
 }: UpstreamEditorFieldsProps) {
   return (
-    <div data-slot="upstream-editor-fields" className="space-y-5">
-      <EditorSection title={m.upstreams_section_connection()}>
+    <div data-slot="upstream-editor-fields" className="space-y-4">
+      <EditorSection title={"连接"}>
         <UpstreamConnectionFields
           draft={draft}
+          errors={errors}
           providerOptions={providerOptions}
           showApiKeys={showApiKeys}
           onToggleApiKeys={onToggleApiKeys}
           onChangeDraft={onChangeDraft}
+          onFieldBlur={onFieldBlur}
         />
       </EditorSection>
 
-      <EditorSection title={m.upstreams_section_models()}>
+      <EditorSection title={"模型访问"}>
         <AvailableModelsEditor
           key={draft.providers.join("|")}
           draft={draft}
+          error={errors.availableModels}
           onChangeDraft={onChangeDraft}
         />
       </EditorSection>
 
-      <UpstreamAdvancedFields draft={draft} onChangeDraft={onChangeDraft} />
+      <UpstreamAdvancedFields
+        draft={draft}
+        errors={errors}
+        onChangeDraft={onChangeDraft}
+      />
     </div>
   );
 }

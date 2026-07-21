@@ -1,28 +1,27 @@
 import type { UpstreamColumnDefinition } from "@/features/config/cards/upstreams/types";
-import { m } from "@/paraglide/messages.js";
 
 export const UPSTREAM_COLUMNS: readonly UpstreamColumnDefinition[] = [
   {
     id: "id",
-    label: () => m.upstreams_column_id(),
+    label: () => "标识",
     headerClassName: "w-[16%]",
     cellClassName: "w-[16%]",
   },
   {
     id: "provider",
-    label: () => m.upstreams_column_provider(),
+    label: () => "接口格式",
     headerClassName: "w-[42%]",
     cellClassName: "w-[42%]",
   },
   {
     id: "priority",
-    label: () => m.upstreams_column_priority(),
+    label: () => "优先级",
     headerClassName: "w-[10%]",
     cellClassName: "w-[10%]",
   },
   {
     id: "status",
-    label: () => m.upstreams_column_status(),
+    label: () => "状态",
     headerClassName: "w-[12%]",
     cellClassName: "w-[12%]",
   },
@@ -34,6 +33,20 @@ export const PROTOCOL_OPTIONS = [
   "anthropic",
   "gemini",
 ] as const;
+
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI",
+  "openai-response": "OpenAI Responses",
+  anthropic: "Anthropic",
+  gemini: "Gemini",
+  codex: "Codex 账户",
+  kiro: "Kiro 账户",
+  antigravity: "Antigravity 账户",
+};
+
+export function getProviderLabel(provider: string) {
+  return PROVIDER_LABELS[provider] ?? provider;
+}
 
 export function mergeProviderOptions(values: readonly string[]) {
   const seen = new Set<string>();
@@ -54,9 +67,9 @@ export function mergeProviderOptions(values: readonly string[]) {
 }
 
 export function toStatusLabel(enabled: boolean) {
-  return enabled ? m.common_enabled() : m.common_disabled();
+  return enabled ? "已启用" : "已停用";
 }
 
 export function getUpstreamLabel(index: number) {
-  return m.upstreams_upstream_n({ number: String(index + 1) });
+  return `提供商 ${index + 1}`;
 }

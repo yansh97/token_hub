@@ -6,8 +6,6 @@ import {
   Settings,
 } from "lucide-react";
 
-import { m } from "@/paraglide/messages.js";
-
 export type ConfigSectionId =
   | "dashboard"
   | "logs"
@@ -16,43 +14,36 @@ export type ConfigSectionId =
 
 export type ConfigEditorSectionId = Extract<ConfigSectionId, "upstreams" | "settings">;
 
-export type ConfigSectionRoute = `/config/${ConfigSectionId}`;
-
 export type ConfigSection = {
   id: ConfigSectionId;
-  route: ConfigSectionRoute;
-  label: () => string;
-  description: () => string;
+  label: string;
+  description: string;
   icon: LucideIcon;
 };
 
 export const CONFIG_SECTIONS: readonly ConfigSection[] = [
   {
     id: "dashboard",
-    route: "/config/dashboard",
-    label: () => m.config_section_dashboard_label(),
-    description: () => m.config_section_dashboard_desc(),
+    label: "仪表盘",
+    description: "请求与 Token 使用",
     icon: LayoutDashboard,
   },
   {
     id: "upstreams",
-    route: "/config/upstreams",
-    label: () => m.config_section_upstreams_label(),
-    description: () => m.config_section_upstreams_desc(),
+    label: "提供商",
+    description: "提供商、协议与模型配置",
     icon: Server,
   },
   {
     id: "logs",
-    route: "/config/logs",
-    label: () => m.config_section_logs_label(),
-    description: () => m.config_section_logs_desc(),
+    label: "日志",
+    description: "请求日志与详情",
     icon: ScrollText,
   },
   {
     id: "settings",
-    route: "/config/settings",
-    label: () => m.config_section_settings_label(),
-    description: () => m.config_section_settings_desc(),
+    label: "设置",
+    description: "服务、代理与应用设置",
     icon: Settings,
   },
 ] as const;
@@ -86,20 +77,4 @@ export function getSection(sectionId: ConfigSectionId) {
 
 export function findSection(sectionId: ConfigSectionId) {
   return getSection(sectionId);
-}
-
-export function getSectionRoute(sectionId: ConfigSectionId) {
-  return getSection(sectionId).route;
-}
-
-export function getSectionIdFromPathname(pathname: string) {
-  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
-  if (normalizedPathname === "/config") {
-    return DEFAULT_CONFIG_SECTION;
-  }
-  if (!normalizedPathname.startsWith("/config/")) {
-    return DEFAULT_CONFIG_SECTION;
-  }
-  const section = normalizedPathname.slice("/config/".length);
-  return toConfigSectionId(section) ?? DEFAULT_CONFIG_SECTION;
 }

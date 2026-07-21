@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_FORM,
   createEmptyUpstream,
+  createModelMapping,
   extractConfigExtras,
   mergeConfigExtras,
   syncAccountBackedUpstreams,
   toForm,
   toPayload,
   validate,
+  validateUpstreamDraft,
 } from "@/features/config/form";
 
 describe("config/form", () => {
@@ -19,6 +21,8 @@ describe("config/form", () => {
   it("validates port range", () => {
     expect(validate({ ...EMPTY_FORM, port: "70000" }).valid).toBe(false);
     expect(validate({ ...EMPTY_FORM, port: "0" }).valid).toBe(false);
+    expect(validate({ ...EMPTY_FORM, port: "9208x" }).valid).toBe(false);
+    expect(validate({ ...EMPTY_FORM, port: "1.5" }).valid).toBe(false);
     expect(validate({ ...EMPTY_FORM, port: "9208" }).valid).toBe(true);
   });
 
@@ -143,30 +147,75 @@ describe("config/form", () => {
     ).toBe(true);
   });
 
-  it("treats disabled upstream as draft (still requires id)", () => {
+  it("validates disabled upstreams as complete configurations", () => {
     const upstream = createEmptyUpstream();
     upstream.id = "u1";
     upstream.enabled = false;
     upstream.providers = [];
     upstream.baseUrl = "";
 
-    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(true);
+    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(false);
   });
 
-  it("creates new upstream with default airouter template", () => {
+  it("requires provider priority even when the provider is disabled", () => {
+    const upstream = createEmptyUpstream();
+    upstream.id = "u1";
+    upstream.baseUrl = "https://example.com";
+    upstream.enabled = false;
+    upstream.priority = "";
+
+    const result = validate({ ...EMPTY_FORM, upstreams: [upstream] });
+
+    expect(result.valid).toBe(false);
+    expect(result.message).toBe("优先级不能为空。");
+  });
+
+  it("returns field-level errors for provider editor validation", () => {
+    const upstream = createEmptyUpstream();
+    upstream.id = "existing";
+    upstream.baseUrl = "not-a-url";
+    upstream.priority = "1.5";
+    upstream.modelMappings = [createModelMapping("", "")];
+
+    const result = validateUpstreamDraft({
+      draft: upstream,
+      upstreams: [{ ...upstream, baseUrl: "https://example.com" }],
+      index: null,
+      appProxyUrl: "",
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.id).toContain("已存在");
+    expect(result.errors.baseUrl).toContain("HTTP");
+    expect(result.errors.priority).toContain("整数");
+    expect(
+      Object.keys(result.errors).some((key) => key.endsWith(".pattern")),
+    ).toBe(true);
+    expect(
+      Object.keys(result.errors).some((key) => key.endsWith(".target")),
+    ).toBe(true);
+  });
+
+  it("creates a mostly empty upstream draft", () => {
     const upstream = createEmptyUpstream();
 
-    expect(upstream.id).toBe("airouter.mxyhi.com");
-    expect(upstream.baseUrl).toBe("https://airouter.mxyhi.com");
+    expect(upstream.id).toBe("");
+    expect(upstream.baseUrl).toBe("");
     expect(upstream.providers).toEqual([
       "openai",
       "openai-response",
       "anthropic",
       "gemini",
     ]);
-    expect(upstream.priority).toBe("19");
+    expect(upstream.priority).toBe("100");
     expect(upstream.enabled).toBe(false);
-    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(true);
+    expect(upstream.availableModelsMode).toBe("all");
+    expect(validate({ ...EMPTY_FORM, upstreams: [upstream] }).valid).toBe(false);
+  });
+
+  it("uses development app defaults", () => {
+    expect(EMPTY_FORM.port).toBe("19208");
+    expect(EMPTY_FORM.logLevel).toBe("silent");
   });
 
   it("extracts and merges unknown config keys as extras", () => {

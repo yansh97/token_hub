@@ -62,7 +62,6 @@ function buildAppViewProps({
     statusMessage: state.statusMessage,
     canSave: derived.canSave,
     isDirty: derived.isDirty,
-    validation: derived.validation,
     onToggleLocalKey: () => state.setShowLocalKey((value) => !value),
     onToggleUpstreamKeys: () => state.setShowUpstreamKeys((value) => !value),
     onFormChange: state.updateForm,

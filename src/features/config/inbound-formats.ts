@@ -11,10 +11,10 @@ export const INBOUND_FORMAT_OPTIONS: ReadonlyArray<{
   value: InboundApiFormat;
   label: string;
 }> = [
-  { value: "openai_chat", label: "/v1/chat/completions" },
-  { value: "openai_responses", label: "/v1/responses" },
-  { value: "anthropic_messages", label: "/v1/messages" },
-  { value: "gemini", label: "Gemini (/v1beta/...)" },
+  { value: "openai_chat", label: "OpenAI" },
+  { value: "openai_responses", label: "OpenAI Responses" },
+  { value: "anthropic_messages", label: "Anthropic" },
+  { value: "gemini", label: "Gemini" },
 ];
 
 /**

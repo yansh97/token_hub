@@ -11,8 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LogsPanel } from "@/features/logs/LogsPanel";
 import type { DashboardSnapshotQuery } from "@/features/dashboard/types";
 import type { RequestLogDetail } from "@/features/logs/types";
-import { I18nProvider } from "@/lib/i18n";
-import { m } from "@/paraglide/messages.js";
 
 vi.mock("@/features/dashboard/components/data-table", () => ({
   DataTable: ({
@@ -87,11 +85,7 @@ vi.mock("@/features/logs/api", () => ({
 }));
 
 function renderPanel() {
-  return render(
-    <I18nProvider>
-      <LogsPanel />
-    </I18nProvider>,
-  );
+  return render(<LogsPanel />);
 }
 
 function createRequestLogDetail(
@@ -119,6 +113,10 @@ function createRequestLogDetail(
     pricingModel: "gpt-5.5",
     pricingContextTier: "short",
     latencyMs: 30,
+    upstreamResponseHeadersMs: 10,
+    upstreamFirstBodyChunkMs: 12,
+    firstClientFlushMs: 20,
+    firstOutputMs: 30,
     upstreamRequestId: "req-1",
     usageJson: null,
     requestHeaders: null,
@@ -435,10 +433,10 @@ describe("logs/LogsPanel", () => {
       );
     });
 
-    await user.click(screen.getByRole("combobox", {
-      name: m.dashboard_upstream_label(),
-    }));
-    await user.click(await screen.findByRole("option", { name: "alpha" }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "提供商" }),
+      "alpha",
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("logs-items")).toHaveTextContent("alpha");
@@ -452,10 +450,10 @@ describe("logs/LogsPanel", () => {
       model: null,
     });
 
-    await user.click(screen.getByRole("combobox", {
-      name: m.dashboard_model_label(),
-    }));
-    await user.click(await screen.findByRole("option", { name: "gpt-5" }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "模型" }),
+      "gpt-5",
+    );
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
@@ -477,7 +475,10 @@ describe("logs/LogsPanel", () => {
     });
 
     const panel = screen.getByTestId("logs-panel");
+    const filters = document.querySelector('[data-slot="dashboard-filters"]');
     expect(panel).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
+    expect(filters).toHaveAttribute("data-sticky", "false");
+    expect(filters).not.toHaveClass("sticky");
   });
 
   it("refreshes logs without refreshing dashboard model discovery", async () => {
@@ -492,7 +493,7 @@ describe("logs/LogsPanel", () => {
     });
     expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: m.common_refresh() }));
+    await user.click(screen.getByRole("button", { name: "刷新" }));
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
@@ -512,12 +513,12 @@ describe("logs/LogsPanel", () => {
     await waitFor(() => {
       expect(screen.getByTestId("logs-items")).toHaveTextContent("alpha");
     });
-    expect(screen.queryByText(m.logs_capture_title())).not.toBeInTheDocument();
+    expect(screen.queryByText("记录请求详情")).not.toBeInTheDocument();
     expect(screen.queryByText("Permanent")).not.toBeInTheDocument();
     expect(screen.queryByText("永久")).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: m.logs_capture_start() }),
+      screen.getByRole("button", { name: "记录 10 分钟请求详情" }),
     );
 
     await waitFor(() => {
@@ -526,7 +527,7 @@ describe("logs/LogsPanel", () => {
     expect(setRequestDetailCaptureMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows account id in the provider field inside request detail", async () => {
+  it("splits the provider id from the interface format", async () => {
     const user = userEvent.setup();
 
     renderPanel();
@@ -545,8 +546,25 @@ describe("logs/LogsPanel", () => {
       expect(readRequestLogDetailMock).toHaveBeenCalledWith(1);
     });
 
-    const providerValues = await screen.findAllByText("alpha · codex-a.json");
+    const providerValues = await screen.findAllByText("alpha");
     expect(providerValues.length).toBeGreaterThan(0);
+    expect(screen.getByText("接口格式")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "复制全部" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "用量详情" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "请求头" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "请求体" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "错误响应" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the latest selected request detail when an older response resolves later", async () => {
@@ -580,7 +598,7 @@ describe("logs/LogsPanel", () => {
     });
 
     await user.click(firstRow);
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "关闭" }));
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
@@ -611,6 +629,7 @@ describe("logs/LogsPanel", () => {
     expect(
       await screen.findByText("latest-response-model"),
     ).toBeInTheDocument();
+    expect(screen.getByText("OpenAI Responses")).toBeInTheDocument();
 
     await act(async () => {
       resolveFirst!(
@@ -646,26 +665,46 @@ describe("logs/LogsPanel", () => {
       expect(readRequestLogDetailMock).toHaveBeenCalledWith(1);
     });
 
-    const statusLabel = await screen.findByText(m.dashboard_table_status());
+    const statusLabel = await screen.findByText("状态");
     expect(statusLabel.closest("div")).toHaveClass(
       "grid",
-      "grid-cols-[8.5rem_minmax(0,1fr)]",
+      "grid-cols-[7.5rem_minmax(0,1fr)]",
     );
     expect(statusLabel.closest("div")?.parentElement).toHaveClass(
       "lg:grid-cols-2",
     );
+    expect(
+      screen.getByRole("heading", { name: "请求" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "路由与计费" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "耗时" }),
+    ).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="request-detail-groups"]'),
+    ).not.toHaveClass("rounded-lg", "border");
 
-    const statusValue = screen.getByText("200");
+    const statusValue = screen.getByText("200 成功");
     expect(statusValue).toHaveClass("justify-self-start");
 
-    const latencyLabel = screen.getByText(m.dashboard_table_latency_ms());
+    const latencyLabel = screen.getByText("上游响应头");
     expect(latencyLabel.closest("div")).toHaveClass(
       "grid",
-      "grid-cols-[8.5rem_minmax(0,1fr)]",
+      "grid-cols-[7.5rem_minmax(0,1fr)]",
     );
+    expect(screen.getByText("30 ms")).toBeInTheDocument();
+    expect(screen.getByText("请求 ID")).toBeInTheDocument();
+    expect(screen.getByText("#1")).toBeInTheDocument();
+    expect(screen.getByText("响应模式")).toBeInTheDocument();
+    expect(screen.getByText("非流式")).toBeInTheDocument();
+    expect(screen.getByText("代理首块")).toBeInTheDocument();
+    expect(screen.getByText("代理有效输出")).toBeInTheDocument();
+    expect(screen.queryByText("总耗时")).not.toBeInTheDocument();
   });
 
-  it("shows local instead of the localhost IP in request detail", async () => {
+  it("shows the local client label instead of a loopback IP", async () => {
     const user = userEvent.setup();
     readRequestLogDetailMock.mockResolvedValueOnce(
       createRequestLogDetail({ clientIp: "127.0.0.1" }),
@@ -687,11 +726,11 @@ describe("logs/LogsPanel", () => {
       expect(readRequestLogDetailMock).toHaveBeenCalledWith(1);
     });
 
-    expect(await screen.findByText("local")).toBeInTheDocument();
+    expect(await screen.findByText("本机")).toBeInTheDocument();
     expect(screen.queryByText("127.0.0.1")).not.toBeInTheDocument();
   });
 
-  it("shows logged cost and pricing metadata inside request detail", async () => {
+  it("shows useful pricing metadata without the internal pricing version", async () => {
     const user = userEvent.setup();
 
     renderPanel();
@@ -711,21 +750,20 @@ describe("logs/LogsPanel", () => {
     });
 
     expect(
-      await screen.findByText(m.dashboard_table_cost()),
+      await screen.findByText("费用"),
     ).toBeInTheDocument();
-    expect(screen.getByText("1.21")).toBeInTheDocument();
-    expect(screen.queryByText("$1.21")).not.toBeInTheDocument();
-    expect(screen.getByText(m.logs_detail_pricing_model())).toBeInTheDocument();
+    expect(screen.getByText("$1.21")).toBeInTheDocument();
+    expect(screen.getByText("计费模型")).toBeInTheDocument();
     expect(screen.getByText("gpt-5.5")).toBeInTheDocument();
+    expect(screen.queryByText("计费档位")).not.toBeInTheDocument();
+    expect(screen.queryByText("上游请求 ID")).not.toBeInTheDocument();
+    expect(screen.queryByText("req-1")).not.toBeInTheDocument();
     expect(
-      screen.getByText(m.logs_detail_pricing_context_short()),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("2026-05-02.openai-openrouter-v1"),
-    ).toBeInTheDocument();
+      screen.queryByText("2026-05-02.openai-openrouter-v1"),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows image output tokens from request usage detail", async () => {
+  it("keeps image token data in usage detail without a duplicate field", async () => {
     const user = userEvent.setup();
     readRequestLogDetailMock.mockResolvedValueOnce(
       createRequestLogDetail({
@@ -753,10 +791,44 @@ describe("logs/LogsPanel", () => {
       expect(readRequestLogDetailMock).toHaveBeenCalledWith(1);
     });
 
+    expect(screen.queryByText("图片 Token 数")).not.toBeInTheDocument();
     expect(
-      await screen.findByText(m.logs_detail_image_output_tokens()),
+      screen.getByRole("heading", { name: "用量详情" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(screen.queryByText("用量详情 (JSON)")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        '{"input_tokens":5,"output_tokens":9,"output_tokens_details":{"image_tokens":9}}',
+      ).closest("pre"),
+    ).toHaveClass("font-mono", "bg-muted/20");
+  });
+
+  it("preserves unknown interface formats and categorizes other status codes", async () => {
+    const user = userEvent.setup();
+    readRequestLogDetailMock.mockResolvedValueOnce(
+      createRequestLogDetail({
+        clientIp: "2001:db8::1",
+        provider: "future-format",
+        upstreamId: "custom",
+        accountId: null,
+        stream: true,
+        status: 429,
+      }),
+    );
+
+    renderPanel();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "alpha · openai · codex-a.json",
+      }),
+    );
+
+    expect(await screen.findByText("custom")).toBeInTheDocument();
+    expect(screen.getByText("future-format")).toBeInTheDocument();
+    expect(screen.getByText("2001:db8::1")).toBeInTheDocument();
+    expect(screen.getByText("流式")).toBeInTheDocument();
+    expect(screen.getByText("429 客户端错误")).toBeInTheDocument();
   });
 
   it("shows response body when available", async () => {
@@ -805,6 +877,9 @@ describe("logs/LogsPanel", () => {
     expect(
       await screen.findByText('{"id":"resp_1","status":"completed"}'),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText('{"id":"resp_1","status":"completed"}').closest("pre"),
+    ).toHaveClass("font-mono", "bg-muted/20");
   });
 
   it("shows response error when logged response body is blank", async () => {

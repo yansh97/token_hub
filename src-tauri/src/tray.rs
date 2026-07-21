@@ -430,26 +430,27 @@ fn format_rate_title(snapshot: TokenRateSnapshot, format: TrayTokenRateFormat) -
     let has_input = snapshot.input > 0;
     let has_output = snapshot.output > 0;
     let has_tokens = has_input || has_output;
-    // ↑ 显示 input（有 input 时）或连接数（无 input 时）
-    let input_display = if has_input {
-        snapshot.input
-    } else {
-        snapshot.connections
-    };
-    // ↓ 始终显示 output
-    let output_display = snapshot.output;
     // total 显示总 token 数（有 token 时）或连接数（无 token 时）
     let total_display = if has_tokens {
         snapshot.total
     } else {
         snapshot.connections
     };
+    let has_upload_activity = has_input || snapshot.connections > 0;
+    let split_display = format_split_rate_title(has_upload_activity, snapshot.output);
     match format {
-        TrayTokenRateFormat::Combined => format!("{total_display}"),
-        TrayTokenRateFormat::Split => format!("↑{input_display} ↓{output_display}"),
-        TrayTokenRateFormat::Both => {
-            format!("{total_display} | ↑{input_display} ↓{output_display}")
-        }
+        TrayTokenRateFormat::Combined => total_display.to_string(),
+        TrayTokenRateFormat::Split => split_display,
+        TrayTokenRateFormat::Both => format!("{total_display}·{split_display}"),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn format_split_rate_title(has_upload_activity: bool, output: u64) -> String {
+    if has_upload_activity {
+        format!("↑·↓{output}")
+    } else {
+        format!("↓{output}")
     }
 }
 
@@ -525,5 +526,45 @@ mod tests {
     fn visibility_probe_fallbacks_to_hidden_when_window_missing() {
         assert!(!super::resolve_main_window_menu_visible(None, false));
         assert!(super::resolve_main_window_menu_visible(Some(true), false));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn split_tray_rate_only_shows_the_upload_marker_when_active() {
+        assert_eq!(super::format_split_rate_title(false, 0), "↓0");
+        assert_eq!(super::format_split_rate_title(false, 123), "↓123");
+        assert_eq!(super::format_split_rate_title(true, 0), "↑·↓0");
+        assert_eq!(super::format_split_rate_title(true, 123), "↑·↓123");
+        assert_eq!(super::format_split_rate_title(false, 1_234), "↓1234");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn split_tray_rate_title_has_no_separator_whitespace() {
+        let title = super::format_rate_title(
+            crate::proxy::token_rate::TokenRateSnapshot {
+                input: 842,
+                output: 123,
+                total: 965,
+                connections: 1,
+            },
+            crate::proxy::config::TrayTokenRateFormat::Split,
+        );
+        assert_eq!(title, "↑·↓123");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn active_connection_shows_upload_marker_before_input_tokens_arrive() {
+        let title = super::format_rate_title(
+            crate::proxy::token_rate::TokenRateSnapshot {
+                input: 0,
+                output: 0,
+                total: 0,
+                connections: 1,
+            },
+            crate::proxy::config::TrayTokenRateFormat::Split,
+        );
+        assert_eq!(title, "↑·↓0");
     }
 }

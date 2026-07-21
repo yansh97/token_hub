@@ -39,32 +39,6 @@ export function createCopiedUpstreamId(
   return `${prefix}-${suffix}`;
 }
 
-/**
- * 基于 providers 自动生成唯一 ID
- * - 单 provider：openai-1, openai-2
- * - 多 provider：仍以第一个 provider 作为前缀（避免 id 频繁变化）
- */
-export function createAutoUpstreamId(
-  providers: readonly string[],
-  upstreams: readonly UpstreamForm[],
-  editingIndex?: number,
-) {
-  const base = providers[0]?.trim() || "upstream";
-  const taken = new Set(
-    upstreams
-      .filter((_, index) => index !== editingIndex)
-      .map((upstream) => upstream.id.trim())
-      .filter((id) => id),
-  );
-
-  // 先尝试 provider-1
-  let suffix = 1;
-  while (taken.has(`${base}-${suffix}`)) {
-    suffix += 1;
-  }
-  return `${base}-${suffix}`;
-}
-
 export function normalizeProviders(values: readonly string[]) {
   const output: string[] = [];
   const seen = new Set<string>();
@@ -134,38 +108,6 @@ export function pruneConvertFromMap(
     output[provider] = filtered;
   }
   return output;
-}
-
-/**
- * 编辑时 ID 的期望：
- * - 编辑：切换 provider 不自动改 ID（避免统计/引用被“拆分”）
- * - 新增：切换 provider 时自动生成 provider 前缀 ID
- */
-export function resolveUpstreamIdForProviderChange(args: {
-  mode: "create" | "edit";
-  currentId: string;
-  currentProviders: readonly string[];
-  nextProviders: readonly string[];
-  upstreams: readonly UpstreamForm[];
-  editingIndex?: number;
-}) {
-  const currentPrimary = args.currentProviders[0]?.trim() ?? "";
-  const nextPrimary = args.nextProviders[0]?.trim() ?? "";
-
-  // 仅“新增”才允许根据 provider 自动改 ID；编辑中保持稳定，交给用户手动调整。
-  if (args.mode === "edit") {
-    return args.currentId;
-  }
-
-  const shouldAutoId = nextPrimary !== currentPrimary && !!nextPrimary;
-  if (!shouldAutoId) {
-    return args.currentId;
-  }
-  return createAutoUpstreamId(
-    args.nextProviders,
-    args.upstreams,
-    args.editingIndex,
-  );
 }
 
 export function cloneUpstreamDraft(upstream: UpstreamForm) {

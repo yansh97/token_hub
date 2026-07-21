@@ -1,57 +1,36 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import type { ComponentProps, ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/layouts/app-sidebar";
-import { setLocale } from "@/paraglide/runtime.js";
-
-const routerState = vi.hoisted(() => ({
-  pathname: "/config/dashboard",
-}));
-
-type RouterState = {
-  location: {
-    pathname: string;
-  };
-};
-
-type UseRouterStateArgs<T> = {
-  select?: (state: RouterState) => T;
-};
-
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    to,
-    children,
-    ...props
-  }: ComponentProps<"a"> & { to: string; children: ReactNode }) => (
-    <a href={to} {...props}>
-      {children}
-    </a>
-  ),
-  useRouterState: <T,>({ select }: UseRouterStateArgs<T>) => {
-    const state: RouterState = { location: { pathname: routerState.pathname } };
-    return select ? select(state) : state;
-  },
-}));
 
 describe("layouts/AppSidebar", () => {
   afterEach(() => {
     cleanup();
-    setLocale("en", { reload: false });
-    routerState.pathname = "/config/dashboard";
+    window.history.replaceState(null, "", "#/dashboard");
   });
 
   it("renders the Token Hub title", () => {
-    setLocale("zh", { reload: false });
+    window.history.replaceState(null, "", "#/dashboard");
 
-    render(
-      <SidebarProvider>
-        <AppSidebar />
-      </SidebarProvider>,
+    render(<AppSidebar />);
+
+    const title = screen.getByRole("link", { name: "Token Hub" });
+    const sidebar = title.closest("aside");
+    expect(title).toHaveClass("text-[15px]");
+    expect(title.parentElement).toHaveClass("h-12");
+    expect(title.parentElement).not.toHaveClass("border-b");
+    expect(sidebar).toHaveClass(
+      "w-44",
+      "border-sidebar-border",
+      "bg-sidebar",
+      "text-sidebar-foreground",
     );
-
-    expect(screen.getByRole("link", { name: "Token Hub" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "仪表盘" })).toHaveClass(
+      "text-[14px]",
+    );
+    expect(screen.getByRole("link", { name: "仪表盘" })).toHaveAttribute(
+      "href",
+      "#/dashboard",
+    );
   });
 });

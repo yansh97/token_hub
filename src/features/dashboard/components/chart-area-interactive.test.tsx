@@ -2,8 +2,6 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ChartAreaInteractive } from "@/features/dashboard/components/chart-area-interactive";
-import { I18nProvider } from "@/lib/i18n";
-import { m } from "@/paraglide/messages.js";
 
 afterEach(() => {
   cleanup();
@@ -12,29 +10,27 @@ afterEach(() => {
 describe("dashboard/chart-area-interactive", () => {
   it("shows the empty state when the range has no series", () => {
     const { container } = render(
-      <I18nProvider>
-        <ChartAreaInteractive
-          series={[]}
-          range={{ fromTsMs: null, toTsMs: null }}
-        />
-      </I18nProvider>,
+      <ChartAreaInteractive
+        series={[]}
+        range={{ fromTsMs: null, toTsMs: null }}
+      />,
     );
 
-    expect(screen.getByText(m.dashboard_no_data())).toBeInTheDocument();
+    expect(screen.getByText("暂无数据")).toBeInTheDocument();
     expect(container.querySelector('[data-slot="chart"]')).toBeNull();
-    const chartArea = screen.getByText(m.dashboard_no_data()).parentElement;
+    const chartArea = screen.getByText("暂无数据").parentElement;
     expect(chartArea).toHaveClass(
       "items-center",
       "justify-center",
       "rounded-md",
       "border",
-      "border-border/60",
+      "border-dashed",
+      "border-border",
     );
   });
 
   it("shows the empty state for zero-filled time buckets", () => {
     const { container } = render(
-      <I18nProvider>
         <ChartAreaInteractive
           series={[
             {
@@ -48,11 +44,10 @@ describe("dashboard/chart-area-interactive", () => {
             },
           ]}
           range={{ fromTsMs: 0, toTsMs: 1 }}
-        />
-      </I18nProvider>,
+        />,
     );
 
-    expect(screen.getByText(m.dashboard_no_data())).toBeInTheDocument();
+    expect(screen.getByText("暂无数据")).toBeInTheDocument();
     expect(container.querySelector('[data-slot="chart"]')).toBeNull();
   });
 });

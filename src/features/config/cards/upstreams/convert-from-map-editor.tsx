@@ -1,6 +1,7 @@
+import { ArrowRight } from "lucide-react";
+
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { getProviderLabel } from "@/features/config/cards/upstreams/constants";
 import { EditorField } from "@/features/config/cards/upstreams/editor-fields";
 import {
   createNativeInboundFormatSet,
@@ -60,91 +61,79 @@ export function ConvertFromMapEditor({
   // - 若该 upstream 已包含某入站格式的原生 provider，则该入站格式无需也不应再被其它 provider 转换兜底（避免误导）。
   const nativeFormatsInUpstream =
     createNativeInboundFormatSet(normalizedProviders);
-  const providersKey = normalizedProviders.join("|");
-  const selectedCount = normalizedProviders.reduce((count, provider) => {
-    const selected = removeInboundFormatsInSet(
+  const sourceFormats = INBOUND_FORMAT_OPTIONS.filter(
+    (option) => !nativeFormatsInUpstream.has(option.value),
+  );
+  const targetOptions = normalizedProviders.map((provider) => ({
+    provider,
+    selected: removeInboundFormatsInSet(
       value[provider] ?? [],
       nativeFormatsInUpstream,
-    );
-    return count + selected.length;
-  }, 0);
-  const summaryLabel = selectedCount ? `已选 ${selectedCount} 项` : "未开启";
-
+    ),
+  }));
   return (
     <div data-slot="convert-from-map-editor" className="contents">
       <EditorField
         label="可转格式"
-        tooltip="声明允许从哪些入站 API 格式转换后再使用该 provider。未勾选则仅支持该 provider 的 native 格式。"
+        labelClassName="self-start pt-1"
+        help="勾选允许未选择的入站格式转换为已选择的目标格式。"
       >
-        <details
-          key={providersKey}
-          className="space-y-2"
-          data-slot="convert-from-map-details"
-        >
-          <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground">
-            {summaryLabel}
-          </summary>
-          <div className="space-y-3">
-            {normalizedProviders.map((provider, index) => {
-              const selected = removeInboundFormatsInSet(
-                value[provider] ?? [],
-                nativeFormatsInUpstream,
-              );
-              const visibleOptions = INBOUND_FORMAT_OPTIONS.filter(
-                (option) => !nativeFormatsInUpstream.has(option.value),
-              );
-              return (
-                <div key={provider} className="space-y-2">
-                  <div className="text-sm font-medium text-foreground">
-                    {provider}
-                  </div>
-                  <div className="space-y-2">
-                    {visibleOptions.length ? (
-                      visibleOptions.map((option) => {
-                        const checked = selected.includes(option.value);
-                        return (
-                          <Label
-                            key={option.value}
-                            className="flex items-center gap-2 text-sm font-normal"
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(nextChecked) => {
-                                const nextFormats = toggleInboundFormat(
-                                  selected,
-                                  option.value,
-                                  nextChecked === true,
-                                );
-                                const next: UpstreamForm["convertFromMap"] = {
-                                  ...value,
-                                  [provider]: nextFormats,
-                                };
-                                if (!nextFormats.length) {
-                                  delete next[provider];
-                                }
-                                onChange(next);
-                              }}
-                            />
-                            <span className="text-muted-foreground">
-                              {option.label}
-                            </span>
-                          </Label>
-                        );
-                      })
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        无可用转换选项（该 upstream 已包含对应原生 provider）。
+        {sourceFormats.length ? (
+          <div className="space-y-2.5 py-0.5">
+            {sourceFormats.map((source) => (
+              <div
+                key={source.value}
+                data-slot="conversion-source-row"
+                className="grid grid-cols-[8rem_0.875rem_minmax(0,1fr)] items-start gap-2"
+              >
+                <span className="pt-0.5 text-[12px] leading-4 text-muted-foreground">
+                  {source.label}
+                </span>
+                <ArrowRight
+                  className="mt-0.5 size-3.5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-2">
+                  {targetOptions.map(({ provider, selected }) => {
+                    const targetLabel = getProviderLabel(provider);
+                    const checked = selected.includes(source.value);
+                    return (
+                      <div
+                        key={provider}
+                        className="flex items-center gap-1.5 text-[12px] font-normal leading-4"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          aria-label={`允许 ${source.label} 转换为 ${targetLabel}`}
+                          onCheckedChange={(nextChecked) => {
+                            const nextFormats = toggleInboundFormat(
+                              selected,
+                              source.value,
+                              nextChecked === true,
+                            );
+                            const next: UpstreamForm["convertFromMap"] = {
+                              ...value,
+                              [provider]: nextFormats,
+                            };
+                            if (!nextFormats.length) {
+                              delete next[provider];
+                            }
+                            onChange(next);
+                          }}
+                        />
+                        <span>{targetLabel}</span>
                       </div>
-                    )}
-                  </div>
-                  {index + 1 < normalizedProviders.length ? (
-                    <Separator />
-                  ) : null}
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
-        </details>
+        ) : (
+          <span className="pt-1 text-[13px] text-muted-foreground">
+            无可用选项
+          </span>
+        )}
       </EditorField>
     </div>
   );

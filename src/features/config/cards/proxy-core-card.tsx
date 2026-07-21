@@ -1,20 +1,16 @@
 import type { ReactNode } from "react";
 
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { FieldError, FieldRequirement } from "@/components/ui/field-meta";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Switch } from "@/components/ui/switch";
 import {
   ProxyServicePanel,
   type ProxyServiceViewProps,
 } from "@/features/config/cards/proxy-service-card";
 import type { ConfigForm } from "@/features/config/types";
+import { validateSettingsFields } from "@/features/config/form";
 import { cn } from "@/lib/utils";
-import { m } from "@/paraglide/messages.js";
 
 type ProxyCoreCardProps = {
   form: ConfigForm;
@@ -33,6 +29,8 @@ type CoreFieldProps = {
   label: string;
   htmlFor?: string;
   help?: string;
+  required: boolean;
+  error?: string;
   className?: string;
   children: ReactNode;
 };
@@ -41,18 +39,27 @@ function CoreField({
   label,
   htmlFor,
   help,
+  required,
+  error,
   className,
   children,
 }: CoreFieldProps) {
   return (
     <div className={cn("min-w-0 space-y-1.5", className)}>
-      <Label htmlFor={htmlFor} className="text-[13px] leading-5">
-        {label}
+      <Label htmlFor={htmlFor} className="gap-1.5 text-[13px] leading-5">
+        <span>{label}</span>
+        <FieldRequirement required={required} />
       </Label>
       {children}
       {help ? (
-        <p className="text-[11px] leading-4 text-muted-foreground">{help}</p>
+        <p
+          id={htmlFor ? `${htmlFor}-help` : undefined}
+          className="text-[11px] leading-4 text-muted-foreground"
+        >
+          {help}
+        </p>
       ) : null}
+      <FieldError id={htmlFor ? `${htmlFor}-error` : undefined} message={error} />
     </div>
   );
 }
@@ -81,32 +88,48 @@ function ProxyCoreFields({
   onChange,
   section,
 }: ProxyCoreFieldsProps) {
+  const errors = validateSettingsFields(form);
   if (section === "connection") {
     return (
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-        <CoreField label={m.proxy_core_host_label()} htmlFor="proxy-host">
+        <CoreField
+          label="监听地址"
+          htmlFor="proxy-host"
+          required
+          error={errors.host}
+        >
           <Input
             id="proxy-host"
+            required
+            aria-invalid={Boolean(errors.host)}
+            aria-describedby={errors.host ? "proxy-host-error" : undefined}
             value={form.host}
             onChange={(event) => onChange({ host: event.target.value })}
             placeholder="127.0.0.1"
-            className="h-9 text-sm"
           />
         </CoreField>
-        <CoreField label={m.proxy_core_port_label()} htmlFor="proxy-port">
+        <CoreField
+          label="端口"
+          htmlFor="proxy-port"
+          required
+          error={errors.port}
+        >
           <Input
             id="proxy-port"
+            required
+            aria-invalid={Boolean(errors.port)}
+            aria-describedby={errors.port ? "proxy-port-error" : undefined}
             value={form.port}
             onChange={(event) => onChange({ port: event.target.value })}
             placeholder="9208"
             inputMode="numeric"
-            className="h-9 text-sm"
           />
         </CoreField>
         <CoreField
-          label={m.proxy_core_local_api_key_label()}
+          label="API Key"
           htmlFor="proxy-key"
-          help={m.proxy_core_local_api_key_help()}
+          help="留空时不启用本地鉴权。"
+          required={false}
           className="sm:col-span-2"
         >
           <PasswordInput
@@ -115,8 +138,8 @@ function ProxyCoreFields({
             onVisibilityChange={onToggleLocalKey}
             value={form.localApiKey}
             onChange={(event) => onChange({ localApiKey: event.target.value })}
-            placeholder={m.common_optional()}
-            className="h-9 text-sm"
+            aria-describedby="proxy-key-help"
+            placeholder="token-hub-key"
           />
         </CoreField>
       </div>
@@ -126,87 +149,99 @@ function ProxyCoreFields({
   return (
     <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
       <CoreField
-        label={m.proxy_core_retryable_failure_cooldown_secs_label()}
+        label="失败冷却时间（秒）"
         htmlFor="retryable-failure-cooldown-secs"
-        help={m.proxy_core_retryable_failure_cooldown_secs_help()}
+        help="默认 15；遇到 401、403、408、429 或 5xx 后暂停提供商，填 0 关闭。"
+        required
+        error={errors.retryableFailureCooldownSecs}
       >
         <Input
           id="retryable-failure-cooldown-secs"
+          required
+          aria-invalid={Boolean(errors.retryableFailureCooldownSecs)}
+          aria-describedby={`retryable-failure-cooldown-secs-help${
+            errors.retryableFailureCooldownSecs
+              ? " retryable-failure-cooldown-secs-error"
+              : ""
+          }`}
           value={form.retryableFailureCooldownSecs}
           onChange={(event) =>
             onChange({ retryableFailureCooldownSecs: event.target.value })
           }
           placeholder="15"
           inputMode="numeric"
-          className="h-9 text-sm"
         />
       </CoreField>
       <CoreField
-        label={m.proxy_core_same_upstream_retry_count_label()}
+        label="同一提供商重试次数"
         htmlFor="same-upstream-retry-count"
-        help={m.proxy_core_same_upstream_retry_count_help()}
+        help="默认 1，最大 5。"
+        required
+        error={errors.sameUpstreamRetryCount}
       >
         <Input
           id="same-upstream-retry-count"
+          required
+          aria-invalid={Boolean(errors.sameUpstreamRetryCount)}
+          aria-describedby={`same-upstream-retry-count-help${
+            errors.sameUpstreamRetryCount
+              ? " same-upstream-retry-count-error"
+              : ""
+          }`}
           value={form.sameUpstreamRetryCount}
           onChange={(event) =>
             onChange({ sameUpstreamRetryCount: event.target.value })
           }
           placeholder="1"
           inputMode="numeric"
-          className="h-9 text-sm"
         />
       </CoreField>
-      <div className="flex items-center justify-between gap-4 py-1 sm:col-span-2">
-        <div className="min-w-0 space-y-0.5">
-          <Label
-            htmlFor="codex-session-scoped-cooldown"
-            className="text-[13px] leading-5"
-          >
-            {m.proxy_core_codex_session_scoped_cooldown_label()}
-          </Label>
-          <p className="text-[11px] leading-4 text-muted-foreground">
-            {m.proxy_core_codex_session_scoped_cooldown_help()}
-          </p>
-        </div>
-        <Switch
-          id="codex-session-scoped-cooldown"
-          checked={form.codexSessionScopedCooldownEnabled}
-          onCheckedChange={(checked) =>
-            onChange({ codexSessionScopedCooldownEnabled: checked })
-          }
-        />
-      </div>
       <CoreField
-        label={m.proxy_core_stream_first_output_timeout_secs_label()}
+        label="流式首个输出超时（秒）"
         htmlFor="stream-first-output-timeout-secs"
-        help={m.proxy_core_stream_first_output_timeout_secs_help()}
+        help="等待首个可见流式输出的上限，默认 60。"
+        required
+        error={errors.streamFirstOutputTimeoutSecs}
       >
         <Input
           id="stream-first-output-timeout-secs"
+          required
+          aria-invalid={Boolean(errors.streamFirstOutputTimeoutSecs)}
+          aria-describedby={`stream-first-output-timeout-secs-help${
+            errors.streamFirstOutputTimeoutSecs
+              ? " stream-first-output-timeout-secs-error"
+              : ""
+          }`}
           value={form.streamFirstOutputTimeoutSecs}
           onChange={(event) =>
             onChange({ streamFirstOutputTimeoutSecs: event.target.value })
           }
           placeholder="60"
           inputMode="numeric"
-          className="h-9 text-sm"
         />
       </CoreField>
       <CoreField
-        label={m.proxy_core_sync_response_timeout_secs_label()}
+        label="同步响应超时（秒）"
         htmlFor="sync-response-timeout-secs"
-        help={m.proxy_core_sync_response_timeout_secs_help()}
+        help="读取完整非流式响应的总时限，默认 300。"
+        required
+        error={errors.syncResponseTimeoutSecs}
       >
         <Input
           id="sync-response-timeout-secs"
+          required
+          aria-invalid={Boolean(errors.syncResponseTimeoutSecs)}
+          aria-describedby={`sync-response-timeout-secs-help${
+            errors.syncResponseTimeoutSecs
+              ? " sync-response-timeout-secs-error"
+              : ""
+          }`}
           value={form.syncResponseTimeoutSecs}
           onChange={(event) =>
             onChange({ syncResponseTimeoutSecs: event.target.value })
           }
           placeholder="300"
           inputMode="numeric"
-          className="h-9 text-sm"
         />
       </CoreField>
     </div>
@@ -235,12 +270,11 @@ export function ProxyCoreCard({
   proxyService,
 }: ProxyCoreCardProps) {
   return (
-    <Card
+    <div
       data-slot="proxy-core-card"
-      className="gap-0 rounded-none border-0 bg-transparent py-0 shadow-none"
+      className="space-y-0"
     >
-      <CardContent className="space-y-0 px-0">
-        <CoreSection title={m.proxy_core_connection_section()} separated={false}>
+        <CoreSection title="连接" separated={false}>
           <ProxyCoreFields
             form={form}
             showLocalKey={showLocalKey}
@@ -249,7 +283,7 @@ export function ProxyCoreCard({
             section="connection"
           />
         </CoreSection>
-        <CoreSection title={m.proxy_core_advanced_section()}>
+        <CoreSection title="高级设置">
           <ProxyCoreFields
             form={form}
             showLocalKey={showLocalKey}
@@ -259,7 +293,6 @@ export function ProxyCoreCard({
           />
         </CoreSection>
         <ProxyCoreServiceSection proxyService={proxyService} />
-      </CardContent>
-    </Card>
+    </div>
   );
 }

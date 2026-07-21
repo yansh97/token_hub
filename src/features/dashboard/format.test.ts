@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createDashboardMinuteFormatter,
   createDashboardTimeFormatter,
   formatCompact,
   formatDashboardClockTime,
+  formatDashboardClientIp,
   formatDashboardProviderLabel,
   formatDashboardTimestamp,
   formatInteger,
   formatNanoUsdCost,
 } from "@/features/dashboard/format";
-import { setLocale } from "@/paraglide/runtime.js";
 
 describe("dashboard/format", () => {
   it("formats integers with thousand separators", () => {
@@ -27,6 +28,31 @@ describe("dashboard/format", () => {
   it("formats dashboard table timestamps as clock time only", () => {
     const timestamp = new Date(2026, 4, 2, 15, 28, 43).getTime();
     expect(formatDashboardClockTime(timestamp)).toBe("15:28:43");
+  });
+
+  it("formats full timestamps with a stable numeric layout", () => {
+    const formatter = createDashboardTimeFormatter("zh-CN");
+    const timestamp = new Date(2026, 6, 18, 17, 36, 28).getTime();
+    expect(formatDashboardTimestamp(timestamp, formatter)).toBe(
+      "2026-07-18 17:36:28",
+    );
+  });
+
+  it("omits seconds cleanly when the formatter only includes minutes", () => {
+    const formatter = createDashboardMinuteFormatter("zh-CN");
+    const timestamp = new Date(2026, 6, 18, 17, 36, 28).getTime();
+    expect(formatDashboardTimestamp(timestamp, formatter)).toBe(
+      "2026-07-18 17:36",
+    );
+  });
+
+  it("labels local client addresses and preserves remote addresses", () => {
+    expect(formatDashboardClientIp(null)).toBe("本机");
+    expect(formatDashboardClientIp("127.0.0.1")).toBe("本机");
+    expect(formatDashboardClientIp("::1")).toBe("本机");
+    expect(formatDashboardClientIp("::ffff:127.0.0.1")).toBe("本机");
+    expect(formatDashboardClientIp("203.0.113.5")).toBe("203.0.113.5");
+    expect(formatDashboardClientIp("2001:db8::1")).toBe("2001:db8::1");
   });
 
   it("formats compact numbers with K suffix for thousands", () => {
@@ -84,9 +110,8 @@ describe("dashboard/format", () => {
   });
 
   it("uses a dedicated label for local proxy request failures", () => {
-    setLocale("en", { reload: false });
     expect(formatDashboardProviderLabel("local", "proxy", null)).toBe(
-      "Local proxy",
+      "本地代理",
     );
   });
 });

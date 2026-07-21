@@ -1,27 +1,17 @@
 import { Toaster } from "@/components/ui/sonner";
-import { I18nProvider } from "@/lib/i18n";
-import { setLocale } from "@/paraglide/runtime.js";
-import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { Agentation } from "agentation";
-import { ThemeProvider } from "next-themes";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { routeTree } from "./routeTree.gen";
 
-const THEME_STORAGE_KEY = "token-proxy-theme";
+import App from "@/App";
 
 if (typeof window !== "undefined") {
-  window.localStorage.setItem(THEME_STORAGE_KEY, "system");
-}
-
-setLocale("zh", { reload: false });
-
-const router = createRouter({ routeTree });
-
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: typeof router;
-  }
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const syncTheme = () => {
+    document.documentElement.classList.toggle("dark", media.matches);
+  };
+  syncTheme();
+  media.addEventListener("change", syncTheme);
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
@@ -34,18 +24,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         }}
       />
     )}
-    <I18nProvider>
-      {/* Follow system theme and persist to localStorage; class drives dark styles. */}
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        storageKey={THEME_STORAGE_KEY}
-        disableTransitionOnChange
-      >
-        <Toaster position="bottom-right" closeButton richColors />
-        <RouterProvider router={router} />
-      </ThemeProvider>
-    </I18nProvider>
+    <Toaster position="bottom-right" closeButton richColors />
+    <App />
   </React.StrictMode>,
 );

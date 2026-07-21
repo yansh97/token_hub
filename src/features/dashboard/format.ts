@@ -1,8 +1,11 @@
-import { m } from "@/paraglide/messages.js";
-
 const DASHBOARD_TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
-  dateStyle: "short",
-  timeStyle: "medium",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
 };
 
 const DASHBOARD_TIME_MINUTE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -10,8 +13,15 @@ const DASHBOARD_TIME_MINUTE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   timeStyle: "short",
 };
 
-const LOCALHOST_CLIENT_IP = "127.0.0.1";
-const LOCAL_CLIENT_IP_LABEL = "local";
+const LOCAL_CLIENT_IPS = new Set([
+  "local",
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "0:0:0:0:0:0:0:1",
+  "::ffff:127.0.0.1",
+]);
+const LOCAL_CLIENT_IP_LABEL = "本机";
 
 function normalizeProviderPart(value: string | null | undefined) {
   return (
@@ -68,7 +78,26 @@ export function formatDashboardTimestamp(
   formatter: Intl.DateTimeFormat,
 ) {
   const date = new Date(tsMs);
-  return Number.isNaN(date.getTime()) ? "—" : formatter.format(date);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  if (!parts.year || !parts.month || !parts.day) {
+    return formatter.format(date);
+  }
+  const datePart = [parts.year, parts.month, parts.day]
+    .map((part, index) => (index === 0 ? part : part.padStart(2, "0")))
+    .join("-");
+  const timePart = [parts.hour, parts.minute, parts.second]
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.padStart(2, "0"))
+    .join(":");
+  return timePart ? `${datePart} ${timePart}` : datePart;
 }
 
 function padClockPart(value: number) {
@@ -93,7 +122,7 @@ export function formatDashboardProviderLabel(
   accountId: string | null | undefined,
 ) {
   if (isLocalProxyRequest(upstreamId, provider, accountId)) {
-    return m.dashboard_provider_local_proxy();
+    return "本地代理";
   }
 
   const trimmedProvider = provider.trim();
@@ -112,9 +141,9 @@ export function formatDashboardProviderLabel(
 }
 
 export function formatDashboardClientIp(clientIp: string | null | undefined) {
-  // 后端不落库本地 loopback；旧日志里残留的 127.0.0.1 也统一折叠展示。
+  // 后端通常不落库本机 IPv4；兼容旧日志和 IPv6 loopback 的常见写法。
   const trimmed = clientIp?.trim();
-  if (!trimmed || trimmed === LOCALHOST_CLIENT_IP) {
+  if (!trimmed || LOCAL_CLIENT_IPS.has(trimmed.toLowerCase())) {
     return LOCAL_CLIENT_IP_LABEL;
   }
   return trimmed;

@@ -9,8 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardPanel } from "@/features/dashboard/DashboardPanel";
 import type { DashboardSnapshotQuery } from "@/features/dashboard/types";
-import { I18nProvider } from "@/lib/i18n";
-import { m } from "@/paraglide/messages.js";
 
 vi.mock("@/features/dashboard/components/section-cards", () => ({
   SectionCards: ({
@@ -60,11 +58,7 @@ vi.mock("@/features/dashboard/api", () => ({
 }));
 
 function renderPanel() {
-  return render(
-    <I18nProvider>
-      <DashboardPanel />
-    </I18nProvider>,
-  );
+  return render(<DashboardPanel />);
 }
 
 describe("dashboard/DashboardPanel", () => {
@@ -530,8 +524,23 @@ describe("dashboard/DashboardPanel", () => {
     });
     const chart = await screen.findByTestId("dashboard-chart-total");
     const modelUsage = await screen.findByTestId("dashboard-model-usage");
-    const upstreamModelsTitle = await screen.findByText(
-      m.dashboard_upstream_models_title(),
+    const charts = chart.parentElement;
+    const filters = document.querySelector('[data-slot="dashboard-filters"]');
+    const upstreamModelsTitle = await screen.findByText("提供商模型");
+    expect(filters).toHaveAttribute("data-sticky", "true");
+    expect(filters).toHaveClass(
+      "sticky",
+      "top-0",
+      "-mt-5",
+      "pt-5",
+      "lg:-mt-6",
+      "lg:pt-6",
+    );
+    expect(charts).toHaveAttribute("data-slot", "dashboard-charts");
+    expect(charts).toHaveClass(
+      "grid",
+      "gap-5",
+      "lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.65fr)]",
     );
     expect(chart).toHaveTextContent("42");
     expect(modelUsage).toHaveTextContent("gpt-5.4,claude-4");
@@ -556,10 +565,10 @@ describe("dashboard/DashboardPanel", () => {
       model: null,
     });
 
-    await user.click(screen.getByRole("combobox", {
-      name: m.dashboard_upstream_label(),
-    }));
-    await user.click(await screen.findByRole("option", { name: "alpha" }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "提供商" }),
+      "alpha",
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
@@ -576,11 +585,9 @@ describe("dashboard/DashboardPanel", () => {
       model: null,
     });
 
-    await user.click(screen.getByRole("combobox", {
-      name: m.dashboard_model_label(),
-    }));
-    await user.click(
-      await screen.findByRole("option", { name: "gpt-5.4" }),
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "模型" }),
+      "gpt-5.4",
     );
 
     await waitFor(() => {
@@ -607,7 +614,7 @@ describe("dashboard/DashboardPanel", () => {
     });
     expect(refreshDashboardModelDiscoveryMock).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: m.common_refresh() }));
+    await user.click(screen.getByRole("button", { name: "刷新" }));
 
     await waitFor(() => {
       expect(refreshDashboardModelDiscoveryMock).toHaveBeenCalledTimes(1);

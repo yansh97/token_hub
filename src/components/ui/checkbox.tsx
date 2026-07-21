@@ -1,30 +1,48 @@
-import * as React from "react";
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
+import type { ButtonHTMLAttributes } from "react";
 import { CheckIcon, MinusIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+type CheckedState = boolean | "indeterminate";
+
+type CheckboxProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> & {
+  checked?: CheckedState;
+  onCheckedChange?: (checked: boolean) => void;
+};
+
 function Checkbox({
   className,
+  checked = false,
+  onCheckedChange,
+  onClick,
   ...props
-}: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+}: CheckboxProps) {
+  const state =
+    checked === "indeterminate" ? "indeterminate" : checked ? "checked" : "unchecked";
+
   return (
-    <CheckboxPrimitive.Root
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked === "indeterminate" ? "mixed" : checked}
       data-slot="checkbox"
+      data-state={state}
       className={cn(
-        "peer group/checkbox border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground dark:data-[state=indeterminate]:bg-primary data-[state=indeterminate]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+        "grid size-4 shrink-0 place-content-center rounded-[4px] border border-input bg-background shadow-xs outline-none transition-colors data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) onCheckedChange?.(checked !== true);
+      }}
       {...props}
     >
-      <CheckboxPrimitive.Indicator
-        data-slot="checkbox-indicator"
-        className="grid place-content-center text-current transition-none"
-      >
-        <CheckIcon className="size-3.5 group-data-[state=indeterminate]/checkbox:hidden" />
-        <MinusIcon className="hidden size-3.5 group-data-[state=indeterminate]/checkbox:block" />
-      </CheckboxPrimitive.Indicator>
-    </CheckboxPrimitive.Root>
+      {state === "indeterminate" ? (
+        <MinusIcon className="size-3.5" aria-hidden="true" />
+      ) : state === "checked" ? (
+        <CheckIcon className="size-3.5" aria-hidden="true" />
+      ) : null}
+    </button>
   );
 }
 

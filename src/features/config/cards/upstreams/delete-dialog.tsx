@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getUpstreamLabel } from "@/features/config/cards/upstreams/constants";
 import type { DeleteDialogState } from "@/features/config/cards/upstreams/types";
-import { m } from "@/paraglide/messages.js";
 
 type DeleteUpstreamDialogProps = {
   dialog: DeleteDialogState;
@@ -24,24 +23,22 @@ export function DeleteUpstreamDialog({
   onConfirm,
 }: DeleteUpstreamDialogProps) {
   const description = dialog.open
-    ? m.upstreams_delete_description({
-        rowLabel: getUpstreamLabel(dialog.index),
-      })
+    ? `将删除${getUpstreamLabel(dialog.index)}。`
     : "";
   return (
     <AlertDialog open={dialog.open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{m.upstreams_delete_title()}</AlertDialogTitle>
+          <AlertDialogTitle>{"删除提供商？"}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
+          <AlertDialogCancel>{"取消"}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60"
           >
-            {m.common_delete()}
+            {"删除"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

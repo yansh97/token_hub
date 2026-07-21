@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
   ChartTooltip,
@@ -15,7 +14,6 @@ import {
   formatNanoUsdCost,
 } from "@/features/dashboard/format";
 import type { DashboardModelStat } from "@/features/dashboard/types";
-import { m } from "@/paraglide/messages.js";
 
 /** 横向排行图通用行；key 稳定，label 展示。 */
 type RankingRow = {
@@ -28,13 +26,13 @@ type RankingRow = {
 
 const chartConfig = {
   totalTokens: {
-    label: m.dashboard_chart_total_tokens(),
+    label: "总 Tokens",
     color: "var(--chart-1)",
   },
 } satisfies ChartConfig;
 
 const BAR_ROW_PX = 30;
-const CHART_MIN_HEIGHT_PX = 196;
+const CHART_MIN_HEIGHT_PX = 232;
 const Y_AXIS_WIDTH = 112;
 const MODEL_USAGE_DISPLAY_LIMIT = 5;
 
@@ -74,7 +72,7 @@ function RankingTooltip({
       <div className="font-medium break-all">{label}</div>
       <div className="flex items-center justify-between gap-4 text-xs">
         <span className="text-muted-foreground">
-          {m.dashboard_chart_total_tokens()}
+          总 Tokens
         </span>
         <span className="font-medium tabular-nums">
           {formatInteger(totalTokens)}
@@ -82,14 +80,14 @@ function RankingTooltip({
       </div>
       <div className="flex items-center justify-between gap-4 text-xs">
         <span className="text-muted-foreground">
-          {m.dashboard_stat_requests()}
+          请求数
         </span>
         <span className="font-medium tabular-nums">
           {formatInteger(requests)}
         </span>
       </div>
       <div className="flex items-center justify-between gap-4 text-xs">
-        <span className="text-muted-foreground">{m.dashboard_stat_cost()}</span>
+        <span className="text-muted-foreground">费用</span>
         <span className="font-medium tabular-nums">
           {formatNanoUsdCost(costNanoUsd)}
         </span>
@@ -111,23 +109,22 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
   const height = resolveChartHeight(chartData.length);
 
   return (
-    <Card
-      className="@container/card h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none"
-      data-model-count={chartData.length}
-    >
-      <CardHeader className="gap-1.5 px-4 py-3">
-        <CardTitle className="text-[15px] font-semibold leading-5">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-3 pb-3 pt-0 sm:px-4">
+    <section className="min-w-0" data-model-count={chartData.length}>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-[15px] font-semibold leading-5">{title}</h2>
+        <span className="text-[11px] text-muted-foreground">Top 5</span>
+      </div>
         <div
-          className="flex w-full items-center justify-center overflow-hidden rounded-md border border-border/60"
+          className={`flex w-full items-center justify-center overflow-hidden rounded-md border ${
+            chartData.length
+              ? "border-border/70 bg-muted/10"
+              : "border-dashed border-border"
+          }`}
           style={{ height }}
         >
           {chartData.length === 0 ? (
             <p className="text-center text-[13px] text-muted-foreground">
-              {m.dashboard_no_data()}
+              暂无数据
             </p>
           ) : (
             <ChartContainer
@@ -191,8 +188,7 @@ function ChartUsageRanking({ title, rows }: ChartUsageRankingProps) {
             </ChartContainer>
           )}
         </div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }
 
@@ -213,5 +209,5 @@ export function ChartModelUsage({ models }: ChartModelUsageProps) {
     [models],
   );
 
-  return <ChartUsageRanking title={m.dashboard_models_title()} rows={rows} />;
+  return <ChartUsageRanking title="模型用量" rows={rows} />;
 }

@@ -15,7 +15,6 @@ import type {
 } from "@/features/config/types";
 import { extractConfigExtras, toForm } from "@/features/config/form";
 import { parseError } from "@/lib/error";
-import { m } from "@/paraglide/messages.js";
 
 import type { AutoStartStatus, StatusState } from "./config-screen-state";
 
@@ -197,7 +196,7 @@ async function saveConfigImpl({
 }: SaveConfigArgs) {
   if (!currentPayload) {
     setStatus("error");
-    setStatusMessage(validation.message || m.config_invalid_configuration());
+    setStatusMessage(validation.message || "配置无效。");
     return;
   }
   setStatus("saving");

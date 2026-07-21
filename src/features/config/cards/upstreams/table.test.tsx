@@ -1,5 +1,4 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { UPSTREAM_COLUMNS } from "@/features/config/cards/upstreams/constants";
@@ -52,20 +51,24 @@ describe("upstreams/table", () => {
     expect(scrollArea).toHaveClass(
       "rounded-md",
       "border",
-      "border-border/60",
+      "border-border/70",
       "min-h-0",
       "max-h-full",
-      "overflow-x-hidden",
+      "overflow-x-auto",
       "overflow-y-auto",
       "overscroll-none",
     );
     const headerGroup = screen.getAllByRole("rowgroup")[0];
     expect(headerGroup).toHaveClass("sticky", "top-0");
-    expect(headerGroup?.firstElementChild).toHaveClass("bg-background/40");
+    for (const header of screen.getAllByRole("columnheader")) {
+      expect(header).toHaveClass(
+        "bg-background",
+        "shadow-[inset_0_-1px_0_var(--border)]",
+      );
+    }
   });
 
-  it("shows tooltip for truncated id cells on hover", async () => {
-    const user = userEvent.setup();
+  it("keeps the full id available for truncated cells", () => {
 
     render(
       <UpstreamsTable
@@ -79,9 +82,7 @@ describe("upstreams/table", () => {
       />,
     );
 
-    const idCell = screen.getByText(LONG_ID);
-    await user.hover(idCell);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(LONG_ID);
+    expect(screen.getByText(LONG_ID)).toHaveAttribute("title", LONG_ID);
   });
 
   it("keeps the actions column in the normal table layer", () => {
@@ -97,15 +98,15 @@ describe("upstreams/table", () => {
       />,
     );
 
-    const header = screen.getByRole("columnheader", { name: "Actions" });
+    const header = screen.getByRole("columnheader", { name: "操作" });
     const actionButton = screen.getByRole("button", {
-      name: /edit upstream/i,
+      name: "编辑提供商 1",
     });
     const actionCell = actionButton.closest("td");
 
     expect(header).not.toHaveClass("sticky", "right-0", "z-20");
     expect(header).toHaveClass("text-left");
-    expect(header).toHaveClass("w-[20%]", "min-w-[10rem]");
+    expect(header).toHaveClass("w-[20%]");
     expect(header).not.toHaveClass("text-right");
     expect(actionCell).not.toBeNull();
     expect(actionCell).not.toHaveClass(
@@ -116,7 +117,7 @@ describe("upstreams/table", () => {
     );
     expect(actionCell?.firstElementChild).toHaveClass("justify-start");
     expect(actionCell?.firstElementChild).not.toHaveClass("justify-end");
-    expect(actionCell).toHaveClass("w-[20%]", "min-w-[10rem]");
+    expect(actionCell).toHaveClass("w-[20%]");
   });
 
   it("disables delete for account-backed special upstream rows", () => {
@@ -136,7 +137,7 @@ describe("upstreams/table", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: /delete upstream/i }),
+      screen.getByRole("button", { name: "删除提供商 1" }),
     ).toBeDisabled();
   });
 
@@ -157,7 +158,7 @@ describe("upstreams/table", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: /copy upstream/i }),
+      screen.getByRole("button", { name: "复制提供商 1" }),
     ).toBeDisabled();
   });
 });

@@ -7,7 +7,6 @@ import {
   DashboardFilters,
   useDashboardSnapshot,
 } from "@/features/dashboard/snapshot";
-import { m } from "@/paraglide/messages.js";
 
 const ChartAreaInteractive = lazy(() =>
   import("@/features/dashboard/components/chart-area-interactive").then(
@@ -63,18 +62,19 @@ export function DashboardPanel() {
   const isLoading = status === "loading";
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-6">
       {status === "error" ? (
-        <Alert variant="destructive" className="mx-4 lg:mx-6">
+        <Alert variant="destructive">
           <AlertCircle className="size-4" aria-hidden="true" />
           <div>
-            <AlertTitle>{m.dashboard_load_failed()}</AlertTitle>
+            <AlertTitle>仪表盘加载失败</AlertTitle>
             <AlertDescription>{statusMessage}</AlertDescription>
           </div>
         </Alert>
       ) : null}
 
       <DashboardFilters
+        sticky
         range={rangePreset}
         upstreamId={selectedUpstreamId}
         upstreamOptions={upstreamOptions}
@@ -85,12 +85,14 @@ export function DashboardPanel() {
         onUpstreamChange={onUpstreamChange}
         onModelChange={onModelChange}
         onRefresh={refresh}
-        className="mb-2.5"
       />
 
       <SectionCards summary={snapshot?.summary ?? null} />
 
-      <div className="relative mx-4 mt-2.5 grid gap-2.5 pb-3 pt-3 before:absolute before:inset-x-4 before:top-0 before:border-t before:border-border/70 before:content-[''] lg:mx-6 lg:auto-rows-[250px] lg:grid-cols-2">
+      <div
+        data-slot="dashboard-charts"
+        className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.65fr)]"
+      >
         <Suspense fallback={<ChartAreaFallback />}>
           <ChartAreaInteractive
             series={snapshot?.series ?? []}
@@ -104,9 +106,7 @@ export function DashboardPanel() {
       </div>
 
       <Suspense fallback={null}>
-        <div className="mt-2.5">
-          <UpstreamModelProbes probes={snapshot?.modelProbes ?? []} />
-        </div>
+        <UpstreamModelProbes probes={snapshot?.modelProbes ?? []} />
       </Suspense>
     </div>
   );

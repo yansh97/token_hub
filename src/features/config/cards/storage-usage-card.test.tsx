@@ -10,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 
 import { StorageUsageCard } from "@/features/config/cards/storage-usage-card";
-import { m } from "@/paraglide/messages.js";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -42,9 +41,7 @@ describe("StorageUsageCard", () => {
     await waitFor(() => {
       expect(within(card).getByText("/tmp/token-proxy")).toBeInTheDocument();
     });
-    expect(
-      within(card).getByText(m.storage_usage_database_label()),
-    ).toBeInTheDocument();
+    expect(within(card).getByText("数据库")).toBeInTheDocument();
     expect(invokeMock).toHaveBeenCalledWith("read_data_storage_usage");
   });
 
@@ -65,12 +62,12 @@ describe("StorageUsageCard", () => {
 
     await waitFor(() => {
       expect(
-        within(card).getByText(m.storage_usage_error({ message: "disk busy" })),
+        within(card).getByText("读取存储占用失败：disk busy"),
       ).toBeInTheDocument();
     });
 
     await user.click(
-      within(card).getByRole("button", { name: m.storage_usage_refresh() }),
+      within(card).getByRole("button", { name: "刷新存储占用" }),
     );
 
     await waitFor(() => {

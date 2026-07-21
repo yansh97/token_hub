@@ -1,12 +1,10 @@
 import type { DashboardRange } from "@/features/dashboard/types";
-import { m } from "@/paraglide/messages.js";
-
 export const DASHBOARD_RANGE_OPTIONS = [
-  { value: "today", label: () => m.dashboard_range_today() },
-  { value: "yesterday", label: () => m.dashboard_range_yesterday() },
-  { value: "7d", label: () => m.dashboard_range_7d() },
-  { value: "30d", label: () => m.dashboard_range_30d() },
-  { value: "all", label: () => m.dashboard_range_all() },
+  { value: "today", label: "今日" },
+  { value: "yesterday", label: "昨日" },
+  { value: "7d", label: "最近 7 天" },
+  { value: "30d", label: "最近 30 天" },
+  { value: "all", label: "全部" },
 ] as const;
 
 export type DashboardTimeRange =

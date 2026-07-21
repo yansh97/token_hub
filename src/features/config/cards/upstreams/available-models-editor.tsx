@@ -4,16 +4,17 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FieldError } from "@/components/ui/field-meta";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { UpstreamForm } from "@/features/config/types";
-import { m } from "@/paraglide/messages.js";
 import { invoke } from "@tauri-apps/api/core";
 
 type AvailableModelsEditorProps = {
   draft: UpstreamForm;
+  error?: string;
   onChangeDraft: (patch: Partial<UpstreamForm>) => void;
 };
 
@@ -41,6 +42,7 @@ function firstApiKey(value: string) {
 
 export function AvailableModelsEditor({
   draft,
+  error,
   onChangeDraft,
 }: AvailableModelsEditorProps) {
   const [options, setOptions] = useState(() =>
@@ -70,8 +72,8 @@ export function AvailableModelsEditor({
       ? "indeterminate"
       : false;
   const visibleModelsBulkLabel = allVisibleModelsSelected
-    ? m.available_models_clear_all()
-    : m.available_models_select_all();
+    ? "取消全选"
+    : "全选";
 
   const updateSelectedModels = (models: readonly string[]) => {
     onChangeDraft({ availableModels: mergeModels(models) });
@@ -115,7 +117,7 @@ export function AvailableModelsEditor({
 
   const fetchModels = async () => {
     if (!draft.baseUrl.trim()) {
-      setFeedback(m.available_models_base_url_required());
+      setFeedback("请先填写 Base URL。");
       return;
     }
     setFetching(true);
@@ -127,11 +129,11 @@ export function AvailableModelsEditor({
         apiKey: firstApiKey(draft.apiKeys),
       });
       if (!models.length) {
-        setFeedback(m.available_models_sync_empty());
+        setFeedback("提供商未返回可用模型。");
         return;
       }
       setOptions((current) => mergeModels(current, models));
-      setFeedback(m.available_models_sync_success({ count: models.length }));
+      setFeedback(`已获取 ${models.length} 个模型，可勾选后加入白名单。`);
       console.info("[upstream-models] fetched model candidates", {
         provider,
         count: models.length,
@@ -148,7 +150,7 @@ export function AvailableModelsEditor({
   };
 
   return (
-    <div data-slot="available-models-editor" className="space-y-4">
+    <div data-slot="available-models-editor" className="space-y-3">
       <ToggleGroup
         type="single"
         variant="outline"
@@ -158,29 +160,29 @@ export function AvailableModelsEditor({
             onChangeDraft({ availableModelsMode: value });
           }
         }}
-        aria-label={m.field_available_models()}
+        aria-label={"可用模型"}
+        aria-invalid={Boolean(error)}
       >
         <ToggleGroupItem
           value="all"
           className="data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
-          {m.available_models_all()}
+          {"全部模型"}
         </ToggleGroupItem>
         <ToggleGroupItem
           value="selected"
           className="data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
-          {m.available_models_selected()}
+          {"仅指定模型"}
         </ToggleGroupItem>
       </ToggleGroup>
+      <FieldError message={error} />
 
       {draft.availableModelsMode === "all" ? null : (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {m.available_models_selected_count({
-                count: selectedModels.length,
-              })}
+            <span className="text-[13px] text-muted-foreground">
+              已选择 {selectedModels.length} 个模型
             </span>
             {selectedModels.map((model) => (
               <Badge key={model} variant="secondary" className="gap-1 pr-1">
@@ -190,7 +192,7 @@ export function AvailableModelsEditor({
                   variant="ghost"
                   size="icon-sm"
                   className="size-5 rounded-full"
-                  aria-label={m.available_models_remove({ model })}
+                  aria-label={`移除模型 ${model}`}
                   onClick={() => toggleModel(model, false)}
                 >
                   <X className="size-3" aria-hidden="true" />
@@ -208,16 +210,16 @@ export function AvailableModelsEditor({
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={m.available_models_search_placeholder()}
-                className="pl-8"
+                placeholder={"搜索已获取的模型"}
+                className="pl-9!"
               />
             </div>
             <Button
               type="button"
               variant="outline"
               size="icon"
-              aria-label={m.available_models_sync()}
-              title={m.available_models_sync()}
+              aria-label={"从提供商获取模型"}
+              title={"从提供商获取模型"}
               disabled={!canFetch || fetching}
               onClick={fetchModels}
             >
@@ -237,38 +239,49 @@ export function AvailableModelsEditor({
             <div className="divide-y">
               {visibleOptions.length ? (
                 <>
-                  <Label className="sticky top-0 z-10 flex min-h-9 cursor-pointer items-center gap-3 bg-muted px-3 py-2 font-normal">
+                  <div className="sticky top-0 z-10 flex min-h-8 items-center gap-2.5 bg-muted px-3 py-1.5">
                     <Checkbox
+                      id="available-models-select-all"
                       checked={visibleModelsSelection}
                       onCheckedChange={toggleVisibleModels}
                       aria-label={visibleModelsBulkLabel}
                     />
-                    <span className="text-xs font-medium">
-                      {visibleModelsBulkLabel}
-                    </span>
-                  </Label>
-                  {visibleOptions.map((model) => (
                     <Label
-                      key={model}
-                      className="flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2 font-normal hover:bg-muted/50"
+                      htmlFor="available-models-select-all"
+                      className="cursor-pointer text-[12px] font-medium"
                     >
-                      <Checkbox
-                        checked={selectedModelSet.has(model)}
-                        onCheckedChange={(value) =>
-                          toggleModel(model, value === true)
-                        }
-                      />
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                        {model}
-                      </span>
+                      {visibleModelsBulkLabel}
                     </Label>
-                  ))}
+                  </div>
+                  {visibleOptions.map((model, index) => {
+                    const checkboxId = `available-model-${index}`;
+                    return (
+                      <div
+                        key={model}
+                        className="flex min-h-8 items-center gap-2.5 px-3 py-1.5 hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          id={checkboxId}
+                          checked={selectedModelSet.has(model)}
+                          onCheckedChange={(value) =>
+                            toggleModel(model, value === true)
+                          }
+                        />
+                        <Label
+                          htmlFor={checkboxId}
+                          className="min-w-0 flex-1 cursor-pointer truncate font-mono text-[12px] font-normal"
+                        >
+                          {model}
+                        </Label>
+                      </div>
+                    );
+                  })}
                 </>
               ) : (
-                <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">
                   {options.length
-                    ? m.available_models_no_matches()
-                    : m.available_models_no_options()}
+                    ? "没有匹配的模型。"
+                    : "暂无候选模型，可从提供商获取或手工添加。"}
                 </p>
               )}
             </div>
@@ -284,11 +297,11 @@ export function AvailableModelsEditor({
                   addCustomModel();
                 }
               }}
-              placeholder={m.available_models_custom_placeholder()}
+              placeholder={"输入自定义模型名称"}
             />
             <Button type="button" variant="outline" onClick={addCustomModel}>
               <Plus className="size-4" aria-hidden="true" />
-              {m.available_models_add_custom()}
+              {"添加模型"}
             </Button>
           </div>
         </div>

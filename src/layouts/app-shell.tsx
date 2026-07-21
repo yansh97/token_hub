@@ -1,46 +1,39 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { AppSidebar } from "@/layouts/app-sidebar";
-import { SiteHeader } from "@/layouts/site-header";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 type AppShellProps = {
-  title: string;
   children: ReactNode;
-  actions?: ReactNode;
+  contentMode?: "document" | "workspace";
 };
 
-export function AppShell({ title, children, actions }: AppShellProps) {
+export function AppShell({
+  children,
+  contentMode = "document",
+}: AppShellProps) {
+  const workspace = contentMode === "workspace";
+
   return (
-    <SidebarProvider
-      className="h-full"
-      style={
-        {
-          "--sidebar-width": "10rem",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as CSSProperties
-      }
-    >
+    <div className="flex h-full min-h-0 bg-background text-foreground">
       <AppSidebar />
-      <SidebarInset className="min-h-0 md:m-0 md:ml-0 md:rounded-none md:shadow-none">
-        <div className="flex flex-1 min-h-0 flex-col">
-          <ScrollArea
-            className="flex-1 min-h-0"
-            viewportClassName="[&>div]:!block [&>div]:!h-full"
+      <main className="flex min-w-0 flex-1 flex-col">
+        <div
+          data-slot="app-shell-viewport"
+          data-content-mode={contentMode}
+          className={`min-h-0 flex-1 overscroll-none ${
+            workspace ? "overflow-hidden" : "overflow-y-auto"
+          }`}
+        >
+          <div
+            data-slot="app-shell-content"
+            className={`mx-auto flex w-full max-w-[1480px] flex-col px-5 py-5 lg:px-7 lg:py-6 ${
+              workspace ? "h-full min-h-0" : "min-h-full"
+            }`}
           >
-            <div className="@container/main mx-auto flex h-full min-h-0 w-full max-w-[1440px] flex-col gap-1">
-              <SiteHeader title={title} actions={actions} />
-              <div
-                data-slot="app-shell-content"
-                className="flex min-h-0 flex-1 flex-col gap-2.5 py-2.5 md:gap-3 md:py-3"
-              >
-                {children}
-              </div>
-            </div>
-          </ScrollArea>
+            {children}
+          </div>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+    </div>
   );
 }

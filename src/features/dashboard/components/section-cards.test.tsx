@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { SectionCards } from "@/features/dashboard/components/section-cards";
 import type { DashboardSummary } from "@/features/dashboard/types";
-import { I18nProvider } from "@/lib/i18n";
-import { m } from "@/paraglide/messages.js";
 
 const summary: DashboardSummary = {
   totalRequests: 10,
@@ -22,11 +20,7 @@ const summary: DashboardSummary = {
 };
 
 function renderCards() {
-  return render(
-    <I18nProvider>
-      <SectionCards summary={summary} />
-    </I18nProvider>,
-  );
+  return render(<SectionCards summary={summary} />);
 }
 
 describe("dashboard/SectionCards", () => {
@@ -37,41 +31,35 @@ describe("dashboard/SectionCards", () => {
   it("merges error count into the request card", () => {
     renderCards();
 
-    expect(screen.getByText(m.dashboard_stat_requests())).toBeInTheDocument();
-    expect(
-      screen.queryByText(m.dashboard_stat_errors()),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(
-        m.dashboard_requests_footer({
-          success: "8",
-          errors: "2",
-        }),
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(m.dashboard_hint_success_rate({ rate: "80%" })),
-    ).toBeInTheDocument();
+    expect(screen.getByText("请求数")).toBeInTheDocument();
+    expect(screen.getByText("成功 8 · 错误 2")).toBeInTheDocument();
+    expect(screen.getByText("成功率 80%")).toBeInTheDocument();
     expect(screen.queryByText("20%")).not.toBeInTheDocument();
   });
 
   it("renders stats in request, token, latency, cost order", () => {
-    renderCards();
+    const { container } = renderCards();
+
+    expect(container.querySelector("section")).toHaveClass(
+      "dashboard-metrics-grid",
+    );
 
     const labels = screen
       .getAllByText(
         (_, element) =>
-          element?.getAttribute("data-slot") === "card-description",
+          element?.getAttribute("data-slot") === "metric-label",
       )
       .map((node) => node.textContent);
 
     expect(labels).toEqual([
-      m.dashboard_stat_requests(),
-      m.dashboard_stat_total_tokens(),
-      m.dashboard_stat_latency_ms(),
-      m.dashboard_stat_cost(),
+      "请求数",
+      "总 Tokens",
+      "平均响应",
+      "费用",
     ]);
     expect(screen.getByText("1.21")).toBeInTheDocument();
+    expect(screen.getByText("1.21")).toHaveClass("whitespace-nowrap");
+    expect(screen.getByText("1.21")).not.toHaveClass("truncate");
     expect(screen.getByText("USD")).toBeInTheDocument();
     expect(screen.queryByText("$1.21")).not.toBeInTheDocument();
     expect(screen.queryByText("Logged")).not.toBeInTheDocument();
@@ -81,39 +69,25 @@ describe("dashboard/SectionCards", () => {
     renderCards();
 
     expect(
-      screen.getByText(
-        m.dashboard_tokens_hint_with_cache({
-          input: "200K",
-          cached: "20K",
-          output: "10K",
-        }),
-      ),
+      screen.getByText("输入 200K · 缓存 20K · 输出 10K"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        m.dashboard_cache_hit_rate({
-          rate: "7.5%",
-        }),
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("缓存命中 7.5%")).toBeInTheDocument();
   });
 
   it("hides success rate when the range has no requests", () => {
     render(
-      <I18nProvider>
-        <SectionCards
-          summary={{
-            ...summary,
-            totalRequests: 0,
-            successRequests: 0,
-            errorRequests: 0,
-          }}
-        />
-      </I18nProvider>,
+      <SectionCards
+        summary={{
+          ...summary,
+          totalRequests: 0,
+          successRequests: 0,
+          errorRequests: 0,
+        }}
+      />,
     );
 
     expect(
-      screen.queryByText(m.dashboard_hint_success_rate({ rate: "0%" })),
+      screen.queryByText("成功率 0%"),
     ).not.toBeInTheDocument();
   });
 });

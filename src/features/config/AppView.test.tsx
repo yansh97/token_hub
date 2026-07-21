@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppView } from "@/features/config/AppView";
 import { EMPTY_FORM } from "@/features/config/form";
 import type { ProxyServiceStatus } from "@/features/config/types";
-import { m } from "@/paraglide/messages.js";
 
 vi.mock("@/layouts/app-sidebar", () => ({
   AppSidebar: () => <div data-testid="app-sidebar" />,
@@ -78,12 +77,11 @@ describe("config/AppView", () => {
         statusMessage=""
         canSave
         isDirty
-        validation={{ valid: true, message: "" }}
       />,
     );
 
     expect(
-      screen.queryByRole("button", { name: m.common_save() }),
+      screen.queryByRole("button", { name: "保存" }),
     ).not.toBeInTheDocument();
   });
 
@@ -98,13 +96,12 @@ describe("config/AppView", () => {
         statusMessage="disk full"
         canSave
         isDirty
-        validation={{ valid: true, message: "" }}
         onSave={onSave}
       />,
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: m.config_retry_save() }),
+      screen.getByRole("button", { name: "重试保存" }),
     );
 
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -119,14 +116,13 @@ describe("config/AppView", () => {
         statusMessage="should not be shown"
         canSave={false}
         isDirty={false}
-        validation={{ valid: true, message: "" }}
       />,
     );
 
     expect(screen.queryByText("should not be shown")).not.toBeInTheDocument();
   });
 
-  it("shows validation message immediately when config is invalid", () => {
+  it("does not duplicate field validation in a global alert", () => {
     render(
       <AppView
         activeSectionId="settings"
@@ -135,19 +131,13 @@ describe("config/AppView", () => {
         statusMessage=""
         canSave={false}
         isDirty
-        validation={{
-          valid: false,
-          message: m.error_stream_first_output_timeout_secs_integer(),
-        }}
       />,
     );
 
+    expect(screen.queryByText("配置无效")).not.toBeInTheDocument();
     expect(
-      screen.getByText(m.config_invalid_configuration()),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(m.error_stream_first_output_timeout_secs_integer()),
-    ).toBeInTheDocument();
+      screen.queryByText("流式首个输出超时必须是大于等于 1 的整数。"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not render the settings validation card", () => {
@@ -159,12 +149,33 @@ describe("config/AppView", () => {
         statusMessage=""
         canSave
         isDirty={false}
-        validation={{ valid: true, message: "" }}
       />,
     );
 
     expect(screen.queryByTestId("config-file-card")).not.toBeInTheDocument();
     expect(screen.getByTestId("storage-usage-card")).toBeInTheDocument();
     expect(screen.queryByTestId("validation-card")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "应用" })).not.toBeInTheDocument();
+    expect(document.querySelector('[data-slot="settings-content"]')).not.toHaveClass(
+      "mx-auto",
+      "max-w-[720px]",
+    );
+  });
+
+  it("uses a fixed workspace for the provider table", () => {
+    const { container } = render(
+      <AppView
+        activeSectionId="upstreams"
+        {...BASE_APP_VIEW_PROPS}
+        status="idle"
+        statusMessage=""
+        canSave
+        isDirty={false}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-slot="app-shell-viewport"]'),
+    ).toHaveAttribute("data-content-mode", "workspace");
   });
 });

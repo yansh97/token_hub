@@ -1,10 +1,9 @@
-import { m } from "@/paraglide/messages.js";
 
 export const UPSTREAM_ORDER_STRATEGIES = [
-  { value: "fill_first", label: () => m.upstream_strategy_order_fill_first() },
+  { value: "fill_first", label: () => "优先填满" },
   {
     value: "round_robin",
-    label: () => m.upstream_strategy_order_round_robin(),
+    label: () => "轮询",
   },
 ] as const;
 
@@ -12,9 +11,9 @@ export type UpstreamOrderStrategy =
   (typeof UPSTREAM_ORDER_STRATEGIES)[number]["value"];
 
 export const UPSTREAM_DISPATCH_STRATEGIES = [
-  { value: "serial", label: () => m.upstream_strategy_dispatch_serial() },
-  { value: "hedged", label: () => m.upstream_strategy_dispatch_hedged() },
-  { value: "race", label: () => m.upstream_strategy_dispatch_race() },
+  { value: "serial", label: () => "串行" },
+  { value: "hedged", label: () => "Hedged" },
+  { value: "race", label: () => "Race" },
 ] as const;
 
 export type UpstreamDispatchType =
@@ -33,10 +32,10 @@ export type UpstreamStrategy = {
 export const TRAY_TOKEN_RATE_FORMATS = [
   {
     value: "combined",
-    label: () => m.proxy_core_tray_token_rate_format_combined(),
+    label: () => "合并",
   },
-  { value: "split", label: () => m.proxy_core_tray_token_rate_format_split() },
-  { value: "both", label: () => m.proxy_core_tray_token_rate_format_both() },
+  { value: "split", label: () => "拆分（↑/↓）" },
+  { value: "both", label: () => "两者" },
 ] as const;
 
 export type TrayTokenRateFormat =

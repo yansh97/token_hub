@@ -4,7 +4,6 @@ import { vi } from "vitest";
 /**
  * Vitest 全局初始化：
  * - 统一 mock 掉 Tauri 相关模块，让测试可以在非 Tauri 环境运行（node/jsdom）。
- * - 补齐 jsdom 缺失的 Web API，避免 Radix/Theme 等 UI 依赖在测试中报错。
  *
  * 约束：
  * - 禁止 any：所有 mock 尽量给出明确签名。
@@ -36,16 +35,6 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
   enable: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   disable: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   isEnabled: vi.fn<() => Promise<boolean>>().mockResolvedValue(false),
-}));
-
-vi.mock("@tauri-apps/plugin-opener", () => ({
-  openUrl: vi.fn<(url: string) => Promise<void>>().mockResolvedValue(undefined),
-}));
-
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi
-    .fn<(options?: unknown) => Promise<unknown>>()
-    .mockResolvedValue(null),
 }));
 
 vi.mock("@tauri-apps/plugin-deep-link", () => ({

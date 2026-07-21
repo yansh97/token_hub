@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import {
@@ -20,14 +19,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getSectionRoute } from "@/features/config/sections";
+import { navigateTo } from "@/lib/router";
 import {
   canStartUpdateCheck,
   formatBytes,
   useUpdater,
   type UpdateStatus,
 } from "@/features/update/updater";
-import { m } from "@/paraglide/messages.js";
 
 type ToastId = string | number;
 type VisibleWindowCheckState = {
@@ -50,14 +48,10 @@ function buildDownloadProgressLabel(downloaded: number, total: number) {
   if (!total && !downloaded) {
     return "";
   }
-  return m.update_download_progress({
-    downloaded: formatBytes(downloaded),
-    total: total ? formatBytes(total) : "--",
-  });
+  return `下载进度：${formatBytes(downloaded)} / ${total ? formatBytes(total) : "--"}`;
 }
 
 export function UpdateNotifier() {
-  const navigate = useNavigate();
   const { state, actions } = useUpdater();
   const { checkForUpdate, downloadAndInstall, relaunchApp } = actions;
   const [dismissedRestartPromptKey, setDismissedRestartPromptKey] = useState<
@@ -195,19 +189,19 @@ export function UpdateNotifier() {
       const version = state.updateInfo.version;
       if (availableToastVersionRef.current !== version) {
         availableToastVersionRef.current = version;
-        const toastId = toast(m.update_status_available(), {
+        const toastId = toast("可更新", {
           duration: Infinity,
-          description: `${m.update_latest_version_label()}: ${version}`,
+          description: `${"最新版本"}: ${version}`,
           action: {
-            label: m.update_download_install(),
+            label: "下载",
             onClick: () => {
               void downloadAndInstall();
             },
           },
           cancel: {
-            label: m.update_toast_view_details(),
+            label: "查看详情",
             onClick: () => {
-              void navigate({ to: getSectionRoute("settings") });
+              navigateTo("settings");
             },
           },
         });
@@ -233,8 +227,8 @@ export function UpdateNotifier() {
     if (state.status === "downloading" || state.status === "installing") {
       const title =
         state.status === "downloading"
-          ? m.update_status_downloading()
-          : m.update_status_installing();
+          ? "下载中"
+          : "安装中";
       if (progressToastIdRef.current) {
         toast.loading(title, {
           id: progressToastIdRef.current,
@@ -262,14 +256,14 @@ export function UpdateNotifier() {
       if (previousStatus === "downloading" || previousStatus === "installing") {
         const toastId = progressToastIdRef.current;
         if (toastId) {
-          toast.error(m.update_status_error(), {
+          toast.error("更新失败", {
             id: toastId,
             description: state.statusMessage || undefined,
             duration: 8000,
           });
           progressToastIdRef.current = null;
         } else {
-          toast.error(m.update_status_error(), {
+          toast.error("更新失败", {
             description: state.statusMessage || undefined,
             duration: 8000,
           });
@@ -285,7 +279,6 @@ export function UpdateNotifier() {
   }, [
     downloadAndInstall,
     downloadProgressLabel,
-    navigate,
     state.lastCheckSource,
     state.lastCheckedAt,
     state.status,
@@ -330,16 +323,16 @@ export function UpdateNotifier() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {m.update_restart_prompt_title()}
+              {"更新已准备就绪"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {m.update_restart_prompt_desc()}
+              {"是否现在重启以完成更新？"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{m.common_close()}</AlertDialogCancel>
+            <AlertDialogCancel>{"关闭"}</AlertDialogCancel>
             <AlertDialogAction type="button" onClick={onRestartNow}>
-              {m.update_restart_now()}
+              {"立即重启"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -9,6 +9,7 @@ export default defineConfig([
   globalIgnores([
     "dist",
     "coverage",
+    "target/**",
     ".reference/**",
     "src/paraglide/**",
     "src/routeTree.gen.ts",

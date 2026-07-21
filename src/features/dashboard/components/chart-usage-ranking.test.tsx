@@ -1,14 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ChartModelUsage } from "@/features/dashboard/components/chart-usage-ranking";
-import { I18nProvider } from "@/lib/i18n";
-import { m } from "@/paraglide/messages.js";
-
-function renderWithI18n(node: ReactNode) {
-  return render(<I18nProvider>{node}</I18nProvider>);
-}
 
 describe("dashboard/chart-usage-ranking", () => {
   afterEach(() => {
@@ -16,22 +9,23 @@ describe("dashboard/chart-usage-ranking", () => {
   });
 
   it("shows model empty state", () => {
-    renderWithI18n(<ChartModelUsage models={[]} />);
+    render(<ChartModelUsage models={[]} />);
 
-    expect(screen.getByText(m.dashboard_models_title())).toBeTruthy();
-    const emptyState = screen.getByText(m.dashboard_no_data());
+    expect(screen.getByText("模型用量")).toBeTruthy();
+    const emptyState = screen.getByText("暂无数据");
     expect(emptyState).toBeTruthy();
     expect(emptyState.parentElement).toHaveClass(
       "items-center",
       "justify-center",
       "rounded-md",
       "border",
-      "border-border/60",
+      "border-dashed",
+      "border-border",
     );
   });
 
   it("renders model ranking chart when data exists", () => {
-    const { container } = renderWithI18n(
+    const { container } = render(
       <ChartModelUsage
         models={[
           {
@@ -47,27 +41,29 @@ describe("dashboard/chart-usage-ranking", () => {
       />,
     );
 
-    const card = container.querySelector('[data-slot="card"]');
-    expect(card).toBeTruthy();
-    expect(card).toHaveClass("rounded-none", "border-0");
+    const section = container.querySelector("section");
+    expect(section).toBeTruthy();
     const chart = container.querySelector('[data-slot="chart"]');
     expect(chart).toBeTruthy();
     expect(chart?.parentElement).toHaveClass(
       "rounded-md",
       "border",
-      "border-border/60",
+      "border-border/70",
+      "bg-muted/10",
     );
+    expect(chart?.parentElement).not.toHaveClass("border-dashed");
+    expect(chart?.parentElement).toHaveStyle({ height: "232px" });
     expect(
-      within(card as HTMLElement).getByText(m.dashboard_models_title()),
+      within(section as HTMLElement).getByText("模型用量"),
     ).toBeTruthy();
     expect(
-      within(card as HTMLElement).queryByText(m.dashboard_no_data()),
+      within(section as HTMLElement).queryByText("暂无数据"),
     ).toBeNull();
     // recharts 挂载在 ChartContainer 上。
   });
 
   it("limits model usage to the top five models", () => {
-    const { container } = renderWithI18n(
+    const { container } = render(
       <ChartModelUsage
         models={Array.from({ length: 6 }, (_, index) => ({
           model: `model-${index + 1}`,

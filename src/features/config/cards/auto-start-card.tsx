@@ -1,13 +1,4 @@
 import { Switch } from "@/components/ui/switch";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { m } from "@/paraglide/messages.js";
 
 type AutoStartStatus = "idle" | "loading" | "error";
 
@@ -26,37 +17,33 @@ export function AutoStartCard({
 }: AutoStartCardProps) {
   const isLoading = status === "loading";
   const isError = status === "error";
-  const errorText = m.auto_start_status_error({
-    message: message || m.common_unknown(),
-  });
+  const errorText = `读取开机启动状态失败：${message || "未知错误"}`;
 
   return (
-    <Card
+    <section
       data-slot="auto-start-card"
-      className="gap-0 rounded-none border-0 bg-transparent py-4 shadow-none"
+      className="mt-5 border-t border-border/70 pt-5"
     >
-      <CardHeader className="gap-1 px-0 py-0">
-        <CardTitle className="text-[15px] leading-5">
-          {m.auto_start_title()}
-        </CardTitle>
-        <CardDescription className="text-[12px] leading-4">
-          {m.auto_start_desc()}
-        </CardDescription>
-        <CardAction>
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold leading-5">开机启动</h2>
+          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+            登录系统后自动启动 Token Hub。
+          </p>
+        </div>
           <Switch
             checked={enabled}
             onCheckedChange={onChange}
             disabled={isLoading || isError}
-            aria-label={m.auto_start_aria()}
+            aria-label="启用开机启动"
           />
-        </CardAction>
-      </CardHeader>
+      </div>
       {isLoading || isError ? (
-        <CardContent className="space-y-1 px-0 pt-2 text-[12px] leading-4 text-muted-foreground">
-          {isLoading ? <p>{m.auto_start_status_loading()}</p> : null}
+        <div className="space-y-1 pt-2 text-[12px] leading-4 text-muted-foreground">
+          {isLoading ? <p>正在读取开机启动状态...</p> : null}
           {isError ? <p className="text-destructive">{errorText}</p> : null}
-        </CardContent>
+        </div>
       ) : null}
-    </Card>
+    </section>
   );
 }

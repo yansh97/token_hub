@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Ban, CheckCircle2, Clock3 } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
   DashboardUpstreamModelProbe,
   DashboardUpstreamModelProbeStatus,
 } from "@/features/dashboard/types";
 import { cn } from "@/lib/utils";
-import { m } from "@/paraglide/messages.js";
 
 type UpstreamModelProbesProps = {
   probes: DashboardUpstreamModelProbe[];
@@ -22,7 +20,7 @@ const STATUS_ICON = {
 
 const STATUS_CLASS_NAME = {
   pending: "text-muted-foreground",
-  ok: "text-emerald-600 dark:text-emerald-400",
+  ok: "text-success",
   failed: "text-destructive",
   unsupported: "text-muted-foreground",
 } satisfies Record<DashboardUpstreamModelProbeStatus, string>;
@@ -30,13 +28,13 @@ const STATUS_CLASS_NAME = {
 function statusLabel(status: DashboardUpstreamModelProbeStatus) {
   switch (status) {
     case "pending":
-      return m.dashboard_upstream_models_status_pending();
+      return "检查中";
     case "ok":
-      return m.dashboard_upstream_models_status_ok();
+      return "可用";
     case "failed":
-      return m.dashboard_upstream_models_status_failed();
+      return "失败";
     case "unsupported":
-      return m.dashboard_upstream_models_status_unsupported();
+      return "不支持";
   }
 }
 
@@ -86,7 +84,7 @@ function ProbeModels({ models }: { models: string[] }) {
   if (models.length === 0) {
     return (
       <span className="text-[13px] text-muted-foreground">
-        {m.dashboard_upstream_models_empty()}
+        暂无模型
       </span>
     );
   }
@@ -140,7 +138,7 @@ function ProbeRow({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-[14px] font-semibold leading-5">
+            <span className="truncate text-[13px] font-semibold leading-5">
               {probe.upstreamId}
             </span>
             <span className="truncate text-[12px] leading-5 text-muted-foreground">
@@ -151,7 +149,7 @@ function ProbeRow({
         <div className="ml-auto flex items-center gap-4">
           <ProbeStatus status={probe.status} />
           <span className="text-[12px] text-muted-foreground">
-            {m.dashboard_upstream_models_count({ count: probe.models.length })}
+            {probe.models.length} 个模型
           </span>
         </div>
       </div>
@@ -159,7 +157,7 @@ function ProbeRow({
         <ProbeModels models={probe.models} />
         {probe.error ? (
           <p className="mt-2 line-clamp-2 text-[12px] text-destructive">
-            {m.dashboard_upstream_models_error({ error: probe.error })}
+            {probe.error}
           </p>
         ) : null}
       </div>
@@ -169,14 +167,14 @@ function ProbeRow({
 
 export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
   return (
-    <div className="relative mx-4 pt-3 before:absolute before:inset-x-4 before:top-0 before:border-t before:border-border/70 before:content-[''] lg:mx-6">
-      <Card className="h-full gap-0 rounded-none border-0 bg-transparent py-0 shadow-none">
-        <CardHeader className="gap-1.5 px-4 py-3">
-          <CardTitle className="text-[15px] font-semibold leading-5">
-            {m.dashboard_upstream_models_title()}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-3 pt-0">
+    <section className="border-t border-border/70 pt-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-[15px] font-semibold leading-5">提供商模型</h2>
+        <span className="text-[11px] text-muted-foreground">
+          {probes.length} 个来源
+        </span>
+      </div>
+      <div>
           {probes.length > 0 ? (
             probes.map((probe, index) => (
               <ProbeRow
@@ -187,11 +185,10 @@ export function UpstreamModelProbes({ probes }: UpstreamModelProbesProps) {
             ))
           ) : (
             <div className="text-[13px] text-muted-foreground">
-              {m.dashboard_upstream_models_empty()}
+              暂无提供商模型
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+      </div>
+    </section>
   );
 }
