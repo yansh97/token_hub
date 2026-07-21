@@ -1,6 +1,6 @@
-# Token Proxy
+# Token Hub
 
-Token Proxy 统一不同 AI Provider 的请求、响应、用量与计费语义，使 Dashboard 和成本统计使用同一套领域语言。
+Token Hub 基于 Token Proxy 后端，统一不同 AI Provider 的请求、响应、用量与计费语义，使仪表盘和成本统计使用同一套领域语言。
 
 ## Language
 

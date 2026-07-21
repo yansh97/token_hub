@@ -11,8 +11,6 @@ export default defineConfig([
     "coverage",
     "target/**",
     ".reference/**",
-    "src/paraglide/**",
-    "src/routeTree.gen.ts",
   ]),
   {
     files: ["src/**/*.{ts,tsx}", "vite.config.ts"],

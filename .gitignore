@@ -1,23 +1,16 @@
 # Logs
-logs
+/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
-!src/features/logs/
-!src/features/logs/**
 
 node_modules
 .pnpm-store/
 dist
 dist-ssr
 *.local
-
-# Paraglide / inlang
-project.inlang/cache/
-src/paraglide/
 
 # Editor directories and files
 .vscode/*
@@ -31,12 +24,3 @@ src/paraglide/
 *.sw?
 
 target/
-
-.reference
-.magi
-.codegraph/
-.planning/
-
-findings.md
-progress.md
-task_plan.md

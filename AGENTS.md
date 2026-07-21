@@ -30,7 +30,7 @@
 
 **Token Hub** 是基于 Tauri 的 AI API 代理工具，继承上游 Token Proxy 的后端能力，用于转发 OpenAI、Gemini、Anthropic 等 AI API 格式，支持本地运行、token 使用统计、负载均衡和优先级管理。本项目的主要工作范围是前端 UI/UX 优化。
 
-- 前端: React 19 + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui(pnpm dlx shadcn@latest add xxx)
+- 前端: React 19 + TypeScript + Vite + Tailwind CSS v4 + Base UI（复杂交互）+ 本地 UI 组件
 - 后端: Rust (Edition 2021) + Tokio + Axum
 - 桌面框架: Tauri 2
 

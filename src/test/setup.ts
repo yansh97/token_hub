@@ -81,7 +81,7 @@ function createMockStorage(): Storage {
 }
 
 // Node 25 默认暴露了 `globalThis.localStorage`，但在未提供 `--localstorage-file` 时会输出 warning；
-// Paraglide 的 locale 策略也会直接访问 localStorage。为保证测试“安静且稳定”，这里无条件覆盖为内存版实现。
+// 为保证测试安静且稳定，这里无条件覆盖为内存版实现。
 const localStorageMock = createMockStorage();
 Object.defineProperty(globalThis, "localStorage", {
   value: localStorageMock,

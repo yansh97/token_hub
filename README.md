@@ -27,16 +27,10 @@ The upstream project and this fork are distributed under the [Apache License 2.0
 - SQLite-powered dashboard (requests, tokens, cached tokens, latency, recent)
 - macOS tray live token rate (optional)
 
-## Screenshots
-|  |  |
-| --- | --- |
-| **Dashboard**<br>![Dashboard](images/dashboard.png) | **Core**<br>![Core settings](images/core.png) |
-| **Upstreams**<br>![Upstreams](images/upstream.png) | **Add upstream**<br>![Add upstream](images/add-upstream.png) |
-
 ## Quick start (macOS)
 1) Install: move `Token Hub.app` to `/Applications`. If blocked: `xattr -cr /Applications/Token\ Hub.app`.
 2) Launch the app. The proxy starts automatically.
-3) Open **Config File** tab, edit and save (writes `config.jsonc` in the Tauri config dir). Defaults are usable; just paste your upstream API keys. Running proxies auto-apply the new config via reload or restart when needed.
+3) Open **Settings**, edit and save (writes `config.jsonc` in the Tauri config dir). Defaults are usable; just paste your upstream API keys. Running proxies auto-apply the new config via reload or restart when needed.
 4) Call via curl (example with local auth):
 ```bash
 curl -X POST \
@@ -53,26 +47,6 @@ curl -X POST \
   -H "Content-Type: application/json" \
   http://127.0.0.1:9208/v1/messages \
   -d '{"model":"claude-3-5-sonnet-20241022","max_tokens":256,"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}'
-```
-
-## Workspace & CLI (Rust)
-- This repo is now a Cargo workspace; the Tauri app still lives in `src-tauri/`.
-- CLI crate: `crates/token_proxy_cli` (binary `token-proxy`).
-- Default config path: `./config.jsonc` (override with `--config`).
-- GitHub Releases also publish packaged CLI archives per target:
-  - Unix: `token-proxy_cli_<version>_<target>.tar.gz`
-  - Windows: `token-proxy_cli_<version>_<target>.zip`
-
-```bash
-# start proxy
-cargo run -p token_proxy_cli -- serve
-
-# start with custom config path
-cargo run -p token_proxy_cli -- --config ./config.jsonc serve
-
-# config helpers
-cargo run -p token_proxy_cli -- config init
-cargo run -p token_proxy_cli -- --config ./config.jsonc config path
 ```
 
 ## Frontend tests
@@ -97,9 +71,7 @@ Notes:
 
 ## Configuration reference
 - File: `config.jsonc` (comments + trailing commas allowed)
-- Location:
-  - CLI: `--config` (default: `./config.jsonc`)
-  - Tauri: **AppConfig** directory (resolved automatically by the app)
+- Location: Tauri **AppConfig** directory (resolved automatically by the app)
 
 ### Core fields
 | Field | Default | Notes |
@@ -182,14 +154,9 @@ Notes:
 
 ## Dashboard
 - In-app **Dashboard** page visualizes totals, token usage trend, **model usage** ranking (Top 20), and upstream model probes
-- Time range, upstream, and account filters apply to summary / series / models
+- Time range, provider, and model filters apply to summary / series / models
 - Recent requests live on the **Logs** page (page size 50, offset supported)
 - The Logs panel supports a 30-second request-detail capture window: when enabled it stores request headers/bodies during that window, always keeps error responses for failed requests, and turns off automatically afterward.
-
-## One-click CLI setup
-- Claude Code: writes `~/.claude/settings.json` `env` (`ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL=claude-sonnet-4-6`, `ANTHROPIC_AUTH_TOKEN` when local key is set).
-- Codex: writes `~/.codex/config.toml` `model="gpt-5.5"`, `model_provider="token_proxy"`, and `[model_providers.token_proxy].base_url` → `http://127.0.0.1:<port>/v1`; writes `~/.codex/auth.json` `OPENAI_API_KEY`.
-- A `.token_proxy.bak` file is created before overwriting; restart the CLI to apply.
 
 ## FAQ
 - **Port already in use?** Change `port` in `config.jsonc`; remember to update your client base URL.
