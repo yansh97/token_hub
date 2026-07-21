@@ -1,4 +1,6 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+#[cfg(target_os = "macos")]
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 #[cfg(target_os = "macos")]
 use std::time::Duration;
@@ -9,7 +11,9 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager};
 
-use crate::proxy::config::{TrayTokenRateConfig, TrayTokenRateFormat};
+use crate::proxy::config::TrayTokenRateConfig;
+#[cfg(target_os = "macos")]
+use crate::proxy::config::TrayTokenRateFormat;
 use crate::proxy::service::{ProxyServiceHandle, ProxyServiceState, ProxyServiceStatus};
 #[cfg(target_os = "macos")]
 use crate::proxy::token_rate::TokenRateSnapshot;
@@ -42,10 +46,13 @@ struct TrayStateInner {
     status_item: AppMenuItem,
     token_rate: Arc<TokenRateTracker>,
     token_rate_config: RwLock<TrayTokenRateConfig>,
+    #[cfg(target_os = "macos")]
     last_title: RwLock<Option<String>>,
     should_quit: AtomicBool,
     // 0 表示无循环，非 0 表示正在运行的 token 速率循环 id。
+    #[cfg(target_os = "macos")]
     token_rate_loop_active: AtomicU64,
+    #[cfg(target_os = "macos")]
     token_rate_loop_counter: AtomicU64,
 }
 
@@ -299,9 +306,12 @@ pub(crate) fn init_tray(
             status_item: status_item.clone(),
             token_rate,
             token_rate_config: RwLock::new(TrayTokenRateConfig::default()),
+            #[cfg(target_os = "macos")]
             last_title: RwLock::new(None),
             should_quit: AtomicBool::new(false),
+            #[cfg(target_os = "macos")]
             token_rate_loop_active: AtomicU64::new(0),
+            #[cfg(target_os = "macos")]
             token_rate_loop_counter: AtomicU64::new(0),
         }),
     };
