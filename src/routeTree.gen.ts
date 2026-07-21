@@ -5,20 +5,25 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { Route as rootRouteImport } from "./routes/__root"
-import { Route as ConfigRouteRouteImport } from "./routes/config/route"
 import { Route as IndexRouteImport } from "./routes/index"
+import { Route as ConfigRouteRouteImport } from "./routes/config/route"
 import { Route as ConfigIndexRouteImport } from "./routes/config/index"
 
 const AgentNodeLazyRouteImport = createFileRoute("/agent-node")()
-const ConfigUpstreamsLazyRouteImport = createFileRoute("/config/upstreams")()
-const ConfigSettingsLazyRouteImport = createFileRoute("/config/settings")()
-const ConfigProvidersLazyRouteImport = createFileRoute("/config/providers")()
-const ConfigPricingLazyRouteImport = createFileRoute("/config/pricing")()
-const ConfigLogsLazyRouteImport = createFileRoute("/config/logs")()
-const ConfigDashboardLazyRouteImport = createFileRoute("/config/dashboard")()
-const ConfigCoreLazyRouteImport = createFileRoute("/config/core")()
 const ConfigAgentsLazyRouteImport = createFileRoute("/config/agents")()
+const ConfigCoreLazyRouteImport = createFileRoute("/config/core")()
+const ConfigDashboardLazyRouteImport = createFileRoute("/config/dashboard")()
+const ConfigLogsLazyRouteImport = createFileRoute("/config/logs")()
+const ConfigPricingLazyRouteImport = createFileRoute("/config/pricing")()
+const ConfigProvidersLazyRouteImport = createFileRoute("/config/providers")()
+const ConfigSettingsLazyRouteImport = createFileRoute("/config/settings")()
+const ConfigUpstreamsLazyRouteImport = createFileRoute("/config/upstreams")()
 
+const IndexRoute = IndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AgentNodeLazyRoute = AgentNodeLazyRouteImport.update({
   id: "/agent-node",
   path: "/agent-node",
@@ -29,29 +34,39 @@ const ConfigRouteRoute = ConfigRouteRouteImport.update({
   path: "/config",
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ConfigIndexRoute = ConfigIndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => ConfigRouteRoute,
 } as any)
-const ConfigUpstreamsLazyRoute = ConfigUpstreamsLazyRouteImport.update({
-  id: "/upstreams",
-  path: "/upstreams",
+const ConfigAgentsLazyRoute = ConfigAgentsLazyRouteImport.update({
+  id: "/agents",
+  path: "/agents",
+  getParentRoute: () => ConfigRouteRoute,
+} as any).lazy(() => import("./routes/config/agents.lazy").then((d) => d.Route))
+const ConfigCoreLazyRoute = ConfigCoreLazyRouteImport.update({
+  id: "/core",
+  path: "/core",
+  getParentRoute: () => ConfigRouteRoute,
+} as any).lazy(() => import("./routes/config/core.lazy").then((d) => d.Route))
+const ConfigDashboardLazyRoute = ConfigDashboardLazyRouteImport.update({
+  id: "/dashboard",
+  path: "/dashboard",
   getParentRoute: () => ConfigRouteRoute,
 } as any).lazy(() =>
-  import("./routes/config/upstreams.lazy").then((d) => d.Route),
+  import("./routes/config/dashboard.lazy").then((d) => d.Route),
 )
-const ConfigSettingsLazyRoute = ConfigSettingsLazyRouteImport.update({
-  id: "/settings",
-  path: "/settings",
+const ConfigLogsLazyRoute = ConfigLogsLazyRouteImport.update({
+  id: "/logs",
+  path: "/logs",
+  getParentRoute: () => ConfigRouteRoute,
+} as any).lazy(() => import("./routes/config/logs.lazy").then((d) => d.Route))
+const ConfigPricingLazyRoute = ConfigPricingLazyRouteImport.update({
+  id: "/pricing",
+  path: "/pricing",
   getParentRoute: () => ConfigRouteRoute,
 } as any).lazy(() =>
-  import("./routes/config/settings.lazy").then((d) => d.Route),
+  import("./routes/config/pricing.lazy").then((d) => d.Route),
 )
 const ConfigProvidersLazyRoute = ConfigProvidersLazyRouteImport.update({
   id: "/providers",
@@ -60,35 +75,20 @@ const ConfigProvidersLazyRoute = ConfigProvidersLazyRouteImport.update({
 } as any).lazy(() =>
   import("./routes/config/providers.lazy").then((d) => d.Route),
 )
-const ConfigPricingLazyRoute = ConfigPricingLazyRouteImport.update({
-  id: "/pricing",
-  path: "/pricing",
+const ConfigSettingsLazyRoute = ConfigSettingsLazyRouteImport.update({
+  id: "/settings",
+  path: "/settings",
   getParentRoute: () => ConfigRouteRoute,
 } as any).lazy(() =>
-  import("./routes/config/pricing.lazy").then((d) => d.Route),
+  import("./routes/config/settings.lazy").then((d) => d.Route),
 )
-const ConfigLogsLazyRoute = ConfigLogsLazyRouteImport.update({
-  id: "/logs",
-  path: "/logs",
-  getParentRoute: () => ConfigRouteRoute,
-} as any).lazy(() => import("./routes/config/logs.lazy").then((d) => d.Route))
-const ConfigDashboardLazyRoute = ConfigDashboardLazyRouteImport.update({
-  id: "/dashboard",
-  path: "/dashboard",
+const ConfigUpstreamsLazyRoute = ConfigUpstreamsLazyRouteImport.update({
+  id: "/upstreams",
+  path: "/upstreams",
   getParentRoute: () => ConfigRouteRoute,
 } as any).lazy(() =>
-  import("./routes/config/dashboard.lazy").then((d) => d.Route),
+  import("./routes/config/upstreams.lazy").then((d) => d.Route),
 )
-const ConfigCoreLazyRoute = ConfigCoreLazyRouteImport.update({
-  id: "/core",
-  path: "/core",
-  getParentRoute: () => ConfigRouteRoute,
-} as any).lazy(() => import("./routes/config/core.lazy").then((d) => d.Route))
-const ConfigAgentsLazyRoute = ConfigAgentsLazyRouteImport.update({
-  id: "/agents",
-  path: "/agents",
-  getParentRoute: () => ConfigRouteRoute,
-} as any).lazy(() => import("./routes/config/agents.lazy").then((d) => d.Route))
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
@@ -184,6 +184,13 @@ export interface RootRouteChildren {
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/": {
+      id: "/"
+      path: "/"
+      fullPath: "/"
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/agent-node": {
       id: "/agent-node"
       path: "/agent-node"
@@ -198,13 +205,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ConfigRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/": {
-      id: "/"
-      path: "/"
-      fullPath: "/"
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     "/config/": {
       id: "/config/"
       path: "/"
@@ -212,46 +212,11 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ConfigIndexRouteImport
       parentRoute: typeof ConfigRouteRoute
     }
-    "/config/upstreams": {
-      id: "/config/upstreams"
-      path: "/upstreams"
-      fullPath: "/config/upstreams"
-      preLoaderRoute: typeof ConfigUpstreamsLazyRouteImport
-      parentRoute: typeof ConfigRouteRoute
-    }
-    "/config/settings": {
-      id: "/config/settings"
-      path: "/settings"
-      fullPath: "/config/settings"
-      preLoaderRoute: typeof ConfigSettingsLazyRouteImport
-      parentRoute: typeof ConfigRouteRoute
-    }
-    "/config/providers": {
-      id: "/config/providers"
-      path: "/providers"
-      fullPath: "/config/providers"
-      preLoaderRoute: typeof ConfigProvidersLazyRouteImport
-      parentRoute: typeof ConfigRouteRoute
-    }
-    "/config/pricing": {
-      id: "/config/pricing"
-      path: "/pricing"
-      fullPath: "/config/pricing"
-      preLoaderRoute: typeof ConfigPricingLazyRouteImport
-      parentRoute: typeof ConfigRouteRoute
-    }
-    "/config/logs": {
-      id: "/config/logs"
-      path: "/logs"
-      fullPath: "/config/logs"
-      preLoaderRoute: typeof ConfigLogsLazyRouteImport
-      parentRoute: typeof ConfigRouteRoute
-    }
-    "/config/dashboard": {
-      id: "/config/dashboard"
-      path: "/dashboard"
-      fullPath: "/config/dashboard"
-      preLoaderRoute: typeof ConfigDashboardLazyRouteImport
+    "/config/agents": {
+      id: "/config/agents"
+      path: "/agents"
+      fullPath: "/config/agents"
+      preLoaderRoute: typeof ConfigAgentsLazyRouteImport
       parentRoute: typeof ConfigRouteRoute
     }
     "/config/core": {
@@ -261,11 +226,46 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ConfigCoreLazyRouteImport
       parentRoute: typeof ConfigRouteRoute
     }
-    "/config/agents": {
-      id: "/config/agents"
-      path: "/agents"
-      fullPath: "/config/agents"
-      preLoaderRoute: typeof ConfigAgentsLazyRouteImport
+    "/config/dashboard": {
+      id: "/config/dashboard"
+      path: "/dashboard"
+      fullPath: "/config/dashboard"
+      preLoaderRoute: typeof ConfigDashboardLazyRouteImport
+      parentRoute: typeof ConfigRouteRoute
+    }
+    "/config/logs": {
+      id: "/config/logs"
+      path: "/logs"
+      fullPath: "/config/logs"
+      preLoaderRoute: typeof ConfigLogsLazyRouteImport
+      parentRoute: typeof ConfigRouteRoute
+    }
+    "/config/pricing": {
+      id: "/config/pricing"
+      path: "/pricing"
+      fullPath: "/config/pricing"
+      preLoaderRoute: typeof ConfigPricingLazyRouteImport
+      parentRoute: typeof ConfigRouteRoute
+    }
+    "/config/providers": {
+      id: "/config/providers"
+      path: "/providers"
+      fullPath: "/config/providers"
+      preLoaderRoute: typeof ConfigProvidersLazyRouteImport
+      parentRoute: typeof ConfigRouteRoute
+    }
+    "/config/settings": {
+      id: "/config/settings"
+      path: "/settings"
+      fullPath: "/config/settings"
+      preLoaderRoute: typeof ConfigSettingsLazyRouteImport
+      parentRoute: typeof ConfigRouteRoute
+    }
+    "/config/upstreams": {
+      id: "/config/upstreams"
+      path: "/upstreams"
+      fullPath: "/config/upstreams"
+      preLoaderRoute: typeof ConfigUpstreamsLazyRouteImport
       parentRoute: typeof ConfigRouteRoute
     }
   }

@@ -16,6 +16,12 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    // TS 7 不再默认拉齐所有 @types；测试与 node: 内置模块需要显式启用
+    "types": [
+      "vite/client",
+      "node",
+      "@testing-library/jest-dom"
+    ],
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

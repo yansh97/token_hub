@@ -149,9 +149,11 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 }
 
 if (typeof globalThis.IntersectionObserver === "undefined") {
-  class MockIntersectionObserver {
+  // jsdom 29 / 新 DOM lib 要求 scrollMargin；mock 对齐完整接口
+  class MockIntersectionObserver implements IntersectionObserver {
     readonly root: Element | Document | null = null;
     readonly rootMargin = "";
+    readonly scrollMargin = "";
     readonly thresholds: ReadonlyArray<number> = [];
 
     constructor(
