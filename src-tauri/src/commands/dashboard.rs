@@ -15,7 +15,7 @@ pub async fn read_dashboard_snapshot(
     public_only: Option<bool>,
     model: Option<String>,
 ) -> Result<proxy::dashboard::DashboardSnapshot, String> {
-    let paths = app.state::<Arc<token_proxy_core::paths::TokenProxyPaths>>();
+    let paths = app.state::<Arc<token_proxy_account_store::paths::TokenProxyPaths>>();
     let pool = proxy::sqlite::open_read_pool(paths.inner().as_ref()).await?;
     tracing::debug!(
         upstream_id = upstream_id.as_deref(),

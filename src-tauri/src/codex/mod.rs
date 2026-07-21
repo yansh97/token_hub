@@ -1,1 +1,1 @@
-pub use token_proxy_core::codex::*;
+pub use token_proxy_account_codex::*;

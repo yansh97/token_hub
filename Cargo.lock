@@ -5410,7 +5410,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "token_proxy"
-version = "0.1.158"
+version = "0.1.159"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -5435,7 +5435,142 @@ dependencies = [
  "tauri-plugin-updater",
  "tiktoken-rs",
  "time",
- "token_proxy_core",
+ "token_proxy_account_codex",
+ "token_proxy_account_kiro",
+ "token_proxy_account_store",
+ "token_proxy_account_xai",
+ "token_proxy_accounts",
+ "token_proxy_agent_node",
+ "token_proxy_app",
+ "token_proxy_config",
+ "tokio",
+ "toml_edit 0.25.13+spec-1.1.0",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
+name = "token_proxy_account_codex"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "time",
+ "token_proxy_account_store",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "token_proxy_account_kiro"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "time",
+ "token_proxy_account_store",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "token_proxy_account_store"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "time",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "token_proxy_account_xai"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "time",
+ "token_proxy_account_store",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "token_proxy_accounts"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "serde",
+ "serde_json",
+ "token_proxy_account_codex",
+ "token_proxy_account_kiro",
+ "token_proxy_account_store",
+ "token_proxy_account_xai",
+ "tokio",
+]
+
+[[package]]
+name = "token_proxy_agent_node"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "portable-pty",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "token_proxy_app"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "futures-util",
+ "h2",
+ "httparse",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sha2 0.11.0",
+ "sqlx",
+ "tiktoken-rs",
+ "time",
+ "token_proxy_account_codex",
+ "token_proxy_account_kiro",
+ "token_proxy_account_store",
+ "token_proxy_account_xai",
+ "token_proxy_config",
+ "token_proxy_protocol",
  "tokio",
  "toml_edit 0.25.13+spec-1.1.0",
  "tracing",
@@ -5448,36 +5583,35 @@ name = "token_proxy_cli"
 version = "0.1.0"
 dependencies = [
  "clap",
- "token_proxy_core",
+ "token_proxy_account_store",
+ "token_proxy_agent_node",
+ "token_proxy_app",
+ "token_proxy_config",
  "tokio",
 ]
 
 [[package]]
-name = "token_proxy_core"
+name = "token_proxy_config"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64 0.22.1",
- "futures-util",
- "h2",
- "httparse",
- "portable-pty",
- "rand",
- "reqwest",
  "serde",
  "serde_json",
- "serde_urlencoded",
- "sha2 0.11.0",
- "sqlx",
- "sysinfo",
- "tiktoken-rs",
- "time",
+ "token_proxy_account_store",
+ "token_proxy_account_xai",
  "tokio",
- "tokio-tungstenite",
- "toml_edit 0.25.13+spec-1.1.0",
  "tracing",
- "tracing-subscriber",
  "url",
+]
+
+[[package]]
+name = "token_proxy_protocol"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde_json",
+ "tiktoken-rs",
+ "tracing",
 ]
 
 [[package]]

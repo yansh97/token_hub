@@ -11,13 +11,13 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager};
 
-use crate::proxy::config::TrayTokenRateConfig;
-#[cfg(target_os = "macos")]
-use crate::proxy::config::TrayTokenRateFormat;
 use crate::proxy::service::{ProxyServiceHandle, ProxyServiceState, ProxyServiceStatus};
 #[cfg(target_os = "macos")]
 use crate::proxy::token_rate::TokenRateSnapshot;
 use crate::proxy::token_rate::TokenRateTracker;
+use token_proxy_config::TrayTokenRateConfig;
+#[cfg(target_os = "macos")]
+use token_proxy_config::TrayTokenRateFormat;
 
 type AppMenuItem = MenuItem<tauri::Wry>;
 type AppTrayIcon = TrayIcon<tauri::Wry>;
@@ -558,7 +558,7 @@ mod tests {
                 total: 965,
                 connections: 1,
             },
-            crate::proxy::config::TrayTokenRateFormat::Split,
+            token_proxy_config::TrayTokenRateFormat::Split,
         );
         assert_eq!(title, "↑·↓123");
     }
@@ -573,7 +573,7 @@ mod tests {
                 total: 0,
                 connections: 1,
             },
-            crate::proxy::config::TrayTokenRateFormat::Split,
+            token_proxy_config::TrayTokenRateFormat::Split,
         );
         assert_eq!(title, "↑·↓0");
     }

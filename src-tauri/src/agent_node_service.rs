@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
-use token_proxy_core::agent_node::{AgentNodeClient, AgentNodeConfig};
+use token_proxy_agent_node::{AgentNodeClient, AgentNodeConfig};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -72,7 +72,7 @@ impl AgentNodeServiceHandle {
 
     pub async fn status(
         &self,
-        paths: &token_proxy_core::paths::TokenProxyPaths,
+        paths: &token_proxy_account_store::paths::TokenProxyPaths,
     ) -> AgentNodeServiceStatus {
         let config = read_agent_node_config(paths).await.unwrap_or_default();
         self.status_for_config(config).await
@@ -80,7 +80,7 @@ impl AgentNodeServiceHandle {
 
     pub async fn start(
         &self,
-        paths: &token_proxy_core::paths::TokenProxyPaths,
+        paths: &token_proxy_account_store::paths::TokenProxyPaths,
     ) -> Result<AgentNodeServiceStatus, String> {
         let config = read_agent_node_config(paths).await?;
         self.start_with_config(config).await
@@ -114,7 +114,7 @@ impl AgentNodeServiceHandle {
 
     pub async fn stop(
         &self,
-        paths: &token_proxy_core::paths::TokenProxyPaths,
+        paths: &token_proxy_account_store::paths::TokenProxyPaths,
     ) -> Result<AgentNodeServiceStatus, String> {
         let config = read_agent_node_config(paths).await.unwrap_or_default();
         let mut inner = self.inner.lock().await;
@@ -127,7 +127,7 @@ impl AgentNodeServiceHandle {
 
     pub async fn save_config(
         &self,
-        paths: &token_proxy_core::paths::TokenProxyPaths,
+        paths: &token_proxy_account_store::paths::TokenProxyPaths,
         config: AgentNodeStoredConfig,
     ) -> Result<AgentNodeServiceStatus, String> {
         write_agent_node_config(paths, &config).await?;
@@ -150,7 +150,7 @@ impl AgentNodeServiceHandle {
 
     pub async fn restart(
         &self,
-        paths: &token_proxy_core::paths::TokenProxyPaths,
+        paths: &token_proxy_account_store::paths::TokenProxyPaths,
     ) -> Result<AgentNodeServiceStatus, String> {
         let config = read_agent_node_config(paths).await?;
         self.restart_with_config(config).await
@@ -187,7 +187,7 @@ impl AgentNodeServiceHandle {
 }
 
 pub async fn read_agent_node_config(
-    paths: &token_proxy_core::paths::TokenProxyPaths,
+    paths: &token_proxy_account_store::paths::TokenProxyPaths,
 ) -> Result<AgentNodeStoredConfig, String> {
     let path = paths.data_dir().join(AGENT_NODE_CONFIG_FILE_NAME);
     match tokio::fs::read_to_string(&path).await {
@@ -201,7 +201,7 @@ pub async fn read_agent_node_config(
 }
 
 pub async fn write_agent_node_config(
-    paths: &token_proxy_core::paths::TokenProxyPaths,
+    paths: &token_proxy_account_store::paths::TokenProxyPaths,
     config: &AgentNodeStoredConfig,
 ) -> Result<(), String> {
     let path = paths.data_dir().join(AGENT_NODE_CONFIG_FILE_NAME);

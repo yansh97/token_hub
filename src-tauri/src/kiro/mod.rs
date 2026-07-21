@@ -1,1 +1,1 @@
-pub use token_proxy_core::kiro::*;
+pub use token_proxy_account_kiro::*;

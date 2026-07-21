@@ -1,1 +1,1 @@
-pub use token_proxy_core::proxy::*;
+pub use token_proxy_app::proxy::*;

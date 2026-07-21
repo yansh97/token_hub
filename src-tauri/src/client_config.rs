@@ -7,7 +7,7 @@ use std::{
 use tauri::AppHandle;
 use tauri::Manager;
 
-use crate::proxy::config::ProxyConfigFile;
+use token_proxy_config::ProxyConfigFile;
 
 const CODEX_DISABLE_RESPONSE_STORAGE: bool = true;
 const CLAUDE_MODEL: &str = "claude-sonnet-4-6";
@@ -189,8 +189,8 @@ pub(crate) async fn write_codex_config(app: AppHandle) -> Result<ClientConfigWri
 }
 
 async fn load_proxy_config(app: &AppHandle) -> Result<ProxyConfigFile, String> {
-    let paths = app.state::<Arc<token_proxy_core::paths::TokenProxyPaths>>();
-    Ok(crate::proxy::config::read_config(paths.inner().as_ref())
+    let paths = app.state::<Arc<token_proxy_account_store::paths::TokenProxyPaths>>();
+    Ok(token_proxy_config::read_config(paths.inner().as_ref())
         .await?
         .config)
 }
@@ -343,7 +343,7 @@ async fn read_json_object_or_default(
     if text.trim().is_empty() {
         return Ok(serde_json::Map::new());
     }
-    let sanitized = crate::jsonc::sanitize_jsonc(&text);
+    let sanitized = token_proxy_config::sanitize_jsonc(&text);
     let mut value: serde_json::Value = serde_json::from_str(&sanitized)
         .map_err(|err| format!("Failed to parse {}: {err}", path.display()))?;
     let Some(object) = value.as_object_mut() else {
