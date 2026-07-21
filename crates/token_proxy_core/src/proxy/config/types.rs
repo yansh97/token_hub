@@ -204,6 +204,8 @@ pub struct UpstreamConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codex_account_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xai_account_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preferred_endpoint: Option<KiroPreferredEndpoint>,
     pub proxy_url: Option<String>,
     pub priority: Option<i32>,
@@ -424,6 +426,7 @@ pub struct UpstreamRuntime {
     pub(crate) rewrite_developer_role_to_system: bool,
     pub(crate) kiro_account_id: Option<String>,
     pub(crate) codex_account_id: Option<String>,
+    pub(crate) xai_account_id: Option<String>,
     pub(crate) kiro_preferred_endpoint: Option<KiroPreferredEndpoint>,
     pub(crate) proxy_url: Option<String>,
     pub(crate) priority: i32,

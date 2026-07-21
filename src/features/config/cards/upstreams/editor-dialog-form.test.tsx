@@ -7,6 +7,10 @@ import { UpstreamEditorFields } from "@/features/config/cards/upstreams/editor-d
 import { createEmptyUpstream } from "@/features/config/form";
 import { m } from "@/paraglide/messages.js";
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+}));
+
 afterEach(() => {
   cleanup();
   vi.mocked(invoke).mockReset();
@@ -194,6 +198,53 @@ describe("upstreams/editor-dialog-form", () => {
     expect(screen.queryByLabelText(m.field_proxy_url())).not.toBeInTheDocument();
     expect(screen.getByLabelText(m.field_id())).toBeDisabled();
     expect(screen.getByRole("button", { name: /codex/i })).toBeDisabled();
+  });
+
+  it("selects an optional xai account binding", async () => {
+    const user = userEvent.setup();
+    const draft = createEmptyUpstream();
+    draft.id = "xai-default";
+    draft.providers = ["xai"];
+    const onChangeDraft = vi.fn();
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "xai_list_accounts") {
+        return [
+          {
+            account_id: "xai-user@example.com",
+            email: "user@example.com",
+            expires_at: "2027-01-01T00:00:00Z",
+            status: "active",
+            auto_refresh_enabled: true,
+            proxy_url: null,
+            priority: 0,
+          },
+        ];
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    render(
+      <UpstreamEditorFields
+        draft={draft}
+        providerOptions={["xai"]}
+        appProxyUrl=""
+        showApiKeys={false}
+        onToggleApiKeys={vi.fn()}
+        onChangeDraft={onChangeDraft}
+      />
+    );
+
+    const accountSelect = screen.getByLabelText(m.field_xai_account());
+    expect(accountSelect).toHaveTextContent(m.xai_account_auto());
+    expect(screen.queryByLabelText(m.field_base_url())).not.toBeInTheDocument();
+    expect(screen.getByLabelText(m.field_id())).toBeDisabled();
+
+    await user.click(accountSelect);
+    await user.click(await screen.findByRole("option", { name: /user@example\.com/ }));
+
+    expect(onChangeDraft).toHaveBeenCalledWith({
+      xaiAccountId: "xai-user@example.com",
+    });
   });
 
   it("hides network and api key fields when provider is antigravity", () => {

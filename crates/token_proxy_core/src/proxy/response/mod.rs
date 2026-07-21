@@ -1,4 +1,4 @@
-use axum::{body::Bytes, response::Response};
+use axum::{body::Bytes, http::StatusCode, response::Response};
 use serde_json::Value;
 use std::{
     sync::Arc,
@@ -21,6 +21,7 @@ const PROVIDER_OPENAI_RESPONSES: &str = "openai-response";
 const PROVIDER_ANTHROPIC: &str = "anthropic";
 const PROVIDER_GEMINI: &str = "gemini";
 const PROVIDER_CODEX: &str = "codex";
+const PROVIDER_XAI: &str = "xai";
 const RESPONSE_ERROR_LIMIT_BYTES: usize = 256 * 1024;
 const GEMINI_UPLOAD_URL_HEADER: &str = "x-goog-upload-url";
 const GEMINI_PROXY_UPLOAD_TARGET_QUERY: &str = "tp_upload_target";
@@ -30,12 +31,20 @@ const IMAGE_GENERATION_MIN_NO_DATA_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
 pub(super) struct RetryableStreamResponse {
+    /// 上游流内错误的语义状态；外层 HTTP 可能仍是 200。
+    pub(super) status: StatusCode,
     pub(super) message: String,
     pub(super) should_cooldown: bool,
 }
 
 #[derive(Clone)]
 pub(crate) struct NonRetryableSemanticResponse;
+
+#[derive(Clone, Copy)]
+pub(super) struct AccountCooldownHint {
+    pub(super) duration: Duration,
+    pub(super) reason: &'static str,
+}
 
 pub(super) async fn build_proxy_response(
     meta: &RequestMeta,

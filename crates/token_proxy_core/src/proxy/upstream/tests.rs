@@ -1,4 +1,4 @@
-use axum::http::StatusCode;
+use axum::{body::Bytes, http::StatusCode};
 
 use super::utils::{is_retryable_status, is_retryable_transport_error_message};
 use super::*;
@@ -170,4 +170,172 @@ fn mapped_model_reasoning_suffix_does_not_override_existing_effort() {
     );
     assert_eq!(model.as_deref(), Some("gpt-4.1"));
     assert_eq!(effort.as_deref(), Some("low"));
+}
+
+#[test]
+fn xai_routes_compact_and_media_to_official_api() {
+    for path in [
+        "/v1/responses/compact",
+        "/v1/responses/compact?mode=test",
+        "/v1/images/generations",
+        "/v1/images/edits",
+        "/v1/videos/video-123",
+        "/v1/videos/video-123/content?download=1",
+    ] {
+        assert!(
+            prepare::xai_request_url(path).starts_with("https://api.x.ai/v1/"),
+            "path={path}"
+        );
+    }
+    assert_eq!(
+        prepare::xai_request_url("/v1/responses"),
+        "https://cli-chat-proxy.grok.com/v1/responses"
+    );
+}
+
+#[test]
+fn xai_official_api_headers_keep_bearer_and_remove_cli_identity() {
+    use axum::http::{header, HeaderMap, HeaderValue};
+
+    let body = ReplayableBody::from_bytes(Default::default());
+    for path in [
+        "/v1/responses/compact",
+        "/v1/images/generations",
+        "/v1/videos/video-123",
+    ] {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer override"),
+        );
+        headers.insert(
+            header::USER_AGENT,
+            HeaderValue::from_static(crate::xai::CLI_USER_AGENT),
+        );
+        headers.insert(
+            crate::xai::CLI_TOKEN_AUTH_HEADER,
+            HeaderValue::from_static(crate::xai::CLI_TOKEN_AUTH_VALUE),
+        );
+        headers.insert("x-grok-conv-id", HeaderValue::from_static("conversation"));
+        let mut protected = HeaderMap::new();
+        protected.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer account-token"),
+        );
+
+        prepare::enforce_xai_request_headers(path, &body, true, Some(&protected), &mut headers);
+
+        assert_eq!(
+            headers
+                .get(header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("Bearer account-token")
+        );
+        assert!(!headers.contains_key(crate::xai::CLI_TOKEN_AUTH_HEADER));
+        assert!(!headers.contains_key(crate::xai::CLI_CLIENT_VERSION_HEADER));
+        assert!(!headers.contains_key("x-grok-conv-id"));
+        assert!(!headers.contains_key(header::USER_AGENT));
+        assert_eq!(
+            headers
+                .get(header::ACCEPT)
+                .and_then(|value| value.to_str().ok()),
+            Some("application/json")
+        );
+    }
+}
+
+#[test]
+fn xai_image_edits_preserves_multipart_content_type() {
+    use axum::http::{header, HeaderMap, HeaderValue};
+
+    let body = ReplayableBody::from_bytes(Bytes::from_static(
+        b"--xai-boundary\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\nedit\r\n--xai-boundary--\r\n",
+    ));
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("multipart/form-data; boundary=xai-boundary"),
+    );
+
+    prepare::enforce_xai_request_headers("/v1/images/edits", &body, false, None, &mut headers);
+
+    assert_eq!(
+        headers
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()),
+        Some("multipart/form-data; boundary=xai-boundary")
+    );
+    assert_eq!(
+        headers
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok()),
+        Some("application/json")
+    );
+}
+
+#[test]
+fn xai_video_content_uses_binary_accept_without_json_content_type() {
+    use axum::http::{header, HeaderMap, HeaderValue};
+
+    let body = ReplayableBody::from_bytes(Default::default());
+    let mut headers = HeaderMap::new();
+    prepare::enforce_xai_request_headers(
+        "/v1/videos/video-123/content",
+        &body,
+        false,
+        None,
+        &mut headers,
+    );
+
+    assert_eq!(
+        headers
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok()),
+        Some("*/*")
+    );
+    assert!(!headers.contains_key(header::CONTENT_TYPE));
+
+    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    prepare::enforce_xai_request_headers(
+        "/v1/videos/video-123/content?download=1",
+        &body,
+        false,
+        None,
+        &mut headers,
+    );
+    assert_eq!(
+        headers
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok()),
+        Some("*/*")
+    );
+}
+
+#[test]
+fn xai_cli_responses_headers_include_identity_and_conversation() {
+    use axum::http::{header, HeaderMap};
+
+    let body =
+        ReplayableBody::from_bytes(Bytes::from_static(br#"{"prompt_cache_key":"session-123"}"#));
+    let mut headers = HeaderMap::new();
+    prepare::enforce_xai_request_headers("/v1/responses", &body, true, None, &mut headers);
+
+    assert_eq!(
+        headers
+            .get(crate::xai::CLI_TOKEN_AUTH_HEADER)
+            .and_then(|value| value.to_str().ok()),
+        Some(crate::xai::CLI_TOKEN_AUTH_VALUE)
+    );
+    assert_eq!(
+        headers
+            .get("x-grok-conv-id")
+            .and_then(|value| value.to_str().ok()),
+        Some("session-123")
+    );
+    assert_eq!(
+        headers
+            .get(header::USER_AGENT)
+            .and_then(|value| value.to_str().ok()),
+        Some(crate::xai::CLI_USER_AGENT)
+    );
 }

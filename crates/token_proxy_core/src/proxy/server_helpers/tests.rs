@@ -3,6 +3,38 @@ use super::*;
 use axum::body::{Body, Bytes};
 
 #[test]
+fn debug_header_snapshot_redacts_credentials_but_keeps_safe_headers() {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", "Bearer secret".parse().expect("header"));
+    headers.insert(
+        "proxy-authorization",
+        "Basic secret".parse().expect("header"),
+    );
+    headers.insert("cookie", "session=secret".parse().expect("header"));
+    headers.insert("x-api-key", "secret-key".parse().expect("header"));
+    headers.insert("x-xai-token-auth", "xai-grok-cli".parse().expect("header"));
+    headers.insert("content-type", "application/json".parse().expect("header"));
+
+    let snapshot = snapshot_headers_raw(&headers);
+    let value_for = |name: &str| {
+        snapshot
+            .iter()
+            .find_map(|(header_name, value)| (header_name == name).then_some(value.as_str()))
+    };
+    for name in [
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "x-api-key",
+        "x-xai-token-auth",
+    ] {
+        assert_eq!(value_for(name), Some("[redacted]"));
+    }
+    assert_eq!(value_for("content-type"), Some("application/json"));
+    assert!(snapshot.iter().all(|(_, value)| !value.contains("secret")));
+}
+
+#[test]
 fn force_openai_chat_stream_usage_inserts_stream_options_include_usage() {
     let rt = tokio::runtime::Runtime::new().expect("runtime");
     rt.block_on(async {

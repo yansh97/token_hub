@@ -22,8 +22,10 @@ import {
   ModelMappingsEditor,
 } from "@/features/config/cards/upstreams/editor-fields";
 import { ProviderMultiSelect } from "@/features/config/cards/upstreams/provider-multi-select";
+import { XaiAccountSelect } from "@/features/config/cards/upstreams/xai-account-select";
 import { isAccountBackedProviderSet } from "@/features/config/cards/upstreams/upstream-editor-helpers";
 import { createModelMapping } from "@/features/config/form";
+import { useXaiAccounts } from "@/features/xai/use-xai-accounts";
 import type {
   HeaderOverrideForm,
   KiroPreferredEndpoint,
@@ -51,7 +53,8 @@ function isLockedAccountBackedUpstream(draft: UpstreamForm) {
   return (
     providers.length === 1 &&
     ((providers[0] === "kiro" && draft.id.trim() === "kiro-default") ||
-      (providers[0] === "codex" && draft.id.trim() === "codex-default"))
+      (providers[0] === "codex" && draft.id.trim() === "codex-default") ||
+      (providers[0] === "xai" && draft.id.trim() === "xai-default"))
   );
 }
 
@@ -100,7 +103,9 @@ function UpstreamConnectionFields({
   const providers = draft.providers.map((value) => value.trim()).filter(Boolean);
   const isAccountBackedProvider = isAccountBackedProviderSet(providers);
   const isKiro = providers.includes("kiro");
+  const isXai = providers.includes("xai");
   const isLocked = isLockedAccountBackedUpstream(draft);
+  const xaiAccounts = useXaiAccounts({ autoLoad: isXai });
   const kiroEndpointValue = draft.preferredEndpoint.trim()
     ? draft.preferredEndpoint
     : KIRO_ENDPOINT_INHERIT;
@@ -115,6 +120,17 @@ function UpstreamConnectionFields({
           onChange={(next) => onChangeDraft({ providers: next })}
         />
       </EditorField>
+
+      {isXai ? (
+        <XaiAccountSelect
+          accountId={draft.xaiAccountId}
+          accounts={xaiAccounts.accounts}
+          loading={xaiAccounts.loading}
+          error={xaiAccounts.error}
+          onRefresh={() => void xaiAccounts.refresh()}
+          onSelect={(xaiAccountId) => onChangeDraft({ xaiAccountId })}
+        />
+      ) : null}
 
       {isKiro ? (
         <EditorField

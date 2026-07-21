@@ -39,6 +39,7 @@ mod usage;
 
 use crate::codex::CodexAccountStore;
 use crate::kiro::KiroAccountStore;
+use crate::xai::XaiAccountStore;
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicUsize, Arc},
@@ -56,6 +57,7 @@ struct ProxyState {
     model_discovery: Arc<model_discovery::UpstreamModelDiscoveryCache>,
     kiro_accounts: Arc<KiroAccountStore>,
     codex_accounts: Arc<CodexAccountStore>,
+    xai_accounts: Arc<XaiAccountStore>,
 }
 
 struct RequestMeta {

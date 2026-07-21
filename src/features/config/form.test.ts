@@ -363,6 +363,52 @@ describe("config/form", () => {
     expect(payload.upstreams[1]?.codex_account_id).toBeNull();
   });
 
+  it("round-trips an optional xai account binding", () => {
+    const form = toForm({
+      host: "127.0.0.1",
+      port: 9208,
+      local_api_key: null,
+      app_proxy_url: null,
+      upstreams: [
+        {
+          id: "xai-default",
+          providers: ["xai"],
+          base_url: "",
+          xai_account_id: "xai-user@example.com",
+          proxy_url: null,
+          priority: 30,
+          enabled: true,
+          model_mappings: {},
+        },
+      ],
+      tray_token_rate: {
+        enabled: true,
+        format: "split",
+      },
+      upstream_strategy: {
+        order: "fill_first",
+        dispatch: { type: "serial" },
+      },
+    });
+
+    expect(form.upstreams[0]?.xaiAccountId).toBe("xai-user@example.com");
+    const payload = toPayload(form);
+    expect(payload.upstreams[0]?.xai_account_id).toBe("xai-user@example.com");
+    expect(payload.upstreams[0]?.base_url).toBe("");
+    expect(payload.upstreams[0]?.proxy_url).toBeNull();
+  });
+
+  it("uses automatic xai account scheduling when no binding is selected", () => {
+    const upstream = createEmptyUpstream();
+    upstream.id = "xai-default";
+    upstream.providers = ["xai"];
+    upstream.xaiAccountId = "";
+
+    const payload = toPayload({ ...EMPTY_FORM, upstreams: [upstream] });
+
+    expect(payload.upstreams[0]?.xai_account_id).toBeNull();
+  });
+
   it("drops upstream base_url and proxy_url for kiro and codex providers", () => {
     const kiroUpstream = createEmptyUpstream();
     kiroUpstream.id = "kiro-default";
@@ -405,18 +451,27 @@ describe("config/form", () => {
     expect(payload.upstreams[0]?.proxy_url).toBeNull();
   });
 
-  it("auto-generates kiro and codex upstreams when accounts exist", () => {
+  it("auto-generates kiro, codex, and xai upstreams when accounts exist", () => {
     const upstreams = syncAccountBackedUpstreams([], {
       hasKiroAccount: true,
       hasCodexAccount: true,
+      hasXaiAccount: true,
     });
 
-    expect(upstreams.map((item) => item.id)).toEqual(["kiro-default", "codex-default"]);
-    expect(upstreams.map((item) => item.providers)).toEqual([["kiro"], ["codex"]]);
+    expect(upstreams.map((item) => item.id)).toEqual([
+      "kiro-default",
+      "codex-default",
+      "xai-default",
+    ]);
+    expect(upstreams.map((item) => item.providers)).toEqual([
+      ["kiro"],
+      ["codex"],
+      ["xai"],
+    ]);
     expect(upstreams.every((item) => item.enabled)).toBe(true);
   });
 
-  it("removes kiro and codex upstreams when accounts disappear", () => {
+  it("removes kiro, codex, and xai upstreams when accounts disappear", () => {
     const regular = createEmptyUpstream();
     regular.id = "openai-main";
     regular.providers = ["openai"];
@@ -429,12 +484,37 @@ describe("config/form", () => {
     codex.id = "codex-default";
     codex.providers = ["codex"];
 
-    const upstreams = syncAccountBackedUpstreams([regular, kiro, codex], {
+    const xai = createEmptyUpstream();
+    xai.id = "xai-default";
+    xai.providers = ["xai"];
+
+    const upstreams = syncAccountBackedUpstreams([regular, kiro, codex, xai], {
       hasKiroAccount: false,
       hasCodexAccount: false,
+      hasXaiAccount: false,
     });
 
     expect(upstreams).toEqual([regular]);
+  });
+
+  it("preserves user-created xai upstreams while managing only xai-default", () => {
+    const customXai = createEmptyUpstream();
+    customXai.id = "xai-custom";
+    customXai.providers = ["xai"];
+
+    const withoutAccounts = syncAccountBackedUpstreams([customXai], {
+      hasKiroAccount: false,
+      hasCodexAccount: false,
+      hasXaiAccount: false,
+    });
+    expect(withoutAccounts).toEqual([customXai]);
+
+    const withAccounts = syncAccountBackedUpstreams([customXai], {
+      hasKiroAccount: false,
+      hasCodexAccount: false,
+      hasXaiAccount: true,
+    });
+    expect(withAccounts.map((upstream) => upstream.id)).toEqual(["xai-custom", "xai-default"]);
   });
 
   it("serializes split timeout seconds", () => {

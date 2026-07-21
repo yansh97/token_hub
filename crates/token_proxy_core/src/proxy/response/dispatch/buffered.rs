@@ -27,11 +27,12 @@ use super::super::super::{
 };
 use super::super::{
     kiro_to_anthropic, kiro_to_responses, responses_failure, token_count, upstream_read,
-    upstream_stream, NonRetryableSemanticResponse, RetryableStreamResponse, PROVIDER_GEMINI,
-    RESPONSE_ERROR_LIMIT_BYTES,
+    upstream_stream, AccountCooldownHint, NonRetryableSemanticResponse, RetryableStreamResponse,
+    PROVIDER_GEMINI, RESPONSE_ERROR_LIMIT_BYTES,
 };
 
 const DEBUG_BODY_LOG_LIMIT_BYTES: usize = usize::MAX;
+const XAI_FREE_USAGE_COOLDOWN: Duration = Duration::from_secs(24 * 60 * 60);
 
 pub(super) async fn build_buffered_response(
     status: StatusCode,
@@ -99,6 +100,7 @@ pub(super) async fn build_buffered_response(
     };
     let mut usage = extract_usage_from_response(&bytes);
     let response_error = response_error_for_status(status, &bytes);
+    let account_cooldown_hint = xai_account_cooldown_hint(&context.provider, status, &bytes);
     let is_non_retryable_semantic_error =
         !status.is_success() && is_context_window_error(response_error.as_deref(), &bytes);
     let request_body = context.request_body.clone();
@@ -130,6 +132,7 @@ pub(super) async fn build_buffered_response(
         log.clone().write_detached(entry);
         let mut response = http::error_response(StatusCode::BAD_GATEWAY, &message);
         response.extensions_mut().insert(RetryableStreamResponse {
+            status: StatusCode::BAD_GATEWAY,
             message,
             should_cooldown: false,
         });
@@ -157,17 +160,39 @@ pub(super) async fn build_buffered_response(
         .await;
 
     let mut response = http::build_response(status, headers, Body::from(output));
+    if let Some(hint) = account_cooldown_hint {
+        response.extensions_mut().insert(hint);
+    }
     if is_non_retryable_semantic_error {
         response
             .extensions_mut()
             .insert(NonRetryableSemanticResponse);
     } else if let Some(message) = capacity_retry_message {
         response.extensions_mut().insert(RetryableStreamResponse {
+            status,
             message,
             should_cooldown: false,
         });
     }
     response
+}
+
+pub(super) fn xai_account_cooldown_hint(
+    provider: &str,
+    status: StatusCode,
+    bytes: &Bytes,
+) -> Option<AccountCooldownHint> {
+    if provider != "xai" || status != StatusCode::TOO_MANY_REQUESTS {
+        return None;
+    }
+    let text = String::from_utf8_lossy(bytes).to_ascii_lowercase();
+    let exhausted = text.contains("free-usage-exhausted")
+        || text.contains("included free usage")
+        || text.contains("included_free_usage");
+    exhausted.then_some(AccountCooldownHint {
+        duration: XAI_FREE_USAGE_COOLDOWN,
+        reason: "free_usage_exhausted",
+    })
 }
 
 #[cfg(test)]
@@ -903,6 +928,7 @@ async fn read_upstream_bytes(
             log.clone().write_detached(entry);
             let mut response = http::error_response(StatusCode::GATEWAY_TIMEOUT, &message);
             response.extensions_mut().insert(RetryableStreamResponse {
+                status: StatusCode::GATEWAY_TIMEOUT,
                 message,
                 should_cooldown: true,
             });
@@ -940,6 +966,7 @@ async fn read_upstream_bytes(
             let mut response = http::error_response(status, &message);
             if status == StatusCode::GATEWAY_TIMEOUT {
                 response.extensions_mut().insert(RetryableStreamResponse {
+                    status,
                     message,
                     should_cooldown: true,
                 });
@@ -976,6 +1003,7 @@ fn respond_codex_images_transform_error(
     let mut response = http::error_response(error.status, &error_message);
     if error.retryable {
         response.extensions_mut().insert(RetryableStreamResponse {
+            status: error.status,
             message: error_message,
             should_cooldown: false,
         });

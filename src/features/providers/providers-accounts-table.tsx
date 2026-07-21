@@ -56,7 +56,7 @@ export type ProviderAccountQuotaDetailItem = {
 
 export type ProviderAccountTableRow = {
   id: string;
-  provider: "kiro" | "codex";
+  provider: "kiro" | "codex" | "xai";
   providerLabel: string;
   displayName: string;
   accountId: string;
@@ -254,7 +254,7 @@ function ProviderAccountDialog({
   };
 
   const handleToggleAutoRefresh = (enabled: boolean) => {
-    if (!row || row.provider !== "codex") {
+    if (!row || row.autoRefreshEnabled === null) {
       return;
     }
     void onToggleAutoRefresh(row, enabled);
@@ -405,15 +405,17 @@ function ProviderAccountDialog({
                 data-slot="provider-account-action-bar"
                 className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3"
               >
-                {row.provider === "codex" && row.autoRefreshEnabled !== null ? (
+                {row.autoRefreshEnabled !== null ? (
                   <div className="mr-auto flex items-center gap-2">
                     <Switch
                       checked={row.autoRefreshEnabled}
                       onCheckedChange={handleToggleAutoRefresh}
                       disabled={busy}
-                      aria-label="Codex 自动置换 Token"
+                      aria-label={m.providers_account_auto_refresh()}
                     />
-                    <p className="text-[11px] text-muted-foreground">Codex 自动置换 Token</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {m.providers_account_auto_refresh()}
+                    </p>
                   </div>
                 ) : null}
                 {row.canRefresh ? (
@@ -428,11 +430,15 @@ function ProviderAccountDialog({
                       {m.common_refresh()}
                     </Button>
                     <AlertDialog open={refreshConfirmOpen} onOpenChange={setRefreshConfirmOpen}>
-                      <AlertDialogContent data-slot="codex-refresh-confirm-dialog">
+                      <AlertDialogContent data-slot="account-refresh-confirm-dialog">
                         <AlertDialogHeader>
-                          <AlertDialogTitle>确认刷新 Token？</AlertDialogTitle>
+                          <AlertDialogTitle>
+                            {m.providers_account_refresh_confirm_title()}
+                          </AlertDialogTitle>
                           <AlertDialogDescription>
-                            将尝试刷新当前 Codex 账户的访问令牌。
+                            {m.providers_account_refresh_confirm_description({
+                              provider: row.providerLabel,
+                            })}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

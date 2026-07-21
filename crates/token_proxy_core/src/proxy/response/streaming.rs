@@ -17,7 +17,7 @@ use super::{
     responses_failure,
     sequence::ResponsesEventSequence,
     PROVIDER_ANTHROPIC, PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_OPENAI,
-    PROVIDER_OPENAI_RESPONSES,
+    PROVIDER_OPENAI_RESPONSES, PROVIDER_XAI,
 };
 
 pub(crate) const STREAM_DROPPED_ERROR: &str = "stream dropped before completion";
@@ -766,7 +766,7 @@ fn sse_data_type(data: &str) -> Option<String> {
 fn openai_stream_semantics(provider: &str, path: &str) -> OpenAiStreamSemantics {
     let done_sentinel = matches!(
         provider,
-        PROVIDER_OPENAI | PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX
+        PROVIDER_OPENAI | PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX | PROVIDER_XAI
     );
     OpenAiStreamSemantics {
         done_sentinel,
@@ -798,7 +798,7 @@ fn openai_stream_value_is_terminal(value: &Value) -> bool {
 
 fn extract_stream_text_from_value(provider: &str, value: &Value) -> Option<String> {
     match provider {
-        PROVIDER_OPENAI | PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX => {
+        PROVIDER_OPENAI | PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX | PROVIDER_XAI => {
             extract_openai_stream_text(value)
                 .or_else(|| extract_openai_responses_delta_text(value))
                 .or_else(|| {
@@ -816,7 +816,10 @@ fn extract_stream_text_from_value(provider: &str, value: &Value) -> Option<Strin
 }
 
 fn openai_responses_data_starts_client_output(provider: &str, value: &Value) -> bool {
-    if !matches!(provider, PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX) {
+    if !matches!(
+        provider,
+        PROVIDER_OPENAI_RESPONSES | PROVIDER_CODEX | PROVIDER_XAI
+    ) {
         return false;
     }
     let Some(event_type) = value.get("type").and_then(Value::as_str) else {
@@ -923,4 +926,29 @@ fn extract_fallback_stream_text(value: &Value) -> Option<String> {
         .and_then(Value::as_str)
         .or_else(|| value.get("text").and_then(Value::as_str))
         .map(|text| text.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn xai_uses_responses_stream_semantics_and_delta_extraction() {
+        let semantics = openai_stream_semantics(PROVIDER_XAI, "/v1/responses");
+        assert!(semantics.done_sentinel);
+        assert!(semantics.responses_events);
+
+        let delta = serde_json::json!({
+            "type": "response.output_text.delta",
+            "delta": "hello"
+        });
+        assert!(openai_responses_data_starts_client_output(
+            PROVIDER_XAI,
+            &delta
+        ));
+        assert_eq!(
+            extract_stream_text_from_value(PROVIDER_XAI, &delta).as_deref(),
+            Some("hello")
+        );
+    }
 }

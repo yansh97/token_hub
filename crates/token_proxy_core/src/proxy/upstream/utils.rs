@@ -5,27 +5,27 @@ use std::sync::atomic::Ordering;
 use super::super::{config::UpstreamOrderStrategy, ProxyState};
 use crate::proxy::redact::redact_query_param_value;
 
-	const RETRYABLE_TRANSPORT_ERROR_MARKERS: &[&str] = &[
-	    "authentication failed",
-	    "proxy authentication required",
-	    "connection refused",
-	    "no route to host",
-	    "network is unreachable",
-	    "no such host",
-	];
-	/// 共享连接池毒连接 / H2 协议层故障：应 rotate client 或降 HTTP/1.1，而不是死复用同一 session。
-	const STALE_CONNECTION_TRANSPORT_MARKERS: &[&str] = &[
-	    "unspecific protocol error",
-	    "http2 error",
-	    "stream error received",
-	    "connection closed before message completed",
-	    "connection closed",
-	    "connection reset",
-	    "connection reset by peer",
-	    "broken pipe",
-	    "unexpected end of file",
-	    "error sending request",
-	];
+const RETRYABLE_TRANSPORT_ERROR_MARKERS: &[&str] = &[
+    "authentication failed",
+    "proxy authentication required",
+    "connection refused",
+    "no route to host",
+    "network is unreachable",
+    "no such host",
+];
+/// 共享连接池毒连接 / H2 协议层故障：应 rotate client 或降 HTTP/1.1，而不是死复用同一 session。
+const STALE_CONNECTION_TRANSPORT_MARKERS: &[&str] = &[
+    "unspecific protocol error",
+    "http2 error",
+    "stream error received",
+    "connection closed before message completed",
+    "connection closed",
+    "connection reset",
+    "connection reset by peer",
+    "broken pipe",
+    "unexpected end of file",
+    "error sending request",
+];
 
 pub(super) fn extract_query_param(path_with_query: &str, name: &str) -> Option<String> {
     let url = url::Url::parse(&format!("http://localhost{path_with_query}")).ok()?;
@@ -81,43 +81,43 @@ pub(super) fn resolve_group_start(
     }
 }
 
-	pub(super) fn is_retryable_error(err: &reqwest::Error) -> bool {
-	    err.is_timeout()
-	        || err.is_connect()
-	        || is_stale_connection_transport_error(err)
-	        || is_retryable_transport_error_message(&err.to_string())
-	}
-	
-	/// 首响应头前、适合 force-fresh / H1 降级的连接或 H2 协议故障。
-	pub(super) fn is_stale_connection_transport_error(err: &reqwest::Error) -> bool {
-	    if err.is_builder() || err.is_timeout() || err.is_connect() {
-	        return false;
-	    }
-	    // 部分 H2 故障只以 source chain 暴露；始终扫 chain，避免只靠顶层 Display。
-	    source_chain_contains_any(err, STALE_CONNECTION_TRANSPORT_MARKERS)
-	        || message_contains_any(&err.to_string(), STALE_CONNECTION_TRANSPORT_MARKERS)
-	}
-	
-	pub(super) fn is_retryable_transport_error_message(message: &str) -> bool {
-	    // Some proxy failures, especially SOCKS5 auth rejection, only surface as text inside reqwest errors.
-	    message_contains_any(message, RETRYABLE_TRANSPORT_ERROR_MARKERS)
-	}
-	
-	fn source_chain_contains_any(err: &reqwest::Error, markers: &[&str]) -> bool {
-	    let mut source = err.source();
-	    while let Some(cause) = source {
-	        if message_contains_any(&cause.to_string(), markers) {
-	            return true;
-	        }
-	        source = cause.source();
-	    }
-	    false
-	}
-	
-	fn message_contains_any(message: &str, markers: &[&str]) -> bool {
-	    let message = message.to_ascii_lowercase();
-	    markers.iter().any(|marker| message.contains(marker))
-	}
+pub(super) fn is_retryable_error(err: &reqwest::Error) -> bool {
+    err.is_timeout()
+        || err.is_connect()
+        || is_stale_connection_transport_error(err)
+        || is_retryable_transport_error_message(&err.to_string())
+}
+
+/// 首响应头前、适合 force-fresh / H1 降级的连接或 H2 协议故障。
+pub(super) fn is_stale_connection_transport_error(err: &reqwest::Error) -> bool {
+    if err.is_builder() || err.is_timeout() || err.is_connect() {
+        return false;
+    }
+    // 部分 H2 故障只以 source chain 暴露；始终扫 chain，避免只靠顶层 Display。
+    source_chain_contains_any(err, STALE_CONNECTION_TRANSPORT_MARKERS)
+        || message_contains_any(&err.to_string(), STALE_CONNECTION_TRANSPORT_MARKERS)
+}
+
+pub(super) fn is_retryable_transport_error_message(message: &str) -> bool {
+    // Some proxy failures, especially SOCKS5 auth rejection, only surface as text inside reqwest errors.
+    message_contains_any(message, RETRYABLE_TRANSPORT_ERROR_MARKERS)
+}
+
+fn source_chain_contains_any(err: &reqwest::Error, markers: &[&str]) -> bool {
+    let mut source = err.source();
+    while let Some(cause) = source {
+        if message_contains_any(&cause.to_string(), markers) {
+            return true;
+        }
+        source = cause.source();
+    }
+    false
+}
+
+fn message_contains_any(message: &str, markers: &[&str]) -> bool {
+    let message = message.to_ascii_lowercase();
+    markers.iter().any(|marker| message.contains(marker))
+}
 
 pub(super) fn is_retryable_status(status: StatusCode) -> bool {
     // 为了尽量提供“无反馈”的自动切换体验，以下错误都允许继续尝试下一个渠道：

@@ -83,6 +83,7 @@ export type UpstreamConfig = {
   rewrite_developer_role_to_system?: boolean;
   kiro_account_id?: string | null;
   codex_account_id?: string | null;
+  xai_account_id?: string | null;
   preferred_endpoint?: KiroPreferredEndpoint | null;
   proxy_url: string | null;
   priority: number | null;
@@ -174,6 +175,7 @@ export type UpstreamForm = {
   filterSafetyIdentifier: boolean;
   useChatCompletionsForResponses: boolean;
   rewriteDeveloperRoleToSystem: boolean;
+  xaiAccountId: string;
   preferredEndpoint: "" | KiroPreferredEndpoint;
   proxyUrl: string;
   priority: string;

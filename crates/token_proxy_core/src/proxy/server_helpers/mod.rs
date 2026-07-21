@@ -238,10 +238,33 @@ fn snapshot_headers_raw(headers: &HeaderMap) -> Vec<(String, String)> {
     headers
         .iter()
         .map(|(name, value)| {
-            let value = value.to_str().unwrap_or("<binary>").to_string();
+            let value = if is_sensitive_header(name.as_str()) {
+                "[redacted]".to_string()
+            } else {
+                value.to_str().unwrap_or("<binary>").to_string()
+            };
             (name.to_string(), value)
         })
         .collect()
+}
+
+fn is_sensitive_header(name: &str) -> bool {
+    matches!(
+        name,
+        "authorization"
+            | "proxy-authorization"
+            | "cookie"
+            | "set-cookie"
+            | "api-key"
+            | "apikey"
+            | "x-api-key"
+            | "x-goog-api-key"
+            | "x-auth-token"
+            | "x-access-token"
+            | "x-xai-token-auth"
+    ) || name.ends_with("-api-key")
+        || name.ends_with("-auth-token")
+        || name.ends_with("-access-token")
 }
 
 pub(crate) async fn maybe_transform_request_body(

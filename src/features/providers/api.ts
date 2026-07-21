@@ -5,7 +5,7 @@ import type { ProviderAccountsPage } from "@/features/providers/types";
 export async function listProviderAccountsPage(params: {
   page: number;
   pageSize: number;
-  providerKind?: "kiro" | "codex";
+  providerKind?: "kiro" | "codex" | "xai";
   status?: "active" | "disabled" | "expired" | "invalid" | "cooling_down";
   search?: string;
 }) {

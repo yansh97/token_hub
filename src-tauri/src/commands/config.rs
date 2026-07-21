@@ -21,9 +21,11 @@ pub async fn read_data_storage_usage(app: tauri::AppHandle) -> Result<DataStorag
     let paths = app.state::<Arc<token_proxy_core::paths::TokenProxyPaths>>();
     let paths = paths.inner().clone();
     // 目录 walk 是同步 IO；放到 blocking 线程避免卡住 async runtime。
-    tokio::task::spawn_blocking(move || token_proxy_core::storage_usage::measure_data_storage(&paths))
-        .await
-        .map_err(|err| format!("Failed to join storage usage task: {err}"))?
+    tokio::task::spawn_blocking(move || {
+        token_proxy_core::storage_usage::measure_data_storage(&paths)
+    })
+    .await
+    .map_err(|err| format!("Failed to join storage usage task: {err}"))?
 }
 
 #[tauri::command]

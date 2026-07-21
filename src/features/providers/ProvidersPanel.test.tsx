@@ -4,7 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { ProvidersPanel } from "@/features/providers/ProvidersPanel";
-import type { ProviderAccountPageItem } from "@/features/providers/types";
+import type {
+  ProviderAccountPageItem,
+  ProviderAccountsPage,
+} from "@/features/providers/types";
 import { m } from "@/paraglide/messages.js";
 import { setLocale } from "@/paraglide/runtime.js";
 
@@ -13,6 +16,7 @@ const providerMocks = vi.hoisted(() => {
   let kiroQuotasLoading = false;
   let codexAccountsLoading = false;
   let codexQuotasLoading = false;
+  let xaiAccountsLoading = false;
   const allCodexAccounts = [
     {
       account_id: "codex-1",
@@ -33,13 +37,28 @@ const providerMocks = vi.hoisted(() => {
       proxy_url: "",
     },
   ];
+  const allXaiAccounts = [
+    {
+      account_id: "xai-1",
+      email: "grok@example.com",
+      expires_at: "2026-07-01T00:00:00Z",
+      status: "active" as const,
+      auto_refresh_enabled: true,
+      priority: 3,
+      proxy_url: "",
+    },
+  ];
   const refreshKiroAccounts = vi.fn(async () => undefined);
   const refreshCodexAccounts = vi.fn(async () => allCodexAccounts);
   const refreshCodexAccount = vi.fn(async () => undefined);
+  const refreshXaiAccounts = vi.fn(async () => allXaiAccounts);
+  const refreshXaiAccount = vi.fn(async () => undefined);
   const refreshKiroQuotaCache = vi.fn(async () => undefined);
   const refreshCodexQuotaCache = vi.fn(async () => undefined);
+  const refreshXaiQuotaCache = vi.fn(async () => undefined);
   const refreshKiroQuotaNow = vi.fn(async () => undefined);
   const refreshCodexQuotaNow = vi.fn(async () => undefined);
+  const refreshXaiQuotaNow = vi.fn(async () => undefined);
   const setCodexAutoRefresh = vi.fn(async () => ({
     account_id: "codex-1",
     email: "bob@example.com",
@@ -47,10 +66,12 @@ const providerMocks = vi.hoisted(() => {
     status: "expired" as const,
     auto_refresh_enabled: true,
   }));
+  const setXaiAutoRefresh = vi.fn(async () => ({ ...allXaiAccounts[0] }));
   const refreshKiroQuotas = vi.fn(async () => undefined);
   const refreshCodexQuotas = vi.fn(async () => undefined);
   const logoutKiro = vi.fn(async () => undefined);
   const logoutCodex = vi.fn(async () => undefined);
+  const logoutXai = vi.fn(async () => undefined);
   const setKiroProxyUrl = vi.fn(async () => ({
     account_id: "kiro-1",
     provider: "kiro" as const,
@@ -108,10 +129,15 @@ const providerMocks = vi.hoisted(() => {
     priority: 1,
     proxy_url: "",
   }));
+  const setXaiStatus = vi.fn(async () => ({ ...allXaiAccounts[0], status: "disabled" as const }));
+  const setXaiProxyUrl = vi.fn(async () => ({ ...allXaiAccounts[0], proxy_url: "http://127.0.0.1:7890" }));
+  const setXaiPriority = vi.fn(async () => ({ ...allXaiAccounts[0], priority: 12 }));
   const beginKiroLogin = vi.fn();
   const beginCodexLogin = vi.fn();
+  const beginXaiLogin = vi.fn();
   const resetKiroLogin = vi.fn();
   const resetCodexLogin = vi.fn();
+  const resetXaiLogin = vi.fn();
   const importKiroIde = vi.fn(async () => [
     {
       account_id: "kiro-1",
@@ -163,6 +189,10 @@ const providerMocks = vi.hoisted(() => {
       priority: 1,
     },
   ]);
+  const importXaiFile = vi.fn(async () => [{ ...allXaiAccounts[0] }]);
+  const importXaiText = vi.fn(async () => [{ ...allXaiAccounts[0] }]);
+  const importXaiRefreshTokens = vi.fn(async () => [{ ...allXaiAccounts[0] }]);
+  const syncXaiDefaultUpstreamConfig = vi.fn(async () => true);
   const deleteProviderAccounts = vi.fn(async () => undefined);
   const buildCounts = (rows: ProviderAccountPageItem[]) => ({
     all: rows.length,
@@ -182,7 +212,7 @@ const providerMocks = vi.hoisted(() => {
     }: {
       page?: number;
       pageSize?: number;
-      providerKind?: "kiro" | "codex";
+      providerKind?: "kiro" | "codex" | "xai";
       status?: "active" | "disabled" | "expired" | "invalid" | "cooling_down";
       search?: string;
     }) => {
@@ -290,38 +320,60 @@ const providerMocks = vi.hoisted(() => {
     set codexQuotasLoading(value: boolean) {
       codexQuotasLoading = value;
     },
+    get xaiAccountsLoading() {
+      return xaiAccountsLoading;
+    },
+    set xaiAccountsLoading(value: boolean) {
+      xaiAccountsLoading = value;
+    },
     refreshKiroAccounts,
     refreshCodexAccounts,
     refreshCodexAccount,
+    refreshXaiAccounts,
+    refreshXaiAccount,
     refreshKiroQuotaCache,
     refreshCodexQuotaCache,
+    refreshXaiQuotaCache,
     refreshKiroQuotaNow,
     refreshCodexQuotaNow,
+    refreshXaiQuotaNow,
     setCodexAutoRefresh,
+    setXaiAutoRefresh,
     refreshKiroQuotas,
     refreshCodexQuotas,
     logoutKiro,
     logoutCodex,
+    logoutXai,
     setKiroProxyUrl,
     setKiroPriority,
     setKiroStatus,
     setCodexProxyUrl,
     setCodexPriority,
     setCodexStatus,
+    setXaiStatus,
+    setXaiProxyUrl,
+    setXaiPriority,
     beginKiroLogin,
     beginCodexLogin,
+    beginXaiLogin,
     resetKiroLogin,
     resetCodexLogin,
+    resetXaiLogin,
     importKiroIde,
     importKiroKam,
     importCodexFile,
     importCodexText,
     importCodexRefreshTokens,
+    importXaiFile,
+    importXaiText,
+    importXaiRefreshTokens,
+    syncXaiDefaultUpstreamConfig,
     deleteProviderAccounts,
     listProviderAccountsPage,
     toastError,
     toastSuccess,
     allCodexAccounts,
+    allXaiAccounts,
   };
 });
 
@@ -385,6 +437,26 @@ vi.mock("@/features/codex/use-codex-accounts", () => ({
     importFile: providerMocks.importCodexFile,
     importText: providerMocks.importCodexText,
     importRefreshTokens: providerMocks.importCodexRefreshTokens,
+  }),
+}));
+
+vi.mock("@/features/xai/use-xai-accounts", () => ({
+  useXaiAccounts: () => ({
+    accounts: providerMocks.allXaiAccounts,
+    loading: providerMocks.xaiAccountsLoading,
+    error: "",
+    refresh: providerMocks.refreshXaiAccounts,
+    refreshAccount: providerMocks.refreshXaiAccount,
+    refreshQuotaCache: providerMocks.refreshXaiQuotaCache,
+    refreshQuotaNow: providerMocks.refreshXaiQuotaNow,
+    setAutoRefresh: providerMocks.setXaiAutoRefresh,
+    setProxyUrl: providerMocks.setXaiProxyUrl,
+    setPriority: providerMocks.setXaiPriority,
+    setStatus: providerMocks.setXaiStatus,
+    logout: providerMocks.logoutXai,
+    importFile: providerMocks.importXaiFile,
+    importText: providerMocks.importXaiText,
+    importRefreshTokens: providerMocks.importXaiRefreshTokens,
   }),
 }));
 
@@ -454,6 +526,18 @@ vi.mock("@/features/codex/use-codex-login", () => ({
   }),
 }));
 
+vi.mock("@/features/xai/use-xai-login", () => ({
+  useXaiLogin: () => ({
+    login: { status: "idle" },
+    beginLogin: providerMocks.beginXaiLogin,
+    resetLogin: providerMocks.resetXaiLogin,
+  }),
+}));
+
+vi.mock("@/features/config/sync-xai-default-upstream", () => ({
+  syncXaiDefaultUpstreamConfig: providerMocks.syncXaiDefaultUpstreamConfig,
+}));
+
 vi.mock("@/features/providers/api", () => ({
   listProviderAccountsPage: providerMocks.listProviderAccountsPage,
   deleteProviderAccounts: providerMocks.deleteProviderAccounts,
@@ -509,6 +593,14 @@ async function switchAddProviderToCodex(user: ReturnType<typeof userEvent.setup>
   await user.click(switchButton);
 }
 
+async function switchAddProviderToXai(user: ReturnType<typeof userEvent.setup>) {
+  const switchButton = document.querySelector('[data-slot="providers-add-provider-xai"]');
+  if (!(switchButton instanceof HTMLButtonElement)) {
+    throw new Error("Missing providers add xai switch button");
+  }
+  await user.click(switchButton);
+}
+
 async function switchCodexMode(user: ReturnType<typeof userEvent.setup>, mode: string) {
   const modeButton = document.querySelector(`[data-slot="providers-add-codex-mode-${mode}"]`);
   if (!(modeButton instanceof HTMLButtonElement)) {
@@ -517,12 +609,67 @@ async function switchCodexMode(user: ReturnType<typeof userEvent.setup>, mode: s
   await user.click(modeButton);
 }
 
-function getAddProviderPanel(provider: "kiro" | "codex") {
+async function switchXaiMode(user: ReturnType<typeof userEvent.setup>, mode: string) {
+  const modeButton = document.querySelector(`[data-slot="providers-add-xai-mode-${mode}"]`);
+  if (!(modeButton instanceof HTMLButtonElement)) {
+    throw new Error(`Missing xai mode button: ${mode}`);
+  }
+  await user.click(modeButton);
+}
+
+function getAddProviderPanel(provider: "kiro" | "codex" | "xai") {
   const panel = document.querySelector(`[data-slot="providers-add-panel-${provider}"]`);
   if (!(panel instanceof HTMLElement)) {
     throw new Error(`Missing providers add ${provider} panel`);
   }
   return panel;
+}
+
+function createXaiAccountsPage(): ProviderAccountsPage {
+  return {
+    items: [
+      {
+        provider_kind: "xai",
+        account_id: "xai-1",
+        email: "grok@example.com",
+        expires_at: "2026-07-01T00:00:00Z",
+        status: "active",
+        auth_method: "oauth",
+        provider_name: "xai",
+        auto_refresh_enabled: true,
+        priority: 3,
+        proxy_url: "",
+        quota: {
+          plan_type: "SuperGrok",
+          error: null,
+          checked_at: "2026-07-20T00:00:00Z",
+          items: [],
+        },
+      },
+    ],
+    total: 1,
+    page: 1,
+    page_size: 10,
+    status_counts: {
+      all: 1,
+      active: 1,
+      disabled: 0,
+      expired: 0,
+      invalid: 0,
+      cooling_down: 0,
+    },
+  };
+}
+
+async function openXaiAccountDialog(user: ReturnType<typeof userEvent.setup>) {
+  providerMocks.listProviderAccountsPage.mockResolvedValueOnce(createXaiAccountsPage());
+  render(<ProvidersPanel />);
+  await user.click(
+    within(await findAccountRow("grok@example.com")).getByRole("button", {
+      name: m.providers_account_dialog_title(),
+    }),
+  );
+  return screen.getByRole("dialog");
 }
 
 afterEach(() => {
@@ -534,6 +681,7 @@ afterEach(() => {
   providerMocks.kiroQuotasLoading = false;
   providerMocks.codexAccountsLoading = false;
   providerMocks.codexQuotasLoading = false;
+  providerMocks.xaiAccountsLoading = false;
 });
 
 describe("providers/ProvidersPanel", () => {
@@ -867,9 +1015,9 @@ describe("providers/ProvidersPanel", () => {
       })
     );
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: m.common_refresh() }));
-    const refreshConfirmDialog = document.querySelector("[data-slot='codex-refresh-confirm-dialog']");
+    const refreshConfirmDialog = document.querySelector("[data-slot='account-refresh-confirm-dialog']");
     if (!(refreshConfirmDialog instanceof HTMLElement)) {
-      throw new Error("Missing codex refresh confirm dialog");
+      throw new Error("Missing account refresh confirm dialog");
     }
     await user.click(within(refreshConfirmDialog).getByRole("button", { name: m.common_refresh() }));
 
@@ -892,9 +1040,9 @@ describe("providers/ProvidersPanel", () => {
       })
     );
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: m.common_refresh() }));
-    const refreshConfirmDialog = document.querySelector("[data-slot='codex-refresh-confirm-dialog']");
+    const refreshConfirmDialog = document.querySelector("[data-slot='account-refresh-confirm-dialog']");
     if (!(refreshConfirmDialog instanceof HTMLElement)) {
-      throw new Error("Missing codex refresh confirm dialog");
+      throw new Error("Missing account refresh confirm dialog");
     }
     await user.click(within(refreshConfirmDialog).getByRole("button", { name: m.common_refresh() }));
 
@@ -911,7 +1059,7 @@ describe("providers/ProvidersPanel", () => {
       })
     );
     const toggle = within(screen.getByRole("dialog")).getByRole("switch", {
-      name: "Codex 自动置换 Token",
+      name: m.providers_account_auto_refresh(),
     });
     await user.click(toggle);
 
@@ -944,6 +1092,122 @@ describe("providers/ProvidersPanel", () => {
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Refresh Quota" }));
 
     expect(providerMocks.refreshCodexQuotaNow).toHaveBeenCalledWith("codex-1");
+  });
+
+  it("refreshes xai account token without probing quota", async () => {
+    const user = userEvent.setup();
+    providerMocks.listProviderAccountsPage.mockResolvedValueOnce(createXaiAccountsPage());
+    render(<ProvidersPanel />);
+
+    await user.click(
+      within(await findAccountRow("grok@example.com")).getByRole("button", {
+        name: m.providers_account_dialog_title(),
+      })
+    );
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: m.common_refresh() }));
+    const refreshConfirmDialog = document.querySelector("[data-slot='account-refresh-confirm-dialog']");
+    if (!(refreshConfirmDialog instanceof HTMLElement)) {
+      throw new Error("Missing account refresh confirm dialog");
+    }
+    await user.click(within(refreshConfirmDialog).getByRole("button", { name: m.common_refresh() }));
+
+    expect(providerMocks.refreshXaiAccount).toHaveBeenCalledWith("xai-1");
+    expect(providerMocks.refreshXaiQuotaCache).not.toHaveBeenCalled();
+    expect(providerMocks.refreshXaiQuotaNow).not.toHaveBeenCalled();
+  });
+
+  it("manually refreshes xai quota from account dialog", async () => {
+    const user = userEvent.setup();
+    providerMocks.listProviderAccountsPage.mockResolvedValueOnce(createXaiAccountsPage());
+    render(<ProvidersPanel />);
+
+    await user.click(
+      within(await findAccountRow("grok@example.com")).getByRole("button", {
+        name: m.providers_account_dialog_title(),
+      })
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: m.providers_account_refresh_quota(),
+      })
+    );
+
+    expect(providerMocks.refreshXaiQuotaNow).toHaveBeenCalledWith("xai-1");
+  });
+
+  it("toggles xai automatic token refresh", async () => {
+    const user = userEvent.setup();
+    const dialog = await openXaiAccountDialog(user);
+
+    await user.click(
+      within(dialog).getByRole("switch", { name: m.providers_account_auto_refresh() }),
+    );
+
+    await waitFor(() => {
+      expect(providerMocks.setXaiAutoRefresh).toHaveBeenCalledWith("xai-1", false);
+    });
+  });
+
+  it("disables an xai account", async () => {
+    const user = userEvent.setup();
+    const dialog = await openXaiAccountDialog(user);
+
+    await user.click(within(dialog).getByRole("button", { name: m.common_disable() }));
+
+    await waitFor(() => {
+      expect(providerMocks.setXaiStatus).toHaveBeenCalledWith("xai-1", "disabled");
+    });
+  });
+
+  it("saves an xai account proxy URL", async () => {
+    const user = userEvent.setup();
+    const dialog = await openXaiAccountDialog(user);
+    const proxyInput = within(dialog).getByLabelText(m.field_proxy_url());
+
+    await user.type(proxyInput, "socks5://127.0.0.1:1080");
+    await user.click(
+      within(dialog).getByRole("button", { name: m.providers_save_proxy_url() }),
+    );
+
+    await waitFor(() => {
+      expect(providerMocks.setXaiProxyUrl).toHaveBeenCalledWith(
+        "xai-1",
+        "socks5://127.0.0.1:1080",
+      );
+    });
+  });
+
+  it("saves an xai account priority", async () => {
+    const user = userEvent.setup();
+    const dialog = await openXaiAccountDialog(user);
+    const priorityInput = within(dialog).getByLabelText(m.field_priority());
+
+    await user.clear(priorityInput);
+    await user.type(priorityInput, "12");
+    await user.click(
+      within(dialog).getByRole("button", { name: m.providers_save_priority() }),
+    );
+
+    await waitFor(() => {
+      expect(providerMocks.setXaiPriority).toHaveBeenCalledWith("xai-1", 12);
+    });
+  });
+
+  it("logs out an xai account", async () => {
+    const user = userEvent.setup();
+    const dialog = await openXaiAccountDialog(user);
+
+    await user.click(within(dialog).getByRole("button", { name: m.xai_account_logout() }));
+    const deleteDialog = document.querySelector("[data-slot='account-delete-dialog']");
+    if (!(deleteDialog instanceof HTMLElement)) {
+      throw new Error("Missing account delete dialog");
+    }
+    await user.click(within(deleteDialog).getByRole("button", { name: m.common_delete() }));
+
+    await waitFor(() => {
+      expect(providerMocks.logoutXai).toHaveBeenCalledWith("xai-1");
+      expect(providerMocks.syncXaiDefaultUpstreamConfig).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("disables kiro account from account dialog", async () => {
@@ -1018,8 +1282,11 @@ describe("providers/ProvidersPanel", () => {
 
     expect(providerMocks.refreshKiroAccounts).toHaveBeenCalledTimes(1);
     expect(providerMocks.refreshCodexAccounts).toHaveBeenCalledTimes(1);
+    expect(providerMocks.refreshXaiAccounts).toHaveBeenCalledTimes(1);
     expect(providerMocks.refreshKiroQuotas).not.toHaveBeenCalled();
     expect(providerMocks.refreshCodexQuotas).not.toHaveBeenCalled();
+    expect(providerMocks.refreshXaiQuotaCache).not.toHaveBeenCalled();
+    expect(providerMocks.refreshXaiQuotaNow).not.toHaveBeenCalled();
   });
 
   it("opens add account dialog from toolbar add button", async () => {
@@ -1036,6 +1303,7 @@ describe("providers/ProvidersPanel", () => {
     expect(within(dialog).queryByText(m.config_section_providers_desc())).not.toBeInTheDocument();
     expect(within(dialog).getByText(m.providers_kiro_title())).toBeInTheDocument();
     expect(within(dialog).getByText(m.providers_codex_title())).toBeInTheDocument();
+    expect(within(dialog).getByText(m.providers_xai_title())).toBeInTheDocument();
   });
 
   it("resets login state when closing the add account dialog", async () => {
@@ -1048,6 +1316,7 @@ describe("providers/ProvidersPanel", () => {
 
     expect(providerMocks.resetKiroLogin).toHaveBeenCalledTimes(1);
     expect(providerMocks.resetCodexLogin).toHaveBeenCalledTimes(1);
+    expect(providerMocks.resetXaiLogin).toHaveBeenCalledTimes(1);
   });
 
   it("resets login state when dismissing the add account dialog with Escape", async () => {
@@ -1060,6 +1329,7 @@ describe("providers/ProvidersPanel", () => {
     await waitFor(() => {
       expect(providerMocks.resetKiroLogin).toHaveBeenCalledTimes(1);
       expect(providerMocks.resetCodexLogin).toHaveBeenCalledTimes(1);
+      expect(providerMocks.resetXaiLogin).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1335,6 +1605,94 @@ describe("providers/ProvidersPanel", () => {
     expect(providerMocks.refreshCodexQuotaCache).toHaveBeenCalledWith(["codex-1"]);
 
     resolveRefreshQuota?.();
+  });
+
+  it("starts xai device login from toolbar action", async () => {
+    const user = userEvent.setup();
+    render(<ProvidersPanel />);
+    await openAddAccountDialog(user);
+    await switchAddProviderToXai(user);
+
+    const loginButton = document.querySelector('[data-slot="providers-add-xai-login"]');
+    if (!(loginButton instanceof HTMLButtonElement)) {
+      throw new Error("Missing xai login button");
+    }
+    await user.click(loginButton);
+
+    expect(providerMocks.beginXaiLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it("imports xai account file and directory without probing quota", async () => {
+    const user = userEvent.setup();
+    vi.mocked(open)
+      .mockResolvedValueOnce("/tmp/xai-account.json")
+      .mockResolvedValueOnce("/tmp/xai-auth");
+
+    render(<ProvidersPanel />);
+    await openAddAccountDialog(user);
+    await switchAddProviderToXai(user);
+    await switchXaiMode(user, "file");
+    const panel = getAddProviderPanel("xai");
+
+    await user.click(
+      within(panel).getByRole("button", { name: m.xai_import_file_button() })
+    );
+    await user.click(
+      within(panel).getByRole("button", { name: m.xai_import_directory_button() })
+    );
+
+    expect(open).toHaveBeenNthCalledWith(1, {
+      directory: false,
+      multiple: false,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    expect(open).toHaveBeenNthCalledWith(2, {
+      directory: true,
+      multiple: false,
+      filters: undefined,
+    });
+    expect(providerMocks.importXaiFile).toHaveBeenNthCalledWith(1, "/tmp/xai-account.json");
+    expect(providerMocks.importXaiFile).toHaveBeenNthCalledWith(2, "/tmp/xai-auth");
+    expect(providerMocks.syncXaiDefaultUpstreamConfig).toHaveBeenCalledTimes(2);
+    expect(providerMocks.refreshXaiQuotaCache).not.toHaveBeenCalled();
+    expect(providerMocks.refreshXaiQuotaNow).not.toHaveBeenCalled();
+  });
+
+  it("imports xai JSON without probing quota", async () => {
+    const user = userEvent.setup();
+    const payload = JSON.stringify({ type: "xai", auth_kind: "oauth", refresh_token: "rt" });
+
+    render(<ProvidersPanel />);
+    await openAddAccountDialog(user);
+    await switchAddProviderToXai(user);
+    await switchXaiMode(user, "json");
+    const panel = getAddProviderPanel("xai");
+    fireEvent.change(within(panel).getByRole("textbox"), { target: { value: payload } });
+    await user.click(
+      within(panel).getByRole("button", { name: m.xai_manual_import_button() })
+    );
+
+    expect(providerMocks.importXaiText).toHaveBeenCalledWith(payload);
+    expect(providerMocks.refreshXaiQuotaCache).not.toHaveBeenCalled();
+    expect(providerMocks.refreshXaiQuotaNow).not.toHaveBeenCalled();
+  });
+
+  it("imports xai refresh tokens without probing quota", async () => {
+    const user = userEvent.setup();
+
+    render(<ProvidersPanel />);
+    await openAddAccountDialog(user);
+    await switchAddProviderToXai(user);
+    await switchXaiMode(user, "refresh_token");
+    const panel = getAddProviderPanel("xai");
+    await user.type(within(panel).getByRole("textbox"), "rt-one\nrt-two");
+    await user.click(
+      within(panel).getByRole("button", { name: m.xai_manual_import_button() })
+    );
+
+    expect(providerMocks.importXaiRefreshTokens).toHaveBeenCalledWith("rt-one\nrt-two");
+    expect(providerMocks.refreshXaiQuotaCache).not.toHaveBeenCalled();
+    expect(providerMocks.refreshXaiQuotaNow).not.toHaveBeenCalled();
   });
 
   it("optimistically hides selected rows while batch delete is in progress", async () => {

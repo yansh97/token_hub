@@ -22,6 +22,7 @@ import {
 import { useCodexAccounts } from "@/features/codex/use-codex-accounts";
 import { useCodexLogin } from "@/features/codex/use-codex-login";
 import { type CodexLoginState } from "@/features/codex/use-codex-login";
+import { syncXaiDefaultUpstreamConfig } from "@/features/config/sync-xai-default-upstream";
 import { formatDateLabel } from "@/features/providers/date";
 import type { ProviderAccountPageItem } from "@/features/providers/types";
 import { deleteProviderAccounts } from "@/features/providers/api";
@@ -35,6 +36,9 @@ import { useKiroAccounts } from "@/features/kiro/use-kiro-accounts";
 import { useKiroLogin } from "@/features/kiro/use-kiro-login";
 import { type KiroLoginMethod } from "@/features/kiro/types";
 import { type KiroLoginState } from "@/features/kiro/use-kiro-login";
+import { XaiAddAccountPanel } from "@/features/providers/xai-add-account-panel";
+import { useXaiAccounts } from "@/features/xai/use-xai-accounts";
+import { useXaiLogin, type XaiLoginState } from "@/features/xai/use-xai-login";
 import { parseError } from "@/lib/error";
 import { m } from "@/paraglide/messages.js";
 
@@ -45,7 +49,7 @@ const NUMBER_FORMATTER = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
 });
 
-type ProviderFilterValue = typeof PROVIDER_FILTER_ALL | "kiro" | "codex";
+type ProviderFilterValue = typeof PROVIDER_FILTER_ALL | "kiro" | "codex" | "xai";
 type StatusFilterValue =
   | typeof STATUS_FILTER_ALL
   | "active"
@@ -66,7 +70,7 @@ type AccountStatusSummary = Record<AccountStatusValue, number> & {
   all: number;
 };
 
-type AddDialogProvider = "kiro" | "codex";
+type AddDialogProvider = "kiro" | "codex" | "xai";
 type CodexManualInputMode = "login" | "refresh_token" | "mobile_refresh_token" | "codex_session" | "file";
 
 type ProvidersToolbarProps = {
@@ -90,15 +94,24 @@ type ProvidersToolbarProps = {
   onImportCodexText: (contents: string) => Promise<void>;
   onImportCodexFile: () => Promise<void>;
   onImportCodexDirectory: () => Promise<void>;
+  onXaiLogin: () => Promise<void>;
+  onImportXaiRefreshTokens: (contents: string) => Promise<void>;
+  onImportXaiText: (contents: string) => Promise<void>;
+  onImportXaiFile: () => Promise<void>;
+  onImportXaiDirectory: () => Promise<void>;
   refreshing: boolean;
   refreshingCodexTokens: boolean;
   kiroActionBusy: boolean;
   codexActionBusy: boolean;
+  xaiActionBusy: boolean;
   kiroStatusText: string;
   kiroVerificationUrl: string;
   kiroUserCode: string;
   codexStatusText: string;
   codexLoginUrl: string;
+  xaiStatusText: string;
+  xaiVerificationUrl: string;
+  xaiUserCode: string;
 };
 
 type ProvidersSectionsProps = {
@@ -158,6 +171,7 @@ function ProviderFilterSelect({
           <SelectItem value={PROVIDER_FILTER_ALL}>{m.providers_filter_all_providers()}</SelectItem>
           <SelectItem value="kiro">{m.providers_kiro_title()}</SelectItem>
           <SelectItem value="codex">{m.providers_codex_title()}</SelectItem>
+          <SelectItem value="xai">{m.providers_xai_title()}</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -307,15 +321,24 @@ function ProvidersToolbar({
   onImportCodexText,
   onImportCodexFile,
   onImportCodexDirectory,
+  onXaiLogin,
+  onImportXaiRefreshTokens,
+  onImportXaiText,
+  onImportXaiFile,
+  onImportXaiDirectory,
   refreshing,
   refreshingCodexTokens,
   kiroActionBusy,
   codexActionBusy,
+  xaiActionBusy,
   kiroStatusText,
   kiroVerificationUrl,
   kiroUserCode,
   codexStatusText,
   codexLoginUrl,
+  xaiStatusText,
+  xaiVerificationUrl,
+  xaiUserCode,
 }: ProvidersToolbarProps) {
   return (
     <div
@@ -381,13 +404,22 @@ function ProvidersToolbar({
         onImportCodexText={onImportCodexText}
         onImportCodexFile={onImportCodexFile}
         onImportCodexDirectory={onImportCodexDirectory}
+        onXaiLogin={onXaiLogin}
+        onImportXaiRefreshTokens={onImportXaiRefreshTokens}
+        onImportXaiText={onImportXaiText}
+        onImportXaiFile={onImportXaiFile}
+        onImportXaiDirectory={onImportXaiDirectory}
         kiroActionBusy={kiroActionBusy}
         codexActionBusy={codexActionBusy}
+        xaiActionBusy={xaiActionBusy}
         kiroStatusText={kiroStatusText}
         kiroVerificationUrl={kiroVerificationUrl}
         kiroUserCode={kiroUserCode}
         codexStatusText={codexStatusText}
         codexLoginUrl={codexLoginUrl}
+        xaiStatusText={xaiStatusText}
+        xaiVerificationUrl={xaiVerificationUrl}
+        xaiUserCode={xaiUserCode}
       />
     </div>
   );
@@ -480,15 +512,24 @@ function ProvidersAddAccountDialog({
   onImportCodexText,
   onImportCodexFile,
   onImportCodexDirectory,
+  onXaiLogin,
+  onImportXaiRefreshTokens,
+  onImportXaiText,
+  onImportXaiFile,
+  onImportXaiDirectory,
   activeProvider,
   onActiveProviderChange,
   kiroActionBusy,
   codexActionBusy,
+  xaiActionBusy,
   kiroStatusText,
   kiroVerificationUrl,
   kiroUserCode,
   codexStatusText,
   codexLoginUrl,
+  xaiStatusText,
+  xaiVerificationUrl,
+  xaiUserCode,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -500,15 +541,24 @@ function ProvidersAddAccountDialog({
   onImportCodexText: (contents: string) => Promise<void>;
   onImportCodexFile: () => Promise<void>;
   onImportCodexDirectory: () => Promise<void>;
+  onXaiLogin: () => Promise<void>;
+  onImportXaiRefreshTokens: (contents: string) => Promise<void>;
+  onImportXaiText: (contents: string) => Promise<void>;
+  onImportXaiFile: () => Promise<void>;
+  onImportXaiDirectory: () => Promise<void>;
   activeProvider: AddDialogProvider;
   onActiveProviderChange: (provider: AddDialogProvider) => void;
   kiroActionBusy: boolean;
   codexActionBusy: boolean;
+  xaiActionBusy: boolean;
   kiroStatusText: string;
   kiroVerificationUrl: string;
   kiroUserCode: string;
   codexStatusText: string;
   codexLoginUrl: string;
+  xaiStatusText: string;
+  xaiVerificationUrl: string;
+  xaiUserCode: string;
 }) {
   const addLabel = getAddLabel();
   const [codexMode, setCodexMode] = useState<CodexManualInputMode>("login");
@@ -571,6 +621,15 @@ function ProvidersAddAccountDialog({
               data-slot="providers-add-provider-codex"
             >
               {m.providers_codex_title()}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={activeProvider === "xai" ? "default" : "ghost"}
+              onClick={() => onActiveProviderChange("xai")}
+              data-slot="providers-add-provider-xai"
+            >
+              {m.providers_xai_title()}
             </Button>
           </div>
           {activeProvider === "kiro" ? (
@@ -642,7 +701,7 @@ function ProvidersAddAccountDialog({
               ) : null}
               <KiroLoginHint verificationUrl={kiroVerificationUrl} userCode={kiroUserCode} />
             </div>
-          ) : (
+          ) : activeProvider === "codex" ? (
             <div data-slot="providers-add-panel-codex" className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
               <div className="inline-flex flex-wrap rounded-lg border border-border/60 bg-background/70 p-1">
                 {(["login", "refresh_token", "mobile_refresh_token", "codex_session", "file"] as const).map(
@@ -746,6 +805,18 @@ function ProvidersAddAccountDialog({
               ) : null}
               <CodexLoginHint loginUrl={codexLoginUrl} />
             </div>
+          ) : (
+            <XaiAddAccountPanel
+              busy={xaiActionBusy}
+              statusText={xaiStatusText}
+              verificationUrl={xaiVerificationUrl}
+              userCode={xaiUserCode}
+              onLogin={onXaiLogin}
+              onImportRefreshTokens={onImportXaiRefreshTokens}
+              onImportText={onImportXaiText}
+              onImportFile={onImportXaiFile}
+              onImportDirectory={onImportXaiDirectory}
+            />
           )}
         </DialogBody>
       </DialogContent>
@@ -783,17 +854,26 @@ function buildToolbarProps(
   onImportCodexText: (contents: string) => Promise<void>,
   onImportCodexFile: () => Promise<void>,
   onImportCodexDirectory: () => Promise<void>,
+  onXaiLogin: () => Promise<void>,
+  onImportXaiRefreshTokens: (contents: string) => Promise<void>,
+  onImportXaiText: (contents: string) => Promise<void>,
+  onImportXaiFile: () => Promise<void>,
+  onImportXaiDirectory: () => Promise<void>,
   onRefresh: () => void,
   onRefreshAllCodexTokens: () => Promise<void>,
   refreshing: boolean,
   refreshingCodexTokens: boolean,
   kiroActionBusy: boolean,
   codexActionBusy: boolean,
+  xaiActionBusy: boolean,
   kiroStatusText: string,
   kiroVerificationUrl: string,
   kiroUserCode: string,
   codexStatusText: string,
   codexLoginUrl: string,
+  xaiStatusText: string,
+  xaiVerificationUrl: string,
+  xaiUserCode: string,
 ) {
   return {
     search: filters.search,
@@ -814,17 +894,26 @@ function buildToolbarProps(
     onImportCodexText,
     onImportCodexFile,
     onImportCodexDirectory,
+    onXaiLogin,
+    onImportXaiRefreshTokens,
+    onImportXaiText,
+    onImportXaiFile,
+    onImportXaiDirectory,
     onRefresh,
     onRefreshAllCodexTokens,
     refreshing,
     refreshingCodexTokens,
     kiroActionBusy,
     codexActionBusy,
+    xaiActionBusy,
     kiroStatusText,
     kiroVerificationUrl,
     kiroUserCode,
     codexStatusText,
     codexLoginUrl,
+    xaiStatusText,
+    xaiVerificationUrl,
+    xaiUserCode,
   };
 }
 
@@ -856,6 +945,22 @@ function getCodexStatusText(login: CodexLoginState) {
   }
   if (login.status === "error") {
     return login.error ?? m.codex_login_failed();
+  }
+  return "";
+}
+
+function getXaiStatusText(login: XaiLoginState) {
+  if (login.status === "waiting") {
+    return m.xai_login_waiting();
+  }
+  if (login.status === "polling") {
+    return m.xai_login_polling();
+  }
+  if (login.status === "success") {
+    return m.xai_login_success();
+  }
+  if (login.status === "error") {
+    return login.error ?? m.xai_login_failed();
   }
   return "";
 }
@@ -930,6 +1035,22 @@ function formatCodexStatus(status: AccountBase["status"]) {
     return m.codex_account_status_cooling_down();
   }
   return m.codex_account_status_active();
+}
+
+function formatXaiStatus(status: AccountBase["status"]) {
+  if (status === "expired") {
+    return m.xai_account_status_expired();
+  }
+  if (status === "invalid") {
+    return m.xai_account_status_invalid();
+  }
+  if (status === "disabled") {
+    return m.xai_account_status_disabled();
+  }
+  if (status === "cooling_down") {
+    return m.xai_account_status_cooling_down();
+  }
+  return m.xai_account_status_active();
 }
 
 function formatKiroAuthMethod(method: string | null | undefined) {
@@ -1053,6 +1174,71 @@ function buildCodexQuotaDetails(quota: ProviderAccountPageItem["quota"] | null) 
   };
 }
 
+function formatXaiQuotaName(name: string) {
+  if (name === "xai-weekly") {
+    return m.xai_quota_weekly();
+  }
+  if (name === "xai-monthly") {
+    return m.xai_quota_monthly();
+  }
+  if (name === "xai-requests") {
+    return m.xai_quota_requests();
+  }
+  if (name === "xai-tokens") {
+    return m.xai_quota_tokens();
+  }
+  if (name.startsWith("xai-product-")) {
+    const product = name.slice("xai-product-".length).replace(/-/g, " ");
+    return m.xai_quota_product({ name: product });
+  }
+  return name;
+}
+
+function buildXaiQuotaDetails(quota: ProviderAccountPageItem["quota"] | null) {
+  if (quota?.error) {
+    return {
+      planType: quota.plan_type ?? PLACEHOLDER,
+      quotaSummary: m.providers_quota_failed_title(),
+      quotaError: quota.error,
+      quotaItems: [] as ProviderAccountQuotaDetailItem[],
+    };
+  }
+  if (!quota || quota.items.length === 0) {
+    return {
+      planType: quota?.plan_type ?? PLACEHOLDER,
+      quotaSummary: PLACEHOLDER,
+      quotaError: "",
+      quotaItems: [] as ProviderAccountQuotaDetailItem[],
+    };
+  }
+  const quotaItems = quota.items.map((item) => {
+    const usageLabel =
+      item.used !== null || item.limit !== null
+        ? m.providers_quota_usage({
+            used: formatNumber(item.used),
+            limit: formatNumber(item.limit),
+          })
+        : formatPercentage(item.percentage);
+    const resetLabel = item.reset_at
+      ? m.providers_quota_resets({ date: formatDateValue(item.reset_at) })
+      : "";
+    return {
+      name: formatXaiQuotaName(item.name),
+      summary: usageLabel,
+      secondary: joinSummaryParts([formatPercentage(item.percentage), resetLabel]),
+    };
+  });
+  return {
+    planType: quota.plan_type ?? PLACEHOLDER,
+    quotaSummary: summarizeQuota(
+      `${quotaItems[0]?.name} · ${quotaItems[0]?.summary ?? PLACEHOLDER}`,
+      quotaItems.length,
+    ),
+    quotaError: "",
+    quotaItems,
+  };
+}
+
 function isKiroProviderAccount(
   account: ProviderAccountPageItem
 ): account is ProviderAccountPageItem & { provider_kind: "kiro" } {
@@ -1063,6 +1249,12 @@ function isCodexProviderAccount(
   account: ProviderAccountPageItem
 ): account is ProviderAccountPageItem & { provider_kind: "codex" } {
   return account.provider_kind === "codex";
+}
+
+function isXaiProviderAccount(
+  account: ProviderAccountPageItem,
+): account is ProviderAccountPageItem & { provider_kind: "xai" } {
+  return account.provider_kind === "xai";
 }
 
 function buildKiroRow(
@@ -1138,12 +1330,52 @@ function buildCodexRow(
   };
 }
 
+function buildXaiRow(
+  account: ProviderAccountPageItem & { provider_kind: "xai" },
+): ProviderAccountTableRow {
+  const quota = buildXaiQuotaDetails(account.quota);
+  return {
+    id: `xai:${account.account_id}`,
+    provider: "xai",
+    providerLabel: m.providers_xai_title(),
+    displayName: formatDisplayName(account),
+    accountId: account.account_id,
+    priority: account.priority,
+    status: account.status,
+    statusLabel: formatXaiStatus(account.status),
+    statusVariant: formatStatusVariant(account.status),
+    expiresAtLabel: formatDateValue(account.expires_at ?? null),
+    planType: quota.planType,
+    quotaSummary: quota.quotaSummary,
+    sourceOrMethodLabel: m.xai_auth_method_oauth(),
+    detailDescription: `${m.providers_xai_title()} · ${account.account_id}`,
+    detailFields: [
+      { label: m.providers_table_provider(), value: m.providers_xai_title() },
+      { label: m.providers_table_account(), value: formatDisplayName(account) },
+      { label: m.providers_table_account_id(), value: account.account_id },
+      { label: m.providers_table_status(), value: formatXaiStatus(account.status) },
+      { label: m.providers_table_expires(), value: formatDateValue(account.expires_at ?? null) },
+      { label: m.providers_table_plan(), value: quota.planType },
+      { label: m.providers_table_source(), value: m.xai_auth_method_oauth() },
+    ],
+    quotaError: quota.quotaError,
+    quotaItems: quota.quotaItems,
+    proxyUrlValue: account.proxy_url ?? "",
+    canRefresh: true,
+    logoutLabel: m.xai_account_logout(),
+    autoRefreshEnabled: account.auto_refresh_enabled ?? true,
+  };
+}
+
 function buildProviderRow(account: ProviderAccountPageItem): ProviderAccountTableRow {
   if (isKiroProviderAccount(account)) {
     return buildKiroRow(account);
   }
   if (isCodexProviderAccount(account)) {
     return buildCodexRow(account);
+  }
+  if (isXaiProviderAccount(account)) {
+    return buildXaiRow(account);
   }
   throw new Error(`Unsupported provider account kind: ${account.provider_kind}`);
 }
@@ -1201,6 +1433,21 @@ function useProvidersPanelState() {
   });
   const kiroAccounts = useKiroAccounts({ autoLoad: false });
   const codexAccounts = useCodexAccounts({ autoLoad: false });
+  const {
+    loading: xaiAccountsLoading,
+    error: xaiAccountsError,
+    refresh: refreshXaiAccounts,
+    refreshAccount: refreshXaiAccountToken,
+    setAutoRefresh: setXaiAccountAutoRefresh,
+    setStatus: setXaiAccountStatus,
+    setProxyUrl: setXaiAccountProxyUrl,
+    setPriority: setXaiAccountPriority,
+    logout: logoutXaiAccount,
+    importFile: importXaiAccountFile,
+    importText: importXaiAccountText,
+    importRefreshTokens: importXaiAccountRefreshTokens,
+    refreshQuotaNow: refreshXaiAccountQuota,
+  } = useXaiAccounts({ autoLoad: false });
   const refreshKiroData = useCallback(async (accountId?: string) => {
     await kiroAccounts.refreshQuotaCache(accountId ? [accountId] : undefined);
     await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
@@ -1209,6 +1456,14 @@ function useProvidersPanelState() {
     await codexAccounts.refreshQuotaCache(accountId ? [accountId] : undefined);
     await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
   }, [codexAccounts, providerAccounts]);
+  const refreshXaiData = useCallback(async () => {
+    // OAuth 登录只刷新账户快照；Free 账户的 active probe 必须由“刷新配额”显式触发。
+    await Promise.all([
+      providerAccounts.refresh(),
+      refreshXaiAccounts(),
+      syncXaiDefaultUpstreamConfig(),
+    ]);
+  }, [providerAccounts, refreshXaiAccounts]);
   const syncImportedKiroAccounts = useCallback(async (accountIds: string[]) => {
     try {
       await kiroAccounts.refreshQuotaCache(accountIds);
@@ -1225,8 +1480,21 @@ function useProvidersPanelState() {
       toast.error(parseError(error));
     }
   }, [codexAccounts, providerAccounts]);
+  const syncImportedXaiAccounts = useCallback(async () => {
+    // 导入仅同步本地账户和默认上游，不在凭证入库后自动探测远端额度。
+    await Promise.all([
+      providerAccounts.refresh(),
+      refreshXaiAccounts(),
+      syncXaiDefaultUpstreamConfig(),
+    ]);
+  }, [providerAccounts, refreshXaiAccounts]);
   const kiroLogin = useKiroLogin({ onRefresh: refreshKiroData });
   const codexLogin = useCodexLogin({ onRefresh: refreshCodexData });
+  const {
+    login: xaiLoginState,
+    beginLogin: beginXaiLogin,
+    resetLogin: resetXaiLogin,
+  } = useXaiLogin({ onRefresh: refreshXaiData });
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addDialogProvider, setAddDialogProvider] = useState<AddDialogProvider>("kiro");
   const resetKiroLogin = kiroLogin.resetLogin;
@@ -1241,10 +1509,12 @@ function useProvidersPanelState() {
       // 弹窗关闭是用户取消授权的明确信号，立即清理两个授权流的 UI 状态。
       resetKiroLogin();
       resetCodexLogin();
+      resetXaiLogin();
     }
-  }, [resetCodexLogin, resetKiroLogin]);
+  }, [resetCodexLogin, resetKiroLogin, resetXaiLogin]);
   const [kiroImporting, setKiroImporting] = useState(false);
   const [codexImporting, setCodexImporting] = useState(false);
+  const [xaiImporting, setXaiImporting] = useState(false);
   const [codexBulkRefreshing, setCodexBulkRefreshing] = useState(false);
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(new Set());
@@ -1252,9 +1522,10 @@ function useProvidersPanelState() {
     await Promise.all([
       kiroAccounts.refresh(),
       codexAccounts.refresh(),
+      refreshXaiAccounts(),
       providerAccounts.refresh(),
     ]);
-  }, [kiroAccounts, codexAccounts, providerAccounts]);
+  }, [kiroAccounts, codexAccounts, providerAccounts, refreshXaiAccounts]);
   const rows = useMemo(() => {
     return providerAccounts.items.map(buildProviderRow);
   }, [providerAccounts.items]);
@@ -1419,7 +1690,77 @@ function useProvidersPanelState() {
     },
     [codexAccounts, syncImportedCodexAccounts]
   );
-  const refreshBusy = kiroAccounts.loading || codexAccounts.loading || providerAccounts.loading;
+  const loginXai = useCallback(async () => {
+    await beginXaiLogin();
+  }, [beginXaiLogin]);
+  const selectAndImportXaiPath = useCallback(
+    async (directory: boolean) => {
+      const selection = await open({
+        directory,
+        multiple: false,
+        filters: directory ? undefined : [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (typeof selection !== "string" || !selection.trim()) {
+        return;
+      }
+      setXaiImporting(true);
+      try {
+        const imported = await importXaiAccountFile(selection);
+        console.info("[providers-xai-import] path import finished", {
+          directory,
+          imported: imported.length,
+        });
+        await syncImportedXaiAccounts();
+        toast.success(m.xai_import_success());
+      } catch (error) {
+        toast.error(parseError(error));
+      } finally {
+        setXaiImporting(false);
+      }
+    },
+    [importXaiAccountFile, syncImportedXaiAccounts],
+  );
+  const importXaiFile = useCallback(
+    async () => selectAndImportXaiPath(false),
+    [selectAndImportXaiPath],
+  );
+  const importXaiDirectory = useCallback(
+    async () => selectAndImportXaiPath(true),
+    [selectAndImportXaiPath],
+  );
+  const importXaiText = useCallback(async (contents: string) => {
+    setXaiImporting(true);
+    try {
+      const imported = await importXaiAccountText(contents);
+      console.info("[providers-xai-import] text import finished", { imported: imported.length });
+      await syncImportedXaiAccounts();
+      toast.success(m.xai_import_success());
+    } catch (error) {
+      toast.error(parseError(error));
+    } finally {
+      setXaiImporting(false);
+    }
+  }, [importXaiAccountText, syncImportedXaiAccounts]);
+  const importXaiRefreshTokens = useCallback(async (contents: string) => {
+    setXaiImporting(true);
+    try {
+      const imported = await importXaiAccountRefreshTokens(contents);
+      console.info("[providers-xai-import] refresh-token import finished", {
+        imported: imported.length,
+      });
+      await syncImportedXaiAccounts();
+      toast.success(m.xai_import_success());
+    } catch (error) {
+      toast.error(parseError(error));
+    } finally {
+      setXaiImporting(false);
+    }
+  }, [importXaiAccountRefreshTokens, syncImportedXaiAccounts]);
+  const refreshBusy =
+    kiroAccounts.loading ||
+    codexAccounts.loading ||
+    xaiAccountsLoading ||
+    providerAccounts.loading;
   const kiroActionBusy =
     kiroImporting ||
     kiroLogin.login.status === "waiting" ||
@@ -1428,12 +1769,21 @@ function useProvidersPanelState() {
     codexImporting ||
     codexLogin.login.status === "waiting" ||
     codexLogin.login.status === "polling";
+  const xaiActionBusy =
+    xaiImporting ||
+    xaiLoginState.status === "waiting" ||
+    xaiLoginState.status === "polling";
   const kiroVerificationUrl =
     kiroLogin.login.start?.verification_uri_complete ??
     kiroLogin.login.start?.verification_uri ??
     "";
   const kiroUserCode = kiroLogin.login.start?.user_code ?? "";
   const codexLoginUrl = codexLogin.login.start?.login_url ?? "";
+  const xaiVerificationUrl =
+    xaiLoginState.start?.verification_uri_complete ??
+    xaiLoginState.start?.verification_uri ??
+    "";
+  const xaiUserCode = xaiLoginState.start?.user_code ?? "";
 
   const toolbarProps = buildToolbarProps(
     filters,
@@ -1449,17 +1799,26 @@ function useProvidersPanelState() {
     importCodexText,
     importCodexFile,
     importCodexDirectory,
+    loginXai,
+    importXaiRefreshTokens,
+    importXaiText,
+    importXaiFile,
+    importXaiDirectory,
     refreshAll,
     refreshAllCodexTokens,
     refreshBusy,
     codexBulkRefreshing,
     kiroActionBusy,
     codexActionBusy,
+    xaiActionBusy,
     getKiroStatusText(kiroLogin.login),
     kiroVerificationUrl,
     kiroUserCode,
     getCodexStatusText(codexLogin.login),
     codexLoginUrl,
+    getXaiStatusText(xaiLoginState),
+    xaiVerificationUrl,
+    xaiUserCode,
   );
   const visibleRows = useMemo(
     () => rows.filter((row) => !optimisticDeletedIds.has(row.id)),
@@ -1468,8 +1827,15 @@ function useProvidersPanelState() {
   const tableBusy = providerAccounts.loading || batchDeleting;
   const tableError = collectErrorMessages([
     providerAccounts.error,
-    filters.providerFilter !== "codex" ? kiroAccounts.error : "",
-    filters.providerFilter !== "kiro" ? codexAccounts.error : "",
+    filters.providerFilter === "all" || filters.providerFilter === "kiro"
+      ? kiroAccounts.error
+      : "",
+    filters.providerFilter === "all" || filters.providerFilter === "codex"
+      ? codexAccounts.error
+      : "",
+    filters.providerFilter === "all" || filters.providerFilter === "xai"
+      ? xaiAccountsError
+      : "",
   ]);
   const handleRowLogout = useCallback(
     async (row: ProviderAccountTableRow) => {
@@ -1478,39 +1844,57 @@ function useProvidersPanelState() {
         await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
         return;
       }
-      await codexAccounts.logout(row.accountId);
-      await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+      if (row.provider === "codex") {
+        await codexAccounts.logout(row.accountId);
+        await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        return;
+      }
+      await logoutXaiAccount(row.accountId);
+      await Promise.all([
+        providerAccounts.refresh(),
+        refreshXaiAccounts(),
+        syncXaiDefaultUpstreamConfig(),
+      ]);
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, logoutXaiAccount, providerAccounts, refreshXaiAccounts]
   );
   const handleRowRefresh = useCallback(
     async (row: ProviderAccountTableRow) => {
-      if (row.provider !== "codex") {
+      if (row.provider === "kiro") {
         return;
       }
       try {
-        await codexAccounts.refreshAccount(row.accountId);
-        await codexAccounts.refreshQuotaCache([row.accountId]);
-        await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        if (row.provider === "codex") {
+          await codexAccounts.refreshAccount(row.accountId);
+          await codexAccounts.refreshQuotaCache([row.accountId]);
+          await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+          return;
+        }
+        await refreshXaiAccountToken(row.accountId);
+        await Promise.all([providerAccounts.refresh(), refreshXaiAccounts()]);
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [codexAccounts, providerAccounts]
+    [codexAccounts, providerAccounts, refreshXaiAccountToken, refreshXaiAccounts]
   );
-  const handleCodexAutoRefreshToggle = useCallback(
+  const handleAccountAutoRefreshToggle = useCallback(
     async (row: ProviderAccountTableRow, enabled: boolean) => {
-      if (row.provider !== "codex") {
+      if (row.provider === "kiro") {
         return;
       }
       try {
-        await codexAccounts.setAutoRefresh(row.accountId, enabled);
+        if (row.provider === "codex") {
+          await codexAccounts.setAutoRefresh(row.accountId, enabled);
+        } else {
+          await setXaiAccountAutoRefresh(row.accountId, enabled);
+        }
         await providerAccounts.refresh();
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [codexAccounts, providerAccounts]
+    [codexAccounts, providerAccounts, setXaiAccountAutoRefresh]
   );
   const handleRowRefreshQuota = useCallback(
     async (row: ProviderAccountTableRow) => {
@@ -1520,13 +1904,18 @@ function useProvidersPanelState() {
           await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
           return;
         }
-        await codexAccounts.refreshQuotaNow(row.accountId);
-        await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        if (row.provider === "codex") {
+          await codexAccounts.refreshQuotaNow(row.accountId);
+          await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+          return;
+        }
+        await refreshXaiAccountQuota(row.accountId);
+        await Promise.all([providerAccounts.refresh(), refreshXaiAccounts()]);
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts, refreshXaiAccountQuota, refreshXaiAccounts]
   );
   const handleAccountStatusToggle = useCallback(
     async (row: ProviderAccountTableRow, status: "active" | "disabled") => {
@@ -1536,13 +1925,18 @@ function useProvidersPanelState() {
           await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
           return;
         }
-        await codexAccounts.setStatus(row.accountId, status);
-        await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        if (row.provider === "codex") {
+          await codexAccounts.setStatus(row.accountId, status);
+          await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+          return;
+        }
+        await setXaiAccountStatus(row.accountId, status);
+        await Promise.all([providerAccounts.refresh(), refreshXaiAccounts()]);
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts, refreshXaiAccounts, setXaiAccountStatus]
   );
   const handleSaveProxyUrl = useCallback(
     async (row: ProviderAccountTableRow, proxyUrl: string) => {
@@ -1550,15 +1944,18 @@ function useProvidersPanelState() {
         if (row.provider === "kiro") {
           await kiroAccounts.setProxyUrl(row.accountId, proxyUrl || null);
           await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
-        } else {
+        } else if (row.provider === "codex") {
           await codexAccounts.setProxyUrl(row.accountId, proxyUrl || null);
           await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        } else {
+          await setXaiAccountProxyUrl(row.accountId, proxyUrl || null);
+          await Promise.all([providerAccounts.refresh(), refreshXaiAccounts()]);
         }
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts, refreshXaiAccounts, setXaiAccountProxyUrl]
   );
   const handleSavePriority = useCallback(
     async (row: ProviderAccountTableRow, priority: number) => {
@@ -1566,15 +1963,18 @@ function useProvidersPanelState() {
         if (row.provider === "kiro") {
           await kiroAccounts.setPriority(row.accountId, priority);
           await Promise.all([providerAccounts.refresh(), kiroAccounts.refresh()]);
-        } else {
+        } else if (row.provider === "codex") {
           await codexAccounts.setPriority(row.accountId, priority);
           await Promise.all([providerAccounts.refresh(), codexAccounts.refresh()]);
+        } else {
+          await setXaiAccountPriority(row.accountId, priority);
+          await Promise.all([providerAccounts.refresh(), refreshXaiAccounts()]);
         }
       } catch (error) {
         toast.error(parseError(error));
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts, refreshXaiAccounts, setXaiAccountPriority]
   );
 
   const handleBatchDelete = useCallback(
@@ -1586,10 +1986,16 @@ function useProvidersPanelState() {
       setBatchDeleting(true);
       setOptimisticDeletedIds(new Set(rowsToDelete.map((row) => row.id)));
       const accountIds = rowsToDelete.map((row) => row.accountId);
+      const includesXaiAccount = rowsToDelete.some((row) => row.provider === "xai");
       try {
         await deleteProviderAccounts(accountIds);
-        await providerAccounts.refresh();
-        void Promise.all([kiroAccounts.refresh(), codexAccounts.refresh()]).catch(() => undefined);
+        await Promise.all([
+          providerAccounts.refresh(),
+          kiroAccounts.refresh(),
+          codexAccounts.refresh(),
+          refreshXaiAccounts(),
+          ...(includesXaiAccount ? [syncXaiDefaultUpstreamConfig()] : []),
+        ]);
         toast.success(m.providers_accounts_delete_success({ count: accountIds.length }));
       } catch (error) {
         toast.error(parseError(error));
@@ -1598,7 +2004,7 @@ function useProvidersPanelState() {
         setOptimisticDeletedIds(new Set());
       }
     },
-    [kiroAccounts, codexAccounts, providerAccounts]
+    [kiroAccounts, codexAccounts, providerAccounts, refreshXaiAccounts]
   );
 
   return {
@@ -1621,7 +2027,7 @@ function useProvidersPanelState() {
     onSaveProxyUrl: handleSaveProxyUrl,
     onSavePriority: handleSavePriority,
     onToggleStatus: handleAccountStatusToggle,
-    onToggleAutoRefresh: handleCodexAutoRefreshToggle,
+    onToggleAutoRefresh: handleAccountAutoRefreshToggle,
   };
 }
 

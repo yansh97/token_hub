@@ -18,6 +18,7 @@ fn test_upstream(
         rewrite_developer_role_to_system,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         kiro_preferred_endpoint: None,
         proxy_url: None,
         priority: 0,
@@ -27,6 +28,146 @@ fn test_upstream(
         header_overrides: None,
         allowed_inbound_formats: Default::default(),
     }
+}
+
+fn xai_meta(model: &str, stream: bool) -> RequestMeta {
+    RequestMeta {
+        client_ip: None,
+        stream,
+        original_model: Some(model.to_string()),
+        mapped_model: None,
+        reasoning_effort: None,
+        response_format: None,
+        estimated_input_tokens: None,
+    }
+}
+
+async fn transformed_xai_body(path: &str, body: &'static [u8], model: &str) -> Value {
+    let upstream = test_upstream(false, false, false);
+    let body = ReplayableBody::from_bytes(Bytes::from_static(body));
+    let rewritten = match build_json_transformed_body(
+        "xai",
+        &upstream,
+        path,
+        &body,
+        &xai_meta(model, true),
+        None,
+    )
+    .await
+    {
+        Ok(Some(value)) => value,
+        Ok(None) => panic!("xAI body should change"),
+        Err(_) => panic!("xAI transform should succeed"),
+    };
+    let bytes = rewritten
+        .read_bytes_if_small(4096)
+        .await
+        .expect("read transformed body")
+        .expect("transformed bytes");
+    serde_json::from_slice(&bytes).expect("transformed JSON")
+}
+
+#[tokio::test]
+async fn xai_responses_filters_unsupported_fields_and_orphaned_tool_controls() {
+    let value = transformed_xai_body(
+        "/v1/responses",
+        br#"{"model":"grok-4.5","previous_response_id":"resp_1","prompt_cache_retention":"24h","safety_identifier":"sid","stream_options":{"include_usage":true},"prompt_cache_key":"session-1","tools":[],"tool_choice":"auto","parallel_tool_calls":true,"presence_penalty":1,"presencePenalty":1,"frequency_penalty":1,"frequencyPenalty":1,"stop":["done"],"input":"hi"}"#,
+        "grok-4.5",
+    )
+    .await;
+
+    for field in [
+        "previous_response_id",
+        "prompt_cache_retention",
+        "safety_identifier",
+        "stream_options",
+        "tools",
+        "tool_choice",
+        "parallel_tool_calls",
+        "presence_penalty",
+        "presencePenalty",
+        "frequency_penalty",
+        "frequencyPenalty",
+        "stop",
+    ] {
+        assert!(value.get(field).is_none(), "field={field}");
+    }
+    assert_eq!(value["prompt_cache_key"], "session-1");
+}
+
+#[tokio::test]
+async fn xai_responses_keeps_tool_controls_for_additional_tools() {
+    let value = transformed_xai_body(
+        "/v1/responses",
+        br#"{"model":"grok-4.3","previous_response_id":"resp_1","tool_choice":"auto","parallel_tool_calls":true,"input":[{"type":"additional_tools","tools":[{"type":"function","name":"Bash"}]}]}"#,
+        "grok-4.3",
+    )
+    .await;
+
+    assert_eq!(value["tool_choice"], "auto");
+    assert_eq!(value["parallel_tool_calls"], true);
+    assert_eq!(value["input"][0]["type"], "additional_tools");
+    assert!(value.get("previous_response_id").is_none());
+}
+
+#[tokio::test]
+async fn xai_non_45_model_keeps_penalties() {
+    let value = transformed_xai_body(
+        "/v1/responses",
+        br#"{"model":"grok-4.3","previous_response_id":"resp_1","presence_penalty":1,"frequency_penalty":1,"stop":["done"],"input":"hi"}"#,
+        "grok-4.3",
+    )
+    .await;
+
+    assert_eq!(value["presence_penalty"], 1);
+    assert_eq!(value["frequency_penalty"], 1);
+    assert_eq!(value["stop"][0], "done");
+    assert!(value.get("previous_response_id").is_none());
+}
+
+#[tokio::test]
+async fn xai_compact_strips_stream_tools_and_compaction_trigger() {
+    let value = transformed_xai_body(
+        "/v1/responses/compact",
+        br#"{"model":"grok-4.5","stream":true,"prompt_cache_key":"compact-session","tools":[{"type":"function","name":"Bash"}],"tool_choice":"auto","parallel_tool_calls":true,"compaction_trigger":true,"input":[{"type":"message","role":"user","content":"hello"},{"type":"compaction_trigger"}]}"#,
+        "grok-4.5",
+    )
+    .await;
+
+    for field in [
+        "stream",
+        "tools",
+        "tool_choice",
+        "parallel_tool_calls",
+        "compaction_trigger",
+    ] {
+        assert!(value.get(field).is_none(), "field={field}");
+    }
+    assert_eq!(value["prompt_cache_key"], "compact-session");
+    assert_eq!(value["input"].as_array().map(Vec::len), Some(1));
+    assert_eq!(value["input"][0]["type"], "message");
+}
+
+#[tokio::test]
+async fn xai_image_edits_multipart_body_is_not_json_transformed() {
+    let upstream = test_upstream(false, false, false);
+    let payload = Bytes::from_static(
+        b"--xai-boundary\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\ngrok-imagine-image\r\n--xai-boundary--\r\n",
+    );
+    let body = ReplayableBody::from_bytes(payload.clone());
+    let mut meta = xai_meta("grok-imagine-image", false);
+    meta.mapped_model = Some("grok-imagine-image-mapped".to_string());
+
+    let transformed =
+        match build_json_transformed_body("xai", &upstream, "/v1/images/edits", &body, &meta, None)
+            .await
+        {
+            Ok(value) => value,
+            Err(_) => panic!("multipart passthrough should succeed"),
+        };
+
+    assert!(transformed.is_none());
+    assert_eq!(body.as_bytes(), &payload);
 }
 
 #[tokio::test]

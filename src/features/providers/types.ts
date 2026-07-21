@@ -15,7 +15,7 @@ export type ProviderAccountQuotaSnapshot = {
 };
 
 export type ProviderAccountPageItem = {
-  provider_kind: "kiro" | "codex";
+  provider_kind: "kiro" | "codex" | "xai";
   account_id: string;
   email?: string | null;
   expires_at?: string | null;

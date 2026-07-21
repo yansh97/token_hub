@@ -10,8 +10,9 @@ mod logging;
 mod proxy;
 mod tray;
 mod window;
+mod xai;
 
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 use tauri::{Emitter, Manager};
 
 use commands::{
@@ -29,7 +30,11 @@ use commands::{
     read_default_hot_model_mappings, read_model_pricing_settings, read_proxy_config,
     read_request_detail_capture, read_request_log_detail, refresh_dashboard_model_discovery,
     reset_model_pricing_settings, save_model_pricing_settings, save_proxy_config,
-    set_request_detail_capture, write_claude_code_settings, write_codex_config,
+    set_request_detail_capture, write_claude_code_settings, write_codex_config, xai_cancel_login,
+    xai_fetch_quotas, xai_import_file, xai_import_refresh_tokens, xai_import_text,
+    xai_list_accounts, xai_logout, xai_poll_login, xai_refresh_account, xai_refresh_quota_cache,
+    xai_refresh_quota_now, xai_set_auto_refresh, xai_set_priority, xai_set_proxy_url,
+    xai_set_status, xai_start_login,
 };
 
 type ProxyServiceHandle = proxy::service::ProxyServiceHandle;
@@ -38,6 +43,54 @@ type LogLevel = logging::LogLevel;
 const REQUEST_DETAIL_CAPTURE_EVENT: &str = "request-detail-capture-changed";
 
 type RequestDetailCaptureEvent = proxy::request_detail::RequestDetailCaptureState;
+
+/// 统一启动前置顺序：配置读取和代理状态写入完成后，才允许执行启动动作。
+///
+/// xAI 到期刷新任务会在 proxy 启动时立即读取该状态；把写入和启动收拢到同一条
+/// future 链中，避免并发 task 让首轮 OAuth refresh 误走直连。
+async fn run_after_app_proxy_initialized<T, Action, ActionFuture>(
+    paths: &token_proxy_core::paths::TokenProxyPaths,
+    app_proxy_state: &app_proxy::AppProxyState,
+    action: Action,
+) -> Result<T, String>
+where
+    Action: FnOnce(token_proxy_core::proxy::config::ConfigResponse, Option<String>) -> ActionFuture,
+    ActionFuture: Future<Output = T>,
+{
+    let response = proxy::config::read_config(paths).await?;
+    let proxy_url = proxy::config::app_proxy_url_from_config(&response.config)?;
+    app_proxy::set(app_proxy_state, proxy_url.clone()).await;
+    tracing::debug!(
+        proxy_enabled = proxy_url.is_some(),
+        "application proxy initialized before startup action"
+    );
+    Ok(action(response, proxy_url).await)
+}
+
+async fn refresh_model_pricing_catalog(
+    paths: Arc<token_proxy_core::paths::TokenProxyPaths>,
+    proxy_url: Option<String>,
+) {
+    match proxy::sqlite::open_write_pool(paths.as_ref()).await {
+        Ok(pool) => {
+            if let Err(err) =
+                proxy::pricing::refresh_remote_model_pricing_catalog(&pool, proxy_url.as_deref())
+                    .await
+            {
+                tracing::warn!(
+                    error = %err,
+                    "model pricing catalog refresh failed; cached or bundled catalog remains active"
+                );
+            }
+        }
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "model pricing catalog refresh skipped because database could not open"
+            );
+        }
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -133,6 +186,16 @@ pub fn run() {
                 app_proxy_state.clone(),
             ));
             app.manage(codex_login);
+            let xai_store = Arc::new(xai::XaiAccountStore::new(
+                paths.as_ref(),
+                app_proxy_state.clone(),
+            )?);
+            app.manage(xai_store.clone());
+            let xai_login = Arc::new(xai::XaiLoginManager::new(
+                xai_store.clone(),
+                app_proxy_state.clone(),
+            ));
+            app.manage(xai_login);
 
             let proxy_context = proxy::service::ProxyContext {
                 paths: paths.clone(),
@@ -141,60 +204,48 @@ pub fn run() {
                 token_rate: token_rate.clone(),
                 kiro_accounts: kiro_store.clone(),
                 codex_accounts: codex_store.clone(),
+                xai_accounts: xai_store.clone(),
             };
             app.manage(proxy_context.clone());
             let tray_state = tray::init_tray(&app_handle, proxy_service.clone())?;
             app.manage(tray_state.clone());
 
-            let tray_state_for_config = tray_state.clone();
-            let paths_for_config = paths.clone();
-            let app_proxy_for_config = app_proxy_state.clone();
+            let paths_for_startup = paths.clone();
+            let paths_for_pricing = paths.clone();
+            let app_proxy_for_startup = app_proxy_state.clone();
+            let logging_for_startup = logging_state.clone();
+            let tray_state_for_startup = tray_state.clone();
+            let tray_state_for_startup_error = tray_state.clone();
+            let proxy_for_startup = proxy_service.clone();
+            let proxy_context_for_startup = proxy_context.clone();
             tauri::async_runtime::spawn(async move {
-                let pricing_proxy_url = match proxy::config::read_config(paths_for_config.as_ref())
-                    .await
-                {
-                    Ok(response) => {
-                        logging_state.apply_level(response.config.log_level);
-                        tray_state_for_config
+                let startup_result = run_after_app_proxy_initialized(
+                    paths_for_startup.as_ref(),
+                    &app_proxy_for_startup,
+                    move |response, proxy_url| async move {
+                        // 此时共享代理状态已经就绪；pricing 网络任务独立执行，不阻塞 proxy 启动。
+                        tauri::async_runtime::spawn(refresh_model_pricing_catalog(
+                            paths_for_pricing,
+                            proxy_url,
+                        ));
+
+                        logging_for_startup.apply_level(response.config.log_level);
+                        tray_state_for_startup
                             .apply_config(&response.config.tray_token_rate)
                             .await;
-                        let proxy_url = proxy::config::app_proxy_url_from_config(&response.config)
-                            .unwrap_or(None);
-                        app_proxy::set(&app_proxy_for_config, proxy_url.clone()).await;
-                        proxy_url
-                    }
-                    Err(err) => {
-                        tracing::warn!(error = %err, "pricing catalog refresh using direct connection because config read failed");
-                        None
-                    }
-                };
-                match proxy::sqlite::open_write_pool(paths_for_config.as_ref()).await {
-                    Ok(pool) => {
-                        if let Err(err) = proxy::pricing::refresh_remote_model_pricing_catalog(
-                            &pool,
-                            pricing_proxy_url.as_deref(),
-                        )
-                        .await
-                        {
-                            tracing::warn!(error = %err, "model pricing catalog refresh failed; cached or bundled catalog remains active");
+                        match proxy_for_startup.start(&proxy_context_for_startup).await {
+                            Ok(status) => tray_state_for_startup.apply_status(&status),
+                            Err(err) => {
+                                tray_state_for_startup.apply_error("启动失败", &err);
+                                tracing::error!(error = %err, "proxy start failed");
+                            }
                         }
-                    }
-                    Err(err) => {
-                        tracing::warn!(error = %err, "model pricing catalog refresh skipped because database could not open");
-                    }
-                }
-            });
-
-            let tray_state_for_start = tray_state.clone();
-            let proxy_for_start = proxy_service.clone();
-            let proxy_context_for_start = proxy_context.clone();
-            tauri::async_runtime::spawn(async move {
-                match proxy_for_start.start(&proxy_context_for_start).await {
-                    Ok(status) => tray_state_for_start.apply_status(&status),
-                    Err(err) => {
-                        tray_state_for_start.apply_error("启动失败", &err);
-                        tracing::error!(error = %err, "proxy start failed");
-                    }
+                    },
+                )
+                .await;
+                if let Err(err) = startup_result {
+                    tray_state_for_startup_error.apply_error("启动失败", &err);
+                    tracing::error!(error = %err, "proxy startup initialization failed");
                 }
             });
 
@@ -299,6 +350,22 @@ pub fn run() {
             codex_start_login,
             codex_poll_login,
             codex_logout,
+            xai_list_accounts,
+            xai_import_file,
+            xai_import_text,
+            xai_import_refresh_tokens,
+            xai_fetch_quotas,
+            xai_refresh_quota_cache,
+            xai_refresh_quota_now,
+            xai_refresh_account,
+            xai_set_auto_refresh,
+            xai_set_status,
+            xai_set_proxy_url,
+            xai_set_priority,
+            xai_start_login,
+            xai_poll_login,
+            xai_cancel_login,
+            xai_logout,
             providers_list_accounts_page,
             providers_delete_accounts,
             proxy_status,
@@ -343,4 +410,105 @@ pub fn run() {
         }
         _ => {}
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        fs,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use super::run_after_app_proxy_initialized;
+
+    fn test_data_dir(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time after Unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "token-proxy-tauri-{name}-{}-{unique}",
+            std::process::id()
+        ))
+    }
+
+    fn test_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime")
+    }
+
+    #[test]
+    fn startup_action_observes_initialized_app_proxy() {
+        let data_dir = test_data_dir("startup-proxy-order");
+        fs::create_dir_all(&data_dir).expect("create test data dir");
+        let paths = token_proxy_core::paths::TokenProxyPaths::from_app_data_dir(data_dir.clone())
+            .expect("test paths");
+        let app_proxy_state = crate::app_proxy::new_state();
+        let expected_proxy = "http://127.0.0.1:7890".to_string();
+
+        let observed_proxy = test_runtime().block_on(async {
+            let mut config = token_proxy_core::proxy::config::ProxyConfigFile::default();
+            config.app_proxy_url = Some(expected_proxy.clone());
+            token_proxy_core::proxy::config::write_config(&paths, config)
+                .await
+                .expect("write test config");
+
+            let state_for_action = app_proxy_state.clone();
+            let expected_for_action = expected_proxy.clone();
+            run_after_app_proxy_initialized(
+                &paths,
+                &app_proxy_state,
+                move |_response, resolved_proxy| async move {
+                    assert_eq!(
+                        resolved_proxy.as_deref(),
+                        Some(expected_for_action.as_str())
+                    );
+                    state_for_action.read().await.clone()
+                },
+            )
+            .await
+            .expect("initialize startup proxy")
+        });
+
+        assert_eq!(observed_proxy, Some(expected_proxy));
+        fs::remove_dir_all(data_dir).expect("remove test data dir");
+    }
+
+    #[test]
+    fn startup_initialization_clears_stale_app_proxy() {
+        let data_dir = test_data_dir("startup-proxy-clear");
+        fs::create_dir_all(&data_dir).expect("create test data dir");
+        let paths = token_proxy_core::paths::TokenProxyPaths::from_app_data_dir(data_dir.clone())
+            .expect("test paths");
+        let app_proxy_state = crate::app_proxy::new_state();
+
+        let observed_proxy = test_runtime().block_on(async {
+            crate::app_proxy::set(&app_proxy_state, Some("http://127.0.0.1:8888".to_string()))
+                .await;
+            token_proxy_core::proxy::config::write_config(
+                &paths,
+                token_proxy_core::proxy::config::ProxyConfigFile::default(),
+            )
+            .await
+            .expect("write test config");
+
+            let state_for_action = app_proxy_state.clone();
+            run_after_app_proxy_initialized(
+                &paths,
+                &app_proxy_state,
+                move |_response, resolved_proxy| async move {
+                    assert_eq!(resolved_proxy, None);
+                    state_for_action.read().await.clone()
+                },
+            )
+            .await
+            .expect("initialize startup proxy")
+        });
+
+        assert_eq!(observed_proxy, None);
+        fs::remove_dir_all(data_dir).expect("remove test data dir");
+    }
 }

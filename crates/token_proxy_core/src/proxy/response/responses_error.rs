@@ -137,8 +137,9 @@ pub(crate) fn responses_stream_error(value: &Value) -> Option<ResponsesStreamErr
         .unwrap_or("proxy_error")
         .to_string();
     let code = source.get("code").cloned();
+    let status_hint = response_status_hint(value, source);
     let (status, retryable_before_output) =
-        classify_error_semantics(&error_type, code.as_ref(), &message);
+        classify_error_semantics(&error_type, code.as_ref(), &message, status_hint);
     Some(ResponsesStreamError {
         message,
         error_type,
@@ -167,24 +168,18 @@ pub(crate) fn openai_error_status(error: &Value) -> StatusCode {
         .and_then(Value::as_str)
         .or_else(|| error.as_str())
         .unwrap_or_default();
-    classify_error_semantics(error_type, code, message).0
+    let status_hint = error.get("status").and_then(parse_numeric_status);
+    classify_error_semantics(error_type, code, message, status_hint).0
 }
 
 fn classify_error_semantics(
     error_type: &str,
     code: Option<&Value>,
     message: &str,
+    status_hint: Option<StatusCode>,
 ) -> (StatusCode, bool) {
     let error_type = error_type.to_ascii_lowercase();
-    let numeric_status = code
-        .and_then(|value| {
-            value
-                .as_u64()
-                .or_else(|| value.as_str().and_then(|value| value.parse::<u64>().ok()))
-        })
-        .and_then(|value| u16::try_from(value).ok())
-        .and_then(|value| StatusCode::from_u16(value).ok())
-        .filter(|status| status.is_client_error() || status.is_server_error());
+    let numeric_status = status_hint.or_else(|| code.and_then(parse_numeric_status));
     let code = code
         .map(|value| {
             value
@@ -196,7 +191,8 @@ fn classify_error_semantics(
     let detail = format!("{code} {message}").to_ascii_lowercase();
 
     // 上游会把容量/账号错误包在 invalid_request_error 中，具体信号必须优先于宽泛类型。
-    let explicit_retryable = is_retryable_account_or_transient_error(&detail);
+    let explicit_retryable = numeric_status.is_some_and(is_retryable_status_hint)
+        || is_retryable_account_or_transient_error(&detail);
     let non_retryable = !explicit_retryable
         && (is_context_window_error(&detail)
             || is_invalid_request_error(&detail)
@@ -209,6 +205,35 @@ fn classify_error_semantics(
         .or_else(|| known_semantic_status(&error_type))
         .unwrap_or(StatusCode::BAD_GATEWAY);
     (status, !non_retryable)
+}
+
+/// xAI 错误事件会把 HTTP 语义状态放在事件顶层；Responses failed 事件也可能放在 response 内。
+fn response_status_hint(value: &Value, source: &Value) -> Option<StatusCode> {
+    source
+        .get("status")
+        .and_then(parse_numeric_status)
+        .or_else(|| value.get("status").and_then(parse_numeric_status))
+        .or_else(|| {
+            value
+                .pointer("/response/status")
+                .and_then(parse_numeric_status)
+        })
+}
+
+fn parse_numeric_status(value: &Value) -> Option<StatusCode> {
+    value
+        .as_u64()
+        .or_else(|| value.as_str().and_then(|value| value.parse::<u64>().ok()))
+        .and_then(|value| u16::try_from(value).ok())
+        .and_then(|value| StatusCode::from_u16(value).ok())
+        .filter(|status| status.is_client_error() || status.is_server_error())
+}
+
+fn is_retryable_status_hint(status: StatusCode) -> bool {
+    matches!(
+        status,
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
+    ) || status.is_server_error()
 }
 
 fn known_semantic_status(text: &str) -> Option<StatusCode> {
@@ -245,6 +270,9 @@ fn is_rate_limit_error(text: &str) -> bool {
         || text.contains("rate limit")
         || text.contains("too_many_requests")
         || text.contains("resource_exhausted")
+        || text.contains("free-usage-exhausted")
+        || text.contains("free_usage_exhausted")
+        || text.contains("included free usage")
 }
 
 fn is_authentication_error(text: &str) -> bool {
@@ -432,6 +460,14 @@ mod tests {
                 }),
                 StatusCode::TOO_MANY_REQUESTS,
             ),
+            (
+                json!({
+                    "type": "invalid_request_error",
+                    "code": "subscription:free-usage-exhausted",
+                    "message": "You've used all the included free usage for now."
+                }),
+                StatusCode::TOO_MANY_REQUESTS,
+            ),
         ] {
             let event = json!({
                 "type": "response.failed",
@@ -440,6 +476,29 @@ mod tests {
             let classified = responses_stream_error(&event).expect("error event");
 
             assert_eq!(classified.status, expected_status, "event: {event}");
+            assert!(classified.retryable_before_output, "event: {event}");
+        }
+    }
+
+    #[test]
+    fn honors_numeric_status_from_xai_error_event_and_response() {
+        for event in [
+            json!({
+                "type": "error",
+                "status": 429,
+                "error": { "code": "subscription:quota", "message": "quota exhausted" }
+            }),
+            json!({
+                "type": "response.failed",
+                "response": {
+                    "status": "429",
+                    "error": { "type": "invalid_request_error", "message": "quota exhausted" }
+                }
+            }),
+        ] {
+            let classified = responses_stream_error(&event).expect("error event");
+
+            assert_eq!(classified.status, StatusCode::TOO_MANY_REQUESTS);
             assert!(classified.retryable_before_output, "event: {event}");
         }
     }

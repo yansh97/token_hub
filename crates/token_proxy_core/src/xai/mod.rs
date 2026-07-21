@@ -1,0 +1,43 @@
+//! xAI OAuth 账户领域：设备登录、凭证刷新、账户存储、配额与代理身份合同。
+
+mod error;
+mod login;
+mod oauth;
+mod quota;
+mod store;
+mod types;
+
+pub use login::XaiLoginManager;
+pub use quota::fetch_quotas;
+pub use store::XaiAccountStore;
+pub use types::{
+    XaiAccountStatus, XaiAccountSummary, XaiLoginPollResponse, XaiLoginStartResponse,
+    XaiLoginStatus, XaiQuotaCache, XaiQuotaItem, XaiQuotaSummary, XaiTokenRecord,
+};
+
+pub(crate) const CLI_BASE_URL: &str = "https://cli-chat-proxy.grok.com/v1";
+pub(crate) const OFFICIAL_API_BASE_URL: &str = "https://api.x.ai/v1";
+pub(crate) const CLI_TOKEN_AUTH_HEADER: &str = "x-xai-token-auth";
+pub(crate) const CLI_TOKEN_AUTH_VALUE: &str = "xai-grok-cli";
+pub(crate) const CLI_CLIENT_VERSION_HEADER: &str = "x-grok-client-version";
+pub(crate) const CLI_CLIENT_VERSION: &str = "0.2.93";
+pub(crate) const CLI_USER_AGENT: &str = "xai-grok-workspace/0.2.93";
+pub(crate) const CLI_BILLING_USER_AGENT: &str =
+    "grok-pager/0.2.93 grok-shell/0.2.93 (macos; aarch64)";
+
+/// CLI OAuth provider 不调用 `/models`，使用与当前参考实现一致的内建目录。
+pub(crate) const BUILTIN_MODELS: &[&str] = &[
+    "grok-4.5",
+    "grok-4.3",
+    "grok-build-0.1",
+    "grok-composer-2.5-fast",
+    "grok-4.20-0309-reasoning",
+    "grok-4.20-0309-non-reasoning",
+    "grok-4.20-multi-agent-0309",
+    "grok-imagine",
+    "grok-imagine-image",
+    "grok-imagine-image-quality",
+    "grok-imagine-edit",
+    "grok-imagine-video",
+    "grok-imagine-video-1.5",
+];

@@ -156,6 +156,7 @@ export function createEmptyUpstream(): UpstreamForm {
     filterSafetyIdentifier: false,
     useChatCompletionsForResponses: false,
     rewriteDeveloperRoleToSystem: false,
+    xaiAccountId: "",
     preferredEndpoint: "",
     proxyUrl: "",
     priority: DEFAULT_UPSTREAM_PRIORITY,
@@ -169,7 +170,7 @@ export function createEmptyUpstream(): UpstreamForm {
   };
 }
 
-function createAccountBackedUpstream(provider: "kiro" | "codex"): UpstreamForm {
+function createAccountBackedUpstream(provider: "kiro" | "codex" | "xai"): UpstreamForm {
   return {
     ...createEmptyUpstream(),
     id: `${provider}-default`,
@@ -247,6 +248,7 @@ export function toForm(config: ProxyConfigFile): ConfigForm {
         filterSafetyIdentifier: upstream.filter_safety_identifier ?? false,
         useChatCompletionsForResponses: upstream.use_chat_completions_for_responses ?? false,
         rewriteDeveloperRoleToSystem: upstream.rewrite_developer_role_to_system ?? false,
+        xaiAccountId: upstream.xai_account_id ?? "",
         preferredEndpoint: upstream.preferred_endpoint ?? "",
         proxyUrl: omitNetworkFields ? "" : upstream.proxy_url ?? "",
         priority: upstream.priority === null ? "" : String(upstream.priority),
@@ -299,6 +301,10 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
         api_keys: !omitNetworkFields && apiKeys.length ? apiKeys : undefined,
         kiro_account_id: null,
         codex_account_id: null,
+        xai_account_id:
+          providers.length === 1 && providers[0] === "xai" && upstream.xaiAccountId.trim()
+            ? upstream.xaiAccountId.trim()
+            : null,
         filter_prompt_cache_retention: upstream.filterPromptCacheRetention,
         filter_safety_identifier: upstream.filterSafetyIdentifier,
         use_chat_completions_for_responses: upstream.useChatCompletionsForResponses,
@@ -323,14 +329,22 @@ export function toPayload(form: ConfigForm): ProxyConfigFile {
   };
 }
 
-function isSingleProvider(upstream: UpstreamForm, provider: "kiro" | "codex") {
+function isSingleProvider(upstream: UpstreamForm, provider: "kiro" | "codex" | "xai") {
   const providers = normalizeProviders(upstream.providers);
   return providers.length === 1 && providers[0] === provider;
 }
 
+function isManagedXaiUpstream(upstream: UpstreamForm) {
+  return upstream.id.trim() === "xai-default" && isSingleProvider(upstream, "xai");
+}
+
 export function syncAccountBackedUpstreams(
   upstreams: UpstreamForm[],
-  accountState: { hasKiroAccount: boolean; hasCodexAccount: boolean },
+  accountState: {
+    hasKiroAccount: boolean;
+    hasCodexAccount: boolean;
+    hasXaiAccount: boolean;
+  },
 ) {
   const filtered = upstreams.filter((upstream) => {
     if (isSingleProvider(upstream, "kiro")) {
@@ -338,6 +352,9 @@ export function syncAccountBackedUpstreams(
     }
     if (isSingleProvider(upstream, "codex")) {
       return accountState.hasCodexAccount;
+    }
+    if (isManagedXaiUpstream(upstream)) {
+      return accountState.hasXaiAccount;
     }
     return true;
   });
@@ -348,6 +365,9 @@ export function syncAccountBackedUpstreams(
   }
   if (accountState.hasCodexAccount && !next.some((upstream) => isSingleProvider(upstream, "codex"))) {
     next.push(createAccountBackedUpstream("codex"));
+  }
+  if (accountState.hasXaiAccount && !next.some(isManagedXaiUpstream)) {
+    next.push(createAccountBackedUpstream("xai"));
   }
   if (
     next.length === upstreams.length &&

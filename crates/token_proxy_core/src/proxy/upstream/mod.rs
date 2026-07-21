@@ -29,7 +29,7 @@ use dispatch::run_upstream_groups;
 use prepare::normalize_mapped_model_reasoning_suffix;
 use prepare::{
     build_mapped_meta, ordered_runtime_account_ids, prepare_upstream_request,
-    requested_target_upstream_id,
+    prepare_upstream_request_with_body, requested_target_upstream_id,
 };
 pub(super) use result::ForwardUpstreamResult;
 use result::{finalize_forward_result, resolve_provider_upstreams};

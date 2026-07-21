@@ -48,13 +48,14 @@ pub fn measure_data_storage(paths: &TokenProxyPaths) -> Result<DataStorageUsage,
     let mut config_bytes = 0_u64;
     let mut other_bytes = 0_u64;
 
-    visit_files(data_dir, &mut |file_path, size| {
-        match classify_file(file_path, data_dir) {
+    visit_files(
+        data_dir,
+        &mut |file_path, size| match classify_file(file_path, data_dir) {
             StorageBucket::Database => database_bytes = database_bytes.saturating_add(size),
             StorageBucket::Config => config_bytes = config_bytes.saturating_add(size),
             StorageBucket::Other => other_bytes = other_bytes.saturating_add(size),
-        }
-    })?;
+        },
+    )?;
 
     let total_bytes = database_bytes
         .saturating_add(config_bytes)
@@ -102,12 +103,8 @@ fn classify_file(path: &Path, data_dir: &Path) -> StorageBucket {
 fn visit_files(root: &Path, on_file: &mut dyn FnMut(&Path, u64)) -> Result<(), String> {
     let mut stack = vec![root.to_path_buf()];
     while let Some(current) = stack.pop() {
-        let entries = fs::read_dir(&current).map_err(|err| {
-            format!(
-                "Failed to read data dir entry {}: {err}",
-                current.display()
-            )
-        })?;
+        let entries = fs::read_dir(&current)
+            .map_err(|err| format!("Failed to read data dir entry {}: {err}", current.display()))?;
         for entry in entries {
             let entry = entry.map_err(|err| {
                 format!(
@@ -116,9 +113,9 @@ fn visit_files(root: &Path, on_file: &mut dyn FnMut(&Path, u64)) -> Result<(), S
                 )
             })?;
             let path = entry.path();
-            let metadata = entry.metadata().map_err(|err| {
-                format!("Failed to read metadata for {}: {err}", path.display())
-            })?;
+            let metadata = entry
+                .metadata()
+                .map_err(|err| format!("Failed to read metadata for {}: {err}", path.display()))?;
             if metadata.is_dir() {
                 stack.push(path);
                 continue;

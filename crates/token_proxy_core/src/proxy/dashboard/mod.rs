@@ -225,9 +225,15 @@ pub async fn read_snapshot(
     )
     .await?;
     // 模型选项受时间/上游/账户限制，不受当前 model 筛选影响，便于切换其它模型。
-    let model_options =
-        query_model_options(&pool, from_ts_ms, to_ts_ms, upstream_id, account_id, public_only)
-            .await?;
+    let model_options = query_model_options(
+        &pool,
+        from_ts_ms,
+        to_ts_ms,
+        upstream_id,
+        account_id,
+        public_only,
+    )
+    .await?;
     // 选项列表只受时间范围限制，切换筛选时仍可看到同一范围内的其它上游。
     let upstreams = query_upstreams(&pool, from_ts_ms, to_ts_ms).await?;
     // 账户选项跟随上游收窄，但不受当前账户筛选影响。

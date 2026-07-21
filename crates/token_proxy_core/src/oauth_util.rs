@@ -2,7 +2,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use rand::rngs::SysRng;
 use rand::TryRng;
-use reqwest::{Client, Proxy};
+use reqwest::{redirect::Policy, Client, Proxy};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
 use time::OffsetDateTime;
@@ -122,7 +122,26 @@ pub(crate) fn decode_jwt_payload(token: &str) -> Option<serde_json::Value> {
 }
 
 pub fn build_reqwest_client(proxy_url: Option<&str>, timeout: Duration) -> Result<Client, String> {
+    build_reqwest_client_with_redirects(proxy_url, timeout, true)
+}
+
+/// OAuth 派生凭证请求使用禁重定向 client，避免 bearer 或自定义身份头跨跳转保留。
+pub fn build_reqwest_client_no_redirect(
+    proxy_url: Option<&str>,
+    timeout: Duration,
+) -> Result<Client, String> {
+    build_reqwest_client_with_redirects(proxy_url, timeout, false)
+}
+
+fn build_reqwest_client_with_redirects(
+    proxy_url: Option<&str>,
+    timeout: Duration,
+    follow_redirects: bool,
+) -> Result<Client, String> {
     let mut builder = Client::builder().timeout(timeout);
+    if !follow_redirects {
+        builder = builder.redirect(Policy::none());
+    }
     let proxy_url = proxy_url.map(str::trim).filter(|value| !value.is_empty());
     if let Some(proxy_url) = proxy_url {
         let proxy =
@@ -130,9 +149,13 @@ pub fn build_reqwest_client(proxy_url: Option<&str>, timeout: Duration) -> Resul
         // proxy() already disables system proxies; no_proxy() would clear the proxy entirely.
         builder = builder.proxy(proxy);
     }
-    builder
+    let client = builder
         .build()
-        .map_err(|err| format!("Failed to build HTTP client: {err}"))
+        .map_err(|err| format!("Failed to build HTTP client: {err}"))?;
+    if !follow_redirects {
+        tracing::debug!("HTTP client redirects disabled");
+    }
+    Ok(client)
 }
 
 pub fn normalize_proxy_url(value: Option<&str>) -> Result<Option<String>, String> {

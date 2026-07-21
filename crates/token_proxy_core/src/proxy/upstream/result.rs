@@ -6,6 +6,7 @@ use axum::{http::StatusCode, response::Response};
 use super::dispatch::ForwardAttemptState;
 use super::utils::{is_retryable_error, is_retryable_status, sanitize_upstream_error};
 use super::{AttemptOutcome, RetryDirective, RetryScope};
+use crate::proxy::account_selector::AccountSelectorRuntime;
 use crate::proxy::config::ProviderUpstreams;
 use crate::proxy::cooldown_scope::CooldownScope;
 use crate::proxy::http;
@@ -13,8 +14,8 @@ use crate::proxy::log::{build_log_entry, LogContext, LogWriter, RequestTimings, 
 use crate::proxy::openai_compat::FormatTransform;
 use crate::proxy::request_detail::RequestDetailSnapshot;
 use crate::proxy::response::{
-    build_proxy_response, build_proxy_response_buffered, NonRetryableSemanticResponse,
-    RetryableStreamResponse,
+    build_proxy_response, build_proxy_response_buffered, AccountCooldownHint,
+    NonRetryableSemanticResponse, RetryableStreamResponse,
 };
 use crate::proxy::token_rate::RequestTokenTracker;
 use crate::proxy::ProxyState;
@@ -61,14 +62,7 @@ pub(super) async fn handle_upstream_result(
     match upstream_res {
         Ok(res) if is_retryable_status(res.status()) => {
             let status = res.status();
-            update_account_cooldown_from_status(
-                state,
-                provider,
-                account_id_value.as_deref(),
-                status,
-                res.headers(),
-                cooldown_scope,
-            );
+            let response_headers = res.headers().clone();
             let response = build_proxy_response_buffered(
                 meta,
                 provider,
@@ -87,6 +81,15 @@ pub(super) async fn handle_upstream_result(
                 state.config.sync_response_timeout,
             )
             .await;
+            update_account_cooldown_from_response(
+                &state.account_selector,
+                provider,
+                account_id_value.as_deref(),
+                status,
+                &response_headers,
+                &response,
+                cooldown_scope,
+            );
             if response
                 .extensions()
                 .get::<NonRetryableSemanticResponse>()
@@ -144,13 +147,19 @@ pub(super) async fn handle_upstream_result(
                 .get::<RetryableStreamResponse>()
                 .cloned()
             {
-                mark_retryable_account_failure(
-                    state,
-                    provider,
-                    account_id_value.as_deref(),
-                    Some(retryable.message.clone()),
-                    cooldown_scope,
-                );
+                if retryable.should_cooldown
+                    || response.extensions().get::<AccountCooldownHint>().is_some()
+                {
+                    update_account_cooldown_from_response(
+                        &state.account_selector,
+                        provider,
+                        account_id_value.as_deref(),
+                        retryable.status,
+                        &response_headers,
+                        &response,
+                        cooldown_scope,
+                    );
+                }
                 return AttemptOutcome::Retryable {
                     message: retryable.message,
                     response: Some(response),
@@ -359,6 +368,44 @@ fn update_account_cooldown_from_status(
     );
 }
 
+fn update_account_cooldown_from_response(
+    account_selector: &AccountSelectorRuntime,
+    provider: &str,
+    account_id: Option<&str>,
+    status: StatusCode,
+    headers: &reqwest::header::HeaderMap,
+    response: &Response,
+    cooldown_scope: &CooldownScope,
+) {
+    let Some(account_id) = account_id.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    if let Some(hint) = response.extensions().get::<AccountCooldownHint>() {
+        let until = account_selector.mark_explicit_cooldown_scoped(
+            provider,
+            account_id,
+            hint.duration,
+            cooldown_scope,
+        );
+        tracing::warn!(
+            provider,
+            account_id,
+            reason = hint.reason,
+            cooldown_seconds = hint.duration.as_secs(),
+            cooldown_until_epoch_ms = until,
+            "account entered provider-directed cooldown"
+        );
+        return;
+    }
+    let _ = account_selector.mark_response_status_scoped(
+        provider,
+        account_id,
+        status,
+        headers,
+        cooldown_scope,
+    );
+}
+
 fn mark_retryable_account_failure(
     state: &ProxyState,
     provider: &str,
@@ -411,3 +458,7 @@ pub(super) fn log_upstream_error_if_needed(
     let entry = build_log_entry(&context, usage, Some(response_error));
     log.clone().write_detached(entry);
 }
+
+#[cfg(test)]
+#[path = "result.test.rs"]
+mod tests;

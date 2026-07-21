@@ -4,7 +4,7 @@ use axum::http::{HeaderMap, Method, StatusCode};
 use reqwest::ResponseBuilderExt;
 
 use super::retry::{
-    finalize_attempt, retry_after_kiro_refresh, retry_with_next_codex_account, CodexFailoverResult,
+    finalize_attempt, retry_after_kiro_refresh, retry_with_next_account, AccountFailoverResult,
     UpstreamAttempt, UpstreamAttemptFailure,
 };
 use super::transport::send_upstream_request;
@@ -106,9 +106,13 @@ pub(super) async fn attempt_upstream(
             first = Ok(attempt);
             break;
         };
-        // 修复重试必须复用首次选中的 Codex 账号，不能在账号 failover 中改变归因。
-        if provider == "codex" && fixed_upstream.codex_account_id.is_none() {
-            fixed_upstream.codex_account_id = attempt.selected_account_id.clone();
+        // 修复重试必须复用首次选中的账户，不能在账户 failover 中改变归因。
+        if matches!(provider, "codex" | "xai") {
+            super::retry::pin_account_if_missing(
+                provider,
+                &mut fixed_upstream,
+                attempt.selected_account_id.as_deref(),
+            );
         }
         repair_count += 1;
         tracing::info!(
@@ -138,7 +142,7 @@ pub(super) async fn attempt_upstream(
         )
         .await;
     }
-    let first = match retry_with_next_codex_account(
+    let first = match retry_with_next_account(
         state,
         method.clone(),
         provider,
@@ -157,8 +161,8 @@ pub(super) async fn attempt_upstream(
     )
     .await
     {
-        CodexFailoverResult::Pending(attempt) => attempt,
-        CodexFailoverResult::Resolved(outcome) => {
+        AccountFailoverResult::Pending(attempt) => attempt,
+        AccountFailoverResult::Resolved(outcome) => {
             return attach_effective_body(outcome, &effective_body, repair_count > 0);
         }
     };
@@ -312,13 +316,14 @@ pub(super) async fn attempt_send(
     request_detail: Option<&RequestDetailSnapshot>,
     cooldown_scope: &CooldownScope,
 ) -> Result<UpstreamAttempt, UpstreamAttemptFailure> {
-    let prepared = super::prepare_upstream_request(
+    let prepared = super::prepare_upstream_request_with_body(
         state,
         provider,
         upstream,
         inbound_path,
         upstream_path_with_query,
         headers,
+        body,
         meta,
         request_auth,
         cooldown_scope,

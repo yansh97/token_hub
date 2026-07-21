@@ -647,7 +647,10 @@ async fn read_snapshot_filters_by_model_key_and_keeps_model_options() {
     assert_eq!(by_model.recent[0].model.as_deref(), Some("gpt-5.4"));
     // 选项不受当前 model 筛选影响，仍可切换到其它模型。
     assert_eq!(by_model.model_options.len(), 4);
-    assert!(by_model.model_options.iter().any(|item| item == "fallback-model"));
+    assert!(by_model
+        .model_options
+        .iter()
+        .any(|item| item == "fallback-model"));
     assert!(by_model.model_options.iter().any(|item| item == "claude-4"));
 
     // 空 model 回退 mapped_model

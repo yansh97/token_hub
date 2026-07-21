@@ -1,7 +1,7 @@
 import { createNativeInboundFormatSet, removeInboundFormatsInSet } from "@/features/config/inbound-formats";
 import type { UpstreamForm } from "@/features/config/types";
 
-export const ACCOUNT_BACKED_PROVIDERS = ["kiro", "codex", "antigravity"] as const;
+export const ACCOUNT_BACKED_PROVIDERS = ["kiro", "codex", "xai", "antigravity"] as const;
 
 export function isAccountBackedProvider(provider: string) {
   return ACCOUNT_BACKED_PROVIDERS.some((value) => value === provider);
@@ -9,6 +9,16 @@ export function isAccountBackedProvider(provider: string) {
 
 export function isAccountBackedProviderSet(providers: readonly string[]) {
   return providers.length === 1 && providers.some(isAccountBackedProvider);
+}
+
+export function isManagedAccountBackedUpstream(upstream: UpstreamForm) {
+  const providers = normalizeProviders(upstream.providers);
+  const provider = providers[0];
+  if (providers.length !== 1 || provider === undefined || !isAccountBackedProvider(provider)) {
+    return false;
+  }
+  // xAI 允许用户创建多个 OAuth upstream；只有系统生成的默认项禁止复制或删除。
+  return provider === "xai" ? upstream.id.trim() === "xai-default" : true;
 }
 
 export function createCopiedUpstreamId(sourceId: string, upstreams: readonly UpstreamForm[]) {

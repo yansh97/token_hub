@@ -95,6 +95,7 @@ fn config_with_runtime_upstreams(
             rewrite_developer_role_to_system: false,
             kiro_account_id: None,
             codex_account_id: (*provider == PROVIDER_CODEX).then(|| format!("codex-{id}.json")),
+            xai_account_id: (*provider == PROVIDER_XAI).then(|| format!("xai-{id}")),
             kiro_preferred_endpoint: None,
             proxy_url: None,
             priority: *priority,
@@ -1782,47 +1783,75 @@ async fn build_test_state_handle_with_paths(
     let codex_accounts = Arc::new(
         crate::codex::CodexAccountStore::new(&paths, app_proxy.clone()).expect("codex store"),
     );
-    let _ = app_proxy;
+    let xai_accounts =
+        Arc::new(crate::xai::XaiAccountStore::new(&paths, app_proxy).expect("xai store"));
     let expires_at = (OffsetDateTime::now_utc() + TimeDuration::days(1))
         .format(&time::format_description::well_known::Rfc3339)
         .expect("format expires_at");
     for upstreams in config.upstreams.values() {
         for group in &upstreams.groups {
             for upstream in &group.items {
-                let Some(account_id) = upstream.codex_account_id.as_deref() else {
-                    continue;
-                };
-                codex_accounts
-                    .save_record(
-                        account_id.to_string(),
-                        crate::codex::CodexTokenRecord {
-                            access_token: "codex-access-token".to_string(),
-                            refresh_token: "codex-refresh-token".to_string(),
-                            client_id: Some(
-                                crate::codex::CodexRefreshTokenClient::Codex
-                                    .client_id()
-                                    .to_string(),
-                            ),
-                            id_token: "codex-id-token".to_string(),
-                            auto_refresh_enabled: true,
-                            status: crate::codex::CodexAccountStatus::Active,
-                            account_id: Some("chatgpt-account".to_string()),
-                            user_id: None,
-                            openai_device_id: None,
-                            email: Some("codex@example.com".to_string()),
-                            expires_at: expires_at.clone(),
-                            last_refresh: None,
-                            proxy_url: None,
-                            priority: 0,
-                            quota: crate::codex::CodexQuotaCache::default(),
-                        },
-                    )
-                    .await
-                    .expect("seed codex account");
-                codex_accounts
-                    .list_accounts()
-                    .await
-                    .expect("refresh codex account cache");
+                if let Some(account_id) = upstream.codex_account_id.as_deref() {
+                    codex_accounts
+                        .save_record(
+                            account_id.to_string(),
+                            crate::codex::CodexTokenRecord {
+                                access_token: "codex-access-token".to_string(),
+                                refresh_token: "codex-refresh-token".to_string(),
+                                client_id: Some(
+                                    crate::codex::CodexRefreshTokenClient::Codex
+                                        .client_id()
+                                        .to_string(),
+                                ),
+                                id_token: "codex-id-token".to_string(),
+                                auto_refresh_enabled: true,
+                                status: crate::codex::CodexAccountStatus::Active,
+                                account_id: Some("chatgpt-account".to_string()),
+                                user_id: None,
+                                openai_device_id: None,
+                                email: Some("codex@example.com".to_string()),
+                                expires_at: expires_at.clone(),
+                                last_refresh: None,
+                                proxy_url: None,
+                                priority: 0,
+                                quota: crate::codex::CodexQuotaCache::default(),
+                            },
+                        )
+                        .await
+                        .expect("seed codex account");
+                    codex_accounts
+                        .list_accounts()
+                        .await
+                        .expect("refresh codex account cache");
+                }
+                if let Some(account_id) = upstream.xai_account_id.as_deref() {
+                    xai_accounts
+                        .save_record(
+                            account_id.to_string(),
+                            crate::xai::XaiTokenRecord {
+                                access_token: "xai-access-token".to_string(),
+                                refresh_token: "xai-refresh-token".to_string(),
+                                id_token: String::new(),
+                                token_type: "Bearer".to_string(),
+                                expires_at: expires_at.clone(),
+                                last_refresh: None,
+                                email: Some("xai@example.com".to_string()),
+                                subject: Some("xai-test".to_string()),
+                                token_endpoint: None,
+                                auto_refresh_enabled: true,
+                                status: crate::xai::XaiAccountStatus::Active,
+                                proxy_url: None,
+                                priority: 0,
+                                quota: crate::xai::XaiQuotaCache::default(),
+                            },
+                        )
+                        .await
+                        .expect("seed xai account");
+                    xai_accounts
+                        .list_accounts()
+                        .await
+                        .expect("refresh xai account cache");
+                }
             }
         }
     }
@@ -1848,6 +1877,7 @@ async fn build_test_state_handle_with_paths(
         ),
         kiro_accounts,
         codex_accounts,
+        xai_accounts,
     });
     Arc::new(RwLock::new(state))
 }
@@ -3863,6 +3893,50 @@ fn codex_models_manifest_not_modified_does_not_switch_oauth_account() {
             requests[0].authorization.as_deref(),
             Some("Bearer codex-access-a")
         );
+    });
+}
+
+#[test]
+fn models_index_uses_xai_builtin_catalog_without_models_endpoint() {
+    run_async(async {
+        let upstream = spawn_model_catalog_upstream(json!({
+            "object": "list",
+            "data": [{ "id": "must-not-be-observed", "object": "model" }]
+        }))
+        .await;
+        let data_dir = next_test_data_dir("models_index_uses_xai_builtin_catalog");
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_XAI,
+            10,
+            "xai-default",
+            crate::xai::CLI_BASE_URL,
+            FORMATS_RESPONSES,
+        )]);
+        config
+            .upstreams
+            .get_mut(PROVIDER_XAI)
+            .expect("xAI upstreams")
+            .groups[0]
+            .items[0]
+            .proxy_url = Some(upstream.base_url.clone());
+        config.sync_response_timeout = std::time::Duration::from_millis(200);
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, body) = send_models_request(state).await;
+        let ids = body["data"]
+            .as_array()
+            .expect("models data")
+            .iter()
+            .filter_map(|item| item["id"].as_str())
+            .collect::<Vec<_>>();
+        let requests = upstream.requests();
+
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(ids, crate::xai::BUILTIN_MODELS);
+        assert!(requests.is_empty(), "xAI model index touched CLI network");
     });
 }
 
@@ -8797,6 +8871,31 @@ fn responses_compact_can_route_to_codex_and_preserve_compact_suffix() {
 }
 
 #[test]
+fn responses_compact_can_route_to_xai_and_preserve_compact_suffix() {
+    let config = config_with_providers(&[(PROVIDER_XAI, FORMATS_RESPONSES)]);
+    let plan = resolve_dispatch_plan(&config, RESPONSES_COMPACT_PATH).expect("should dispatch");
+    assert_eq!(plan.provider, PROVIDER_XAI);
+    assert_eq!(plan.outbound_path, None);
+    assert_eq!(plan.request_transform, FormatTransform::None);
+    assert_eq!(plan.response_transform, FormatTransform::None);
+
+    let outbound_path = resolve_outbound_path(
+        RESPONSES_COMPACT_PATH,
+        &plan,
+        &RequestMeta {
+            client_ip: None,
+            stream: false,
+            original_model: Some("grok-4.5".to_string()),
+            mapped_model: None,
+            reasoning_effort: None,
+            response_format: None,
+            estimated_input_tokens: None,
+        },
+    );
+    assert_eq!(outbound_path, RESPONSES_COMPACT_PATH);
+}
+
+#[test]
 fn responses_does_not_route_to_kiro() {
     let config = config_with_providers(&[(PROVIDER_KIRO, FORMATS_ALL)]);
     let error = resolve_dispatch_plan(&config, RESPONSES_PATH)
@@ -9457,6 +9556,71 @@ fn openai_models_route_prefers_openai_compatible_provider_over_anthropic_priorit
     assert_eq!(plan.provider, PROVIDER_CHAT);
     assert_eq!(plan.request_transform, FormatTransform::None);
     assert_eq!(plan.response_transform, FormatTransform::None);
+}
+
+#[test]
+fn openai_models_index_route_respects_openai_and_xai_priority() {
+    let headers = HeaderMap::new();
+    let xai_first = config_with_upstreams(&[
+        (PROVIDER_RESPONSES, 10, "responses", FORMATS_RESPONSES),
+        (PROVIDER_XAI, 20, "xai", FORMATS_RESPONSES),
+    ]);
+    let plan =
+        resolve_dispatch_plan_with_request(&xai_first, &Method::GET, "/v1/models", &headers, None)
+            .expect("should dispatch");
+    assert_eq!(plan.provider, PROVIDER_XAI);
+
+    let openai_first = config_with_upstreams(&[
+        (PROVIDER_RESPONSES, 20, "responses", FORMATS_RESPONSES),
+        (PROVIDER_XAI, 10, "xai", FORMATS_RESPONSES),
+    ]);
+    let plan = resolve_dispatch_plan_with_request(
+        &openai_first,
+        &Method::GET,
+        "/v1/models",
+        &headers,
+        None,
+    )
+    .expect("should dispatch");
+    assert_eq!(plan.provider, PROVIDER_RESPONSES);
+}
+
+#[test]
+fn openai_compatible_models_index_route_dispatches_to_xai_when_xai_only() {
+    let config = config_with_providers(&[(PROVIDER_XAI, FORMATS_RESPONSES)]);
+    let plan = resolve_dispatch_plan_with_request(
+        &config,
+        &Method::GET,
+        "/v1beta/openai/models",
+        &HeaderMap::new(),
+        None,
+    )
+    .expect("should dispatch");
+    assert_eq!(plan.provider, PROVIDER_XAI);
+    assert_eq!(plan.request_transform, FormatTransform::None);
+    assert_eq!(plan.response_transform, FormatTransform::None);
+}
+
+#[test]
+fn xai_does_not_claim_non_get_model_index_routes() {
+    let config = config_with_providers(&[(PROVIDER_XAI, FORMATS_RESPONSES)]);
+    for path in ["/v1/models", "/v1beta/openai/models"] {
+        let error = resolve_dispatch_plan(&config, path)
+            .err()
+            .expect("non-GET xAI model index should not dispatch");
+        assert_eq!(error, "No available upstream configured.");
+    }
+}
+
+#[test]
+fn xai_does_not_claim_model_detail_routes() {
+    let config = config_with_providers(&[(PROVIDER_XAI, FORMATS_RESPONSES)]);
+    for path in ["/v1/models/grok-4.5", "/v1beta/openai/models/grok-4.5"] {
+        let error = resolve_dispatch_plan(&config, path)
+            .err()
+            .expect("xAI model detail should not dispatch");
+        assert_eq!(error, "No available upstream configured.");
+    }
 }
 
 #[test]

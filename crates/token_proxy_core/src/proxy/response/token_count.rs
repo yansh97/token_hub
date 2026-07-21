@@ -14,7 +14,7 @@ pub(super) async fn apply_output_tokens_from_response(
     let mut texts = Vec::new();
 
     match provider {
-        "openai" | "openai-response" | "codex" => {
+        "openai" | "openai-response" | "codex" | "xai" => {
             if let Some(choices) = value.get("choices").and_then(Value::as_array) {
                 for choice in choices {
                     if let Some(content) = choice
@@ -91,5 +91,23 @@ fn collect_gemini_output(candidates: &[Value], texts: &mut Vec<String>) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn xai_responses_output_updates_fallback_token_count() {
+        let tracker = crate::proxy::token_rate::TokenRateTracker::new();
+        let request_tracker = tracker.register(None, None).await;
+        let body = Bytes::from_static(
+            br#"{"output":[{"content":[{"type":"output_text","text":"hello from xai"}]}]}"#,
+        );
+
+        apply_output_tokens_from_response(&request_tracker, "xai", &body).await;
+
+        assert!(tracker.snapshot().await.output > 0);
     }
 }

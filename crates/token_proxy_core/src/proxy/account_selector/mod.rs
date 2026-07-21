@@ -88,6 +88,18 @@ impl AccountSelectorRuntime {
         self.mark_cooldown_until(provider, account_id, scope, until)
     }
 
+    /// Provider 给出权威恢复窗口时直接采用，不受通用短冷却开关影响。
+    pub(crate) fn mark_explicit_cooldown_scoped(
+        &self,
+        provider: &str,
+        account_id: &str,
+        duration: Duration,
+        scope: &CooldownScope,
+    ) -> Option<u128> {
+        let until = Instant::now().checked_add(duration)?;
+        self.mark_cooldown_until(provider, account_id, scope, until)
+    }
+
     pub(crate) fn mark_response_status(
         &self,
         provider: &str,

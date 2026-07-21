@@ -16,7 +16,7 @@ use super::{
         RequestMeta,
     },
     CODEX_RESPONSES_COMPACT_PATH, CODEX_RESPONSES_PATH, ERROR_NO_UPSTREAM, PROVIDER_ANTHROPIC,
-    PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_KIRO,
+    PROVIDER_CODEX, PROVIDER_GEMINI, PROVIDER_KIRO, PROVIDER_XAI,
 };
 
 #[derive(Clone, Copy)]
@@ -137,14 +137,19 @@ fn resolve_gemini_plan(config: &ProxyConfig, path: &str) -> Option<Result<Dispat
     let fallback = choose_provider_by_priority(
         config,
         inbound_format,
-        &[PROVIDER_RESPONSES, PROVIDER_CHAT, PROVIDER_ANTHROPIC],
+        &[
+            PROVIDER_RESPONSES,
+            PROVIDER_XAI,
+            PROVIDER_CHAT,
+            PROVIDER_ANTHROPIC,
+        ],
     );
     let Some(fallback) = fallback else {
         return Some(Err(ERROR_NO_UPSTREAM.to_string()));
     };
     Some(Ok(match fallback {
-        PROVIDER_RESPONSES => DispatchPlan {
-            provider: PROVIDER_RESPONSES,
+        PROVIDER_RESPONSES | PROVIDER_XAI => DispatchPlan {
+            provider: fallback,
             outbound_path: Some(RESPONSES_PATH),
             request_transform: FormatTransform::GeminiToResponses,
             response_transform: FormatTransform::ResponsesToGemini,
@@ -188,11 +193,16 @@ fn resolve_openai_native_plan(
         return Some(provider.map(base_plan));
     }
     if openai::is_openai_native_resource_path(path) {
-        if openai::is_openai_image_generations_path(path) {
-            if let Some(provider) =
-                choose_provider_by_priority(config, None, &[PROVIDER_CHAT, PROVIDER_RESPONSES])
-            {
+        if is_xai_media_path(path) {
+            if let Some(provider) = choose_provider_by_priority(
+                config,
+                None,
+                &[PROVIDER_CHAT, PROVIDER_RESPONSES, PROVIDER_XAI],
+            ) {
                 return Some(Ok(base_plan(provider)));
+            }
+            if !openai::is_openai_image_generations_path(path) {
+                return Some(Err(ERROR_NO_UPSTREAM.to_string()));
             }
             let provider = choose_provider_by_priority(
                 config,
@@ -213,6 +223,11 @@ fn resolve_openai_native_plan(
         return Some(provider.map(base_plan));
     }
     None
+}
+
+fn is_xai_media_path(path: &str) -> bool {
+    let path = path.split_once('?').map_or(path, |(path, _)| path);
+    path == "/v1/videos" || path.starts_with("/v1/videos/") || path.starts_with("/v1/images/")
 }
 
 fn resolve_responses_compact_plan(
@@ -256,6 +271,7 @@ fn resolve_anthropic_plan(
             inbound_format,
             &[
                 PROVIDER_RESPONSES,
+                PROVIDER_XAI,
                 PROVIDER_CODEX,
                 PROVIDER_CHAT,
                 PROVIDER_GEMINI,
@@ -265,8 +281,8 @@ fn resolve_anthropic_plan(
             return Some(Err(ERROR_NO_UPSTREAM.to_string()));
         };
         return Some(Ok(match fallback {
-            PROVIDER_RESPONSES => DispatchPlan {
-                provider: PROVIDER_RESPONSES,
+            PROVIDER_RESPONSES | PROVIDER_XAI => DispatchPlan {
+                provider: fallback,
                 outbound_path: Some(RESPONSES_PATH),
                 request_transform: FormatTransform::AnthropicToResponses,
                 response_transform: FormatTransform::ResponsesToAnthropic,
@@ -372,9 +388,14 @@ fn resolve_models_plan(
         }));
     }
     if is_openai_compatible_models_path(path) {
-        let provider =
-            choose_provider_by_priority(config, None, &[PROVIDER_CHAT, PROVIDER_RESPONSES])
-                .ok_or_else(|| ERROR_NO_UPSTREAM.to_string());
+        let candidates: &[&'static str] =
+            if method == Method::GET && is_openai_compatible_models_index_path(path) {
+                &[PROVIDER_CHAT, PROVIDER_RESPONSES, PROVIDER_XAI]
+            } else {
+                &[PROVIDER_CHAT, PROVIDER_RESPONSES]
+            };
+        let provider = choose_provider_by_priority(config, None, candidates)
+            .ok_or_else(|| ERROR_NO_UPSTREAM.to_string());
         return Some(provider.map(base_plan));
     }
     if is_openai_models_path(path) {
@@ -388,9 +409,14 @@ fn resolve_models_plan(
                 .ok_or_else(|| ERROR_NO_UPSTREAM.to_string());
             return Some(provider.map(base_plan));
         }
-        let provider =
-            choose_provider_by_priority(config, None, &[PROVIDER_CHAT, PROVIDER_RESPONSES])
-                .ok_or_else(|| ERROR_NO_UPSTREAM.to_string());
+        let candidates: &[&'static str] =
+            if method == Method::GET && is_openai_models_index_path(path) {
+                &[PROVIDER_CHAT, PROVIDER_RESPONSES, PROVIDER_XAI]
+            } else {
+                &[PROVIDER_CHAT, PROVIDER_RESPONSES]
+            };
+        let provider = choose_provider_by_priority(config, None, candidates)
+            .ok_or_else(|| ERROR_NO_UPSTREAM.to_string());
         return Some(provider.map(base_plan));
     }
     if gemini::is_gemini_model_catalog_path(path) {
@@ -452,10 +478,11 @@ fn resolve_responses_native_plan(
     if let Some(selected) = choose_provider_by_priority(
         config,
         inbound_format,
-        &[PROVIDER_RESPONSES, PROVIDER_CODEX],
+        &[PROVIDER_RESPONSES, PROVIDER_XAI, PROVIDER_CODEX],
     ) {
         return Ok(match selected {
             PROVIDER_RESPONSES => base_plan(PROVIDER_RESPONSES),
+            PROVIDER_XAI => base_plan(PROVIDER_XAI),
             PROVIDER_CODEX => DispatchPlan {
                 provider: PROVIDER_CODEX,
                 outbound_path: Some(CODEX_RESPONSES_PATH),
@@ -484,6 +511,7 @@ fn resolve_chat_plan(config: &ProxyConfig) -> Result<DispatchPlan, String> {
         inbound_format,
         &[
             PROVIDER_RESPONSES,
+            PROVIDER_XAI,
             PROVIDER_CODEX,
             PROVIDER_ANTHROPIC,
             PROVIDER_GEMINI,
@@ -492,8 +520,8 @@ fn resolve_chat_plan(config: &ProxyConfig) -> Result<DispatchPlan, String> {
     .ok_or_else(|| ERROR_NO_UPSTREAM.to_string())?;
 
     Ok(match selected {
-        PROVIDER_RESPONSES => DispatchPlan {
-            provider: PROVIDER_RESPONSES,
+        PROVIDER_RESPONSES | PROVIDER_XAI => DispatchPlan {
+            provider: selected,
             outbound_path: Some(RESPONSES_PATH),
             request_transform: FormatTransform::ChatToResponses,
             response_transform: FormatTransform::ResponsesToChat,
@@ -528,10 +556,10 @@ fn resolve_responses_plan(
     if let Some(selected) = choose_provider_by_priority(
         config,
         inbound_format,
-        &[PROVIDER_RESPONSES, PROVIDER_CODEX],
+        &[PROVIDER_RESPONSES, PROVIDER_XAI, PROVIDER_CODEX],
     ) {
-        if selected == PROVIDER_RESPONSES {
-            return Ok(base_plan(PROVIDER_RESPONSES));
+        if matches!(selected, PROVIDER_RESPONSES | PROVIDER_XAI) {
+            return Ok(base_plan(selected));
         }
         if selected == PROVIDER_CODEX {
             return Ok(DispatchPlan {
@@ -626,6 +654,7 @@ pub(super) fn resolve_outbound_path(path: &str, plan: &DispatchPlan, meta: &Requ
 fn build_retry_fallback_plan(path: &str, provider: &'static str) -> Option<DispatchPlan> {
     if openai::is_openai_image_generations_path(path) {
         return match provider {
+            PROVIDER_XAI => Some(base_plan(PROVIDER_XAI)),
             PROVIDER_CODEX => Some(DispatchPlan {
                 provider: PROVIDER_CODEX,
                 outbound_path: Some(CODEX_RESPONSES_PATH),
@@ -645,8 +674,8 @@ fn build_retry_fallback_plan(path: &str, provider: &'static str) -> Option<Dispa
                 request_transform: FormatTransform::None,
                 response_transform: FormatTransform::KiroToAnthropic,
             },
-            PROVIDER_RESPONSES => DispatchPlan {
-                provider: PROVIDER_RESPONSES,
+            PROVIDER_RESPONSES | PROVIDER_XAI => DispatchPlan {
+                provider,
                 outbound_path: Some(RESPONSES_PATH),
                 request_transform: FormatTransform::AnthropicToResponses,
                 response_transform: FormatTransform::ResponsesToAnthropic,
@@ -663,8 +692,8 @@ fn build_retry_fallback_plan(path: &str, provider: &'static str) -> Option<Dispa
 
     match detect_inbound_api_format(path) {
         Some(InboundApiFormat::OpenaiChat) => match provider {
-            PROVIDER_RESPONSES => Some(DispatchPlan {
-                provider: PROVIDER_RESPONSES,
+            PROVIDER_RESPONSES | PROVIDER_XAI => Some(DispatchPlan {
+                provider,
                 outbound_path: Some(RESPONSES_PATH),
                 request_transform: FormatTransform::ChatToResponses,
                 response_transform: FormatTransform::ResponsesToChat,
@@ -678,7 +707,7 @@ fn build_retry_fallback_plan(path: &str, provider: &'static str) -> Option<Dispa
             _ => None,
         },
         Some(InboundApiFormat::OpenaiResponses) => match provider {
-            PROVIDER_RESPONSES => Some(base_plan(PROVIDER_RESPONSES)),
+            PROVIDER_RESPONSES | PROVIDER_XAI => Some(base_plan(provider)),
             PROVIDER_CODEX => Some(DispatchPlan {
                 provider: PROVIDER_CODEX,
                 outbound_path: Some(CODEX_RESPONSES_PATH),
@@ -701,7 +730,7 @@ fn resolve_retry_fallback_provider(
 ) -> Option<(&'static str, Option<InboundApiFormat>)> {
     if openai::is_openai_image_generations_path(path) {
         return match primary_provider {
-            PROVIDER_CHAT | PROVIDER_RESPONSES => {
+            PROVIDER_CHAT | PROVIDER_RESPONSES | PROVIDER_XAI => {
                 Some((PROVIDER_CODEX, Some(InboundApiFormat::OpenaiResponses)))
             }
             _ => None,
@@ -714,6 +743,7 @@ fn resolve_retry_fallback_provider(
             PROVIDER_KIRO => PROVIDER_ANTHROPIC,
             PROVIDER_RESPONSES => PROVIDER_CODEX,
             PROVIDER_CODEX => PROVIDER_RESPONSES,
+            PROVIDER_XAI => PROVIDER_RESPONSES,
             _ => return None,
         };
         return Some((fallback, Some(InboundApiFormat::AnthropicMessages)));
@@ -722,21 +752,25 @@ fn resolve_retry_fallback_provider(
     match (detect_inbound_api_format(path), primary_provider) {
         (
             Some(InboundApiFormat::OpenaiChat),
-            PROVIDER_CHAT | PROVIDER_RESPONSES | PROVIDER_CODEX,
+            PROVIDER_CHAT | PROVIDER_RESPONSES | PROVIDER_CODEX | PROVIDER_XAI,
         ) => {
             let fallback = match primary_provider {
                 PROVIDER_CHAT => PROVIDER_RESPONSES,
                 PROVIDER_RESPONSES => PROVIDER_CODEX,
                 PROVIDER_CODEX => PROVIDER_RESPONSES,
+                PROVIDER_XAI => PROVIDER_RESPONSES,
                 _ => unreachable!("guarded by match arm"),
             };
             Some((fallback, Some(InboundApiFormat::OpenaiChat)))
         }
-        (Some(InboundApiFormat::OpenaiResponses), PROVIDER_RESPONSES | PROVIDER_CODEX) => Some((
-            if primary_provider == PROVIDER_RESPONSES {
-                PROVIDER_CODEX
-            } else {
-                PROVIDER_RESPONSES
+        (
+            Some(InboundApiFormat::OpenaiResponses),
+            PROVIDER_RESPONSES | PROVIDER_CODEX | PROVIDER_XAI,
+        ) => Some((
+            match primary_provider {
+                PROVIDER_RESPONSES => PROVIDER_CODEX,
+                PROVIDER_CODEX | PROVIDER_XAI => PROVIDER_RESPONSES,
+                _ => unreachable!("guarded by match arm"),
             },
             Some(InboundApiFormat::OpenaiResponses),
         )),
@@ -752,9 +786,10 @@ pub(super) fn resolve_retry_fallback_plan(
     let (fallback_provider, inbound_format) =
         resolve_retry_fallback_provider(path, primary_provider)?;
     let is_available = match (inbound_format, fallback_provider) {
-        (Some(InboundApiFormat::OpenaiChat), PROVIDER_RESPONSES | PROVIDER_CODEX) => {
-            config.provider_upstreams(fallback_provider).is_some()
-        }
+        (
+            Some(InboundApiFormat::OpenaiChat),
+            PROVIDER_RESPONSES | PROVIDER_CODEX | PROVIDER_XAI,
+        ) => config.provider_upstreams(fallback_provider).is_some(),
         _ => provider_rank_for_inbound(config, fallback_provider, inbound_format).is_some(),
     };
     if !is_available {

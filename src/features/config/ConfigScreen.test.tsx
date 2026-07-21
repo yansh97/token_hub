@@ -11,9 +11,11 @@ import type {
 } from "@/features/config/types";
 import { I18nProvider } from "@/lib/i18n";
 
-const { setAppProxyUrlMock } = vi.hoisted(() => ({
+const configScreenMocks = vi.hoisted(() => ({
   setAppProxyUrlMock: vi.fn<(value: string) => void>(),
+  xaiAccounts: [] as Array<{ account_id: string }>,
 }));
+const { setAppProxyUrlMock } = configScreenMocks;
 
 vi.mock("@/features/update/updater", () => ({
   useUpdater: () => ({
@@ -64,6 +66,26 @@ vi.mock("@/features/codex/use-codex-accounts", () => ({
   }),
 }));
 
+vi.mock("@/features/xai/use-xai-accounts", () => ({
+  useXaiAccounts: () => ({
+    accounts: configScreenMocks.xaiAccounts,
+    loading: false,
+    error: "",
+    refresh: async () => [],
+    refreshAccount: async () => undefined,
+    setAutoRefresh: async () => undefined,
+    setStatus: async () => undefined,
+    setProxyUrl: async () => undefined,
+    setPriority: async () => undefined,
+    logout: async () => undefined,
+    importFile: async () => [],
+    importText: async () => [],
+    importRefreshTokens: async () => [],
+    refreshQuotaCache: async () => undefined,
+    refreshQuotaNow: async () => undefined,
+  }),
+}));
+
 vi.mock("@/features/config/AppView", () => ({
   AppView: ({
     form,
@@ -97,6 +119,7 @@ vi.mock("@/features/config/AppView", () => ({
       <div data-testid="status">{status}</div>
       <div data-testid="dirty">{String(isDirty)}</div>
       <div data-testid="status-message">{statusMessage}</div>
+      <div data-testid="upstream-ids">{form.upstreams.map((upstream) => upstream.id).join(",")}</div>
     </div>
   ),
 }));
@@ -120,6 +143,7 @@ function createSaveResult(
 describe("config/ConfigScreen auto save", () => {
   beforeEach(() => {
     setAppProxyUrlMock.mockReset();
+    configScreenMocks.xaiAccounts = [];
   });
 
   afterEach(() => {
@@ -264,6 +288,58 @@ describe("config/ConfigScreen auto save", () => {
 
     await waitFor(() => {
       expect(setAppProxyUrlMock).toHaveBeenCalledWith("socks5h://127.0.0.1:7891");
+    });
+  });
+
+  it("syncs xai-default after delayed config loading completes", async () => {
+    const invokeMock = vi.mocked(invoke);
+    const config = toPayload(EMPTY_FORM);
+    configScreenMocks.xaiAccounts = [{ account_id: "xai-1" }];
+    let resolveReadConfig: ((value: { path: string; config: typeof config }) => void) | null = null;
+
+    invokeMock.mockImplementation(async (command) => {
+      if (command === "read_proxy_config") {
+        return await new Promise<{ path: string; config: typeof config }>((resolve) => {
+          resolveReadConfig = resolve;
+        });
+      }
+      if (command === "proxy_status") {
+        return PROXY_STATUS;
+      }
+      if (command === "save_proxy_config") {
+        return createSaveResult();
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    render(
+      <I18nProvider>
+        <ConfigScreen activeSectionId="upstreams" />
+      </I18nProvider>
+    );
+
+    await waitFor(() => {
+      expect(
+        invokeMock.mock.calls.filter(([command]) => command === "read_proxy_config")
+      ).toHaveLength(1);
+    });
+    expect(screen.getByTestId("upstream-ids")).toHaveTextContent("");
+
+    expect(resolveReadConfig).not.toBeNull();
+    resolveReadConfig!({ path: "/tmp/config.json", config });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("upstream-ids")).toHaveTextContent("xai-default");
+    });
+    await waitForAutoSaveWindow();
+    await waitFor(() => {
+      expect(
+        invokeMock.mock.calls.find(([command]) => command === "save_proxy_config")?.[1]
+      ).toMatchObject({
+        config: expect.objectContaining({
+          upstreams: [expect.objectContaining({ id: "xai-default", providers: ["xai"] })],
+        }),
+      });
     });
   });
 

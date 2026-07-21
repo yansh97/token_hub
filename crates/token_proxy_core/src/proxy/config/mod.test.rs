@@ -84,6 +84,7 @@ fn build_runtime_config_routes_openai_responses_via_chat_when_enabled() {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -124,6 +125,7 @@ fn build_runtime_config_keeps_openai_responses_provider_when_chat_compat_disable
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -163,6 +165,7 @@ fn build_runtime_config_normalizes_available_models() {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -205,6 +208,7 @@ fn build_runtime_config_codex_accepts_chat_and_responses_by_default() {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -227,6 +231,104 @@ fn build_runtime_config_codex_accepts_chat_and_responses_by_default() {
 
     assert!(item.supports_inbound(InboundApiFormat::OpenaiChat));
     assert!(item.supports_inbound(InboundApiFormat::OpenaiResponses));
+}
+
+fn xai_upstream(base_url: &str) -> UpstreamConfig {
+    UpstreamConfig {
+        id: "xai-default".to_string(),
+        providers: vec!["xai".to_string()],
+        base_url: base_url.to_string(),
+        api_keys: Vec::new(),
+        filter_prompt_cache_retention: false,
+        filter_safety_identifier: false,
+        use_chat_completions_for_responses: false,
+        rewrite_developer_role_to_system: false,
+        kiro_account_id: None,
+        codex_account_id: None,
+        xai_account_id: Some("xai-user@example.com".to_string()),
+        preferred_endpoint: None,
+        proxy_url: None,
+        priority: Some(0),
+        enabled: true,
+        available_models: Vec::new(),
+        model_mappings: HashMap::new(),
+        convert_from_map: HashMap::new(),
+        overrides: None,
+    }
+}
+
+#[test]
+fn build_runtime_config_xai_uses_trusted_cli_endpoint_and_all_text_formats() {
+    let mut config = ProxyConfigFile::default();
+    config.upstreams = vec![xai_upstream("")];
+
+    let runtime = build_runtime_config(config).expect("runtime config");
+    let item = runtime
+        .provider_upstreams("xai")
+        .and_then(|upstreams| upstreams.groups.first())
+        .and_then(|group| group.items.first())
+        .expect("xai runtime item");
+
+    assert_eq!(item.base_url, crate::xai::CLI_BASE_URL);
+    assert_eq!(item.xai_account_id.as_deref(), Some("xai-user@example.com"));
+    assert!(item.supports_inbound(InboundApiFormat::OpenaiChat));
+    assert!(item.supports_inbound(InboundApiFormat::OpenaiResponses));
+    assert!(item.supports_inbound(InboundApiFormat::AnthropicMessages));
+    assert!(item.supports_inbound(InboundApiFormat::Gemini));
+}
+
+#[test]
+fn build_runtime_config_rejects_untrusted_xai_base_url() {
+    let mut config = ProxyConfigFile::default();
+    config.upstreams = vec![xai_upstream("https://example.com/v1")];
+
+    let error = build_runtime_config(config)
+        .err()
+        .expect("custom xai base URL must fail");
+
+    assert!(error.contains("xAI OAuth base_url"));
+}
+
+#[test]
+fn build_runtime_config_rejects_api_key_for_xai_oauth_provider() {
+    let mut config = ProxyConfigFile::default();
+    let mut upstream = xai_upstream("");
+    upstream.api_keys = vec!["not-an-oauth-account".to_string()];
+    config.upstreams = vec![upstream];
+
+    let error = build_runtime_config(config)
+        .err()
+        .expect("xai API key must fail");
+
+    assert!(error.contains("does not accept api_keys"));
+}
+
+#[test]
+fn build_runtime_config_rejects_foreign_account_binding_for_xai() {
+    let mut config = ProxyConfigFile::default();
+    let mut upstream = xai_upstream("");
+    upstream.codex_account_id = Some("codex-account".to_string());
+    config.upstreams = vec![upstream];
+
+    let error = build_runtime_config(config)
+        .err()
+        .expect("foreign account binding must fail");
+
+    assert!(error.contains("only accepts xai_account_id"));
+}
+
+#[test]
+fn build_runtime_config_rejects_xai_account_binding_for_other_provider() {
+    let mut config = ProxyConfigFile::default();
+    let mut upstream = xai_upstream("https://api.openai.com/v1");
+    upstream.providers = vec!["openai".to_string()];
+    config.upstreams = vec![upstream];
+
+    let error = build_runtime_config(config)
+        .err()
+        .expect("xai binding on openai must fail");
+
+    assert!(error.contains("xai_account_id requires provider xai"));
 }
 
 #[test]
@@ -412,6 +514,7 @@ fn build_runtime_config_expands_multiple_api_keys_into_multiple_runtime_upstream
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -450,6 +553,7 @@ fn build_runtime_config_rejects_api_key_that_cannot_be_precompiled_as_header() {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -479,6 +583,7 @@ fn build_runtime_config_rejects_unsupported_provider() {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -508,6 +613,7 @@ fn build_runtime_config_rejects_multiple_api_keys_for_account_based_provider() {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: Some("codex-account.json".to_string()),
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: Some(0),
@@ -538,6 +644,7 @@ fn build_runtime_config_allows_account_based_provider_without_binding_account_id
             rewrite_developer_role_to_system: false,
             kiro_account_id: None,
             codex_account_id: None,
+            xai_account_id: None,
             preferred_endpoint: None,
             proxy_url: None,
             priority: Some(0),
@@ -558,6 +665,7 @@ fn build_runtime_config_allows_account_based_provider_without_binding_account_id
             rewrite_developer_role_to_system: false,
             kiro_account_id: None,
             codex_account_id: None,
+            xai_account_id: None,
             preferred_endpoint: None,
             proxy_url: None,
             priority: Some(0),

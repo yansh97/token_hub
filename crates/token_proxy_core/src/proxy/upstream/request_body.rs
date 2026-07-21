@@ -8,6 +8,7 @@ use super::{request::split_path_query, AttemptOutcome};
 
 const OPENAI_CHAT_PATH: &str = "/v1/chat/completions";
 const OPENAI_RESPONSES_PATH: &str = "/v1/responses";
+const XAI_RESPONSES_COMPACT_PATH: &str = "/v1/responses/compact";
 const ANTHROPIC_COUNT_TOKENS_PATH: &str = "/v1/messages/count_tokens";
 const ANTHROPIC_MESSAGES_PATH: &str = "/v1/messages";
 const REQUEST_MODEL_MAPPING_LIMIT_BYTES: usize = 4 * 1024 * 1024;
@@ -62,6 +63,7 @@ async fn build_json_transformed_body(
 
     let must_strip_sampling =
         should_strip_openai_responses_sampling_params(provider, upstream_path, meta);
+    let must_filter_xai = should_filter_xai_responses_request(provider, upstream_path);
     let read_limit = json_transform_read_limit(
         provider,
         upstream,
@@ -79,6 +81,9 @@ async fn build_json_transformed_body(
         if must_strip_sampling {
             return Err(openai_responses_sampling_params_payload_too_large());
         }
+        if must_filter_xai {
+            return Err(xai_responses_payload_too_large());
+        }
         return Ok(None);
     };
 
@@ -95,6 +100,7 @@ async fn build_json_transformed_body(
     changed |= rewrite_model_mapping(object, meta, body_len);
     changed |= apply_reasoning_effort(provider, upstream_path, object, meta, body_len);
     changed |= filter_openai_responses_fields(provider, upstream, upstream_path, object, body_len);
+    changed |= filter_xai_responses_request(provider, upstream_path, object, meta, body_len);
     changed |= strip_openai_responses_sampling_params(
         provider,
         upstream_path,
@@ -133,6 +139,9 @@ fn json_transform_read_limit(
     if should_filter_openai_responses_fields(provider, upstream, upstream_path) {
         limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
     }
+    if should_filter_xai_responses_request(provider, upstream_path) {
+        limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
+    }
     if should_strip_openai_responses_sampling_params(provider, upstream_path, meta) {
         limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
     }
@@ -159,6 +168,7 @@ fn needs_json_transform(
         || should_normalize_anthropic_model(provider, upstream_path, meta)
         || should_apply_reasoning_effort(provider, upstream_path, meta)
         || should_filter_openai_responses_fields(provider, upstream, upstream_path)
+        || should_filter_xai_responses_request(provider, upstream_path)
         || should_strip_openai_responses_sampling_params(provider, upstream_path, meta)
         || should_rewrite_developer_roles(upstream, upstream_path)
         || should_filter_anthropic_count_tokens_request(provider, upstream_path)
@@ -339,6 +349,135 @@ fn filter_openai_responses_fields(
         changed |= object.remove("safety_identifier").is_some();
     }
     changed
+}
+
+fn should_filter_xai_responses_request(provider: &str, upstream_path: &str) -> bool {
+    provider == "xai"
+        && (upstream_path == OPENAI_RESPONSES_PATH || upstream_path == XAI_RESPONSES_COMPACT_PATH)
+}
+
+fn filter_xai_responses_request(
+    provider: &str,
+    upstream_path: &str,
+    object: &mut Map<String, Value>,
+    meta: &RequestMeta,
+    body_len: usize,
+) -> bool {
+    if body_len > REQUEST_FILTER_LIMIT_BYTES
+        || !should_filter_xai_responses_request(provider, upstream_path)
+    {
+        return false;
+    }
+
+    let mut changed = remove_json_fields(
+        object,
+        &[
+            "previous_response_id",
+            "prompt_cache_retention",
+            "safety_identifier",
+            "stream_options",
+        ],
+    );
+    let model = object
+        .get("model")
+        .and_then(Value::as_str)
+        .or(meta.mapped_model.as_deref())
+        .or(meta.original_model.as_deref());
+    if model.is_some_and(is_xai_grok_45_model) {
+        changed |= remove_json_fields(
+            object,
+            &[
+                "presence_penalty",
+                "presencePenalty",
+                "frequency_penalty",
+                "frequencyPenalty",
+                "stop",
+            ],
+        );
+    }
+
+    if upstream_path == XAI_RESPONSES_COMPACT_PATH {
+        changed |= remove_json_fields(
+            object,
+            &[
+                "stream",
+                "tools",
+                "tool_choice",
+                "parallel_tool_calls",
+                "compaction_trigger",
+            ],
+        );
+        changed |= remove_xai_input_items_by_type(object, "compaction_trigger");
+    } else if !has_xai_request_tools(object) {
+        changed |= remove_json_fields(object, &["tools", "tool_choice", "parallel_tool_calls"]);
+    }
+
+    if changed {
+        tracing::debug!(
+            endpoint = upstream_path,
+            "filtered unsupported xAI Responses request fields"
+        );
+    }
+    changed
+}
+
+fn remove_json_fields(object: &mut Map<String, Value>, fields: &[&str]) -> bool {
+    let mut changed = false;
+    for field in fields {
+        changed |= object.remove(*field).is_some();
+    }
+    changed
+}
+
+fn has_xai_request_tools(object: &Map<String, Value>) -> bool {
+    if object
+        .get("tools")
+        .and_then(Value::as_array)
+        .is_some_and(|tools| !tools.is_empty())
+    {
+        return true;
+    }
+    object
+        .get("input")
+        .and_then(Value::as_array)
+        .is_some_and(|items| {
+            items.iter().any(|item| {
+                item.get("type").and_then(Value::as_str) == Some("additional_tools")
+                    && item
+                        .get("tools")
+                        .and_then(Value::as_array)
+                        .is_some_and(|tools| !tools.is_empty())
+            })
+        })
+}
+
+fn remove_xai_input_items_by_type(object: &mut Map<String, Value>, item_type: &str) -> bool {
+    let Some(input) = object.get_mut("input").and_then(Value::as_array_mut) else {
+        return false;
+    };
+    let original_len = input.len();
+    input.retain(|item| item.get("type").and_then(Value::as_str) != Some(item_type));
+    input.len() != original_len
+}
+
+fn is_xai_grok_45_model(model: &str) -> bool {
+    let model = model
+        .trim()
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .split_once('(')
+        .map_or_else(|| model.trim(), |(base, _)| base.trim());
+    model.eq_ignore_ascii_case("grok-4.5")
+}
+
+fn xai_responses_payload_too_large() -> AttemptOutcome {
+    AttemptOutcome::Fatal(http::error_response(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        format!(
+            "xAI Responses request is too large to filter unsupported fields; limit is {REQUEST_FILTER_LIMIT_BYTES} bytes."
+        ),
+    ))
 }
 
 fn should_strip_openai_responses_sampling_params(

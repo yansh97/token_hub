@@ -9,7 +9,7 @@ const PROVIDER_ACCOUNTS_SEARCH_DEBOUNCE_MS = 250;
 
 export type ProviderAccountsPageFilters = {
   searchKeyword: string;
-  providerFilter: "all" | "kiro" | "codex";
+  providerFilter: "all" | "kiro" | "codex" | "xai";
   statusFilter: "all" | "active" | "disabled" | "expired" | "invalid" | "cooling_down";
 };
 

@@ -11,6 +11,7 @@ import {
   coerceProviderSelection,
   createCopiedUpstreamId,
   isAccountBackedProviderSet,
+  isManagedAccountBackedUpstream,
   normalizeProviders,
   pruneConvertFromMap,
   providersEqual,
@@ -69,11 +70,6 @@ export function UpstreamsCard({
     [columnVisibility]
   );
   const apiKeyVisible = columnVisibility.apiKeys;
-  const isSpecialAccountBackedUpstream = useCallback((upstream: UpstreamForm) => {
-    const providers = normalizeProviders(upstream.providers);
-    return isAccountBackedProviderSet(providers);
-  }, []);
-
   // 更新 draft，处理 provider 变化时的自动逻辑
   const updateDraft = useCallback(
     (patch: Partial<UpstreamForm>) => {
@@ -99,6 +95,7 @@ export function UpstreamsCard({
           let filterSafetyIdentifier = prev.draft.filterSafetyIdentifier;
           let useChatCompletionsForResponses = prev.draft.useChatCompletionsForResponses;
           let rewriteDeveloperRoleToSystem = prev.draft.rewriteDeveloperRoleToSystem;
+          let xaiAccountId = prev.draft.xaiAccountId;
           let baseUrl = patch.baseUrl ?? prev.draft.baseUrl;
           let proxyUrl = patch.proxyUrl ?? prev.draft.proxyUrl;
           let convertFromMap = patch.convertFromMap ?? prev.draft.convertFromMap;
@@ -110,6 +107,9 @@ export function UpstreamsCard({
           }
           if (!nextProviders.some((provider) => provider === "openai" || provider === "openai-response")) {
             rewriteDeveloperRoleToSystem = false;
+          }
+          if (!nextProviders.includes("xai")) {
+            xaiAccountId = "";
           }
           if (isAccountBackedProviderSet(nextProviders)) {
             baseUrl = "";
@@ -152,6 +152,7 @@ export function UpstreamsCard({
               filterSafetyIdentifier,
               useChatCompletionsForResponses,
               rewriteDeveloperRoleToSystem,
+              xaiAccountId,
               proxyUrl,
               convertFromMap,
             },
@@ -231,8 +232,8 @@ export function UpstreamsCard({
             columns={columns}
             showApiKeys={showApiKeys}
             disableDelete={false}
-            isCopyDisabled={isSpecialAccountBackedUpstream}
-            isDeleteDisabled={isSpecialAccountBackedUpstream}
+            isCopyDisabled={isManagedAccountBackedUpstream}
+            isDeleteDisabled={isManagedAccountBackedUpstream}
             onEdit={openEditDialog}
             onCopy={openCopyDialog}
             onToggleEnabled={(index) => {

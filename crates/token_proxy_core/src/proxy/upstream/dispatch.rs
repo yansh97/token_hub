@@ -619,9 +619,9 @@ async fn apply_same_upstream_retries(
             current_body = body;
         }
         let is_retryable = matches!(current, AttemptOutcome::Retryable { .. });
-        let retry_same_upstream = directive.as_ref().is_none_or(|directive| {
-            directive.scope == RetryScope::SameThenNext
-        });
+        let retry_same_upstream = directive
+            .as_ref()
+            .is_none_or(|directive| directive.scope == RetryScope::SameThenNext);
         if apply_group_attempt_outcome(state, provider, upstream, result, current, cooldown_scope) {
             return true;
         }
@@ -638,10 +638,16 @@ async fn apply_same_upstream_retries(
         );
         // 原地重试前：已 rotate 过的毒连接由 transport 内层处理；此处再清一次 H2 槽，
         // 覆盖 dispatch 层 capacity/HTTP 类 Retryable 之外的同连接复用风险。
-        if let Err(message) = state
-            .http_clients
-            .rotate_client_for_proxy_url(upstream.proxy_url.as_deref())
-        {
+        let rotate_result = if provider == "xai" {
+            state
+                .http_clients
+                .rotate_xai_client_for_proxy_url(upstream.proxy_url.as_deref())
+        } else {
+            state
+                .http_clients
+                .rotate_client_for_proxy_url(upstream.proxy_url.as_deref())
+        };
+        if let Err(message) = rotate_result {
             tracing::warn!(
                 provider,
                 upstream = %upstream.id,

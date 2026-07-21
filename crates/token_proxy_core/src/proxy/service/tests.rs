@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::task::JoinHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 
 fn config_with_addr_and_body_limit(
     host: &str,
@@ -237,6 +237,7 @@ fn upstream_config(id: &str, provider: &str, base_url: &str) -> UpstreamConfig {
         rewrite_developer_role_to_system: false,
         kiro_account_id: None,
         codex_account_id: None,
+        xai_account_id: None,
         preferred_endpoint: None,
         proxy_url: None,
         priority: None,
@@ -246,6 +247,13 @@ fn upstream_config(id: &str, provider: &str, base_url: &str) -> UpstreamConfig {
         convert_from_map: HashMap::new(),
         overrides: None,
     }
+}
+
+fn xai_upstream_config(id: &str, proxy_url: &str) -> UpstreamConfig {
+    let mut upstream = upstream_config(id, "xai", crate::xai::CLI_BASE_URL);
+    upstream.api_keys.clear();
+    upstream.proxy_url = Some(proxy_url.to_string());
+    upstream
 }
 
 fn create_test_context() -> (ProxyContext, std::path::PathBuf) {
@@ -266,6 +274,9 @@ fn create_test_context() -> (ProxyContext, std::path::PathBuf) {
         codex_accounts: Arc::new(
             crate::codex::CodexAccountStore::new(paths.as_ref(), app_proxy.clone())
                 .expect("codex store"),
+        ),
+        xai_accounts: Arc::new(
+            crate::xai::XaiAccountStore::new(paths.as_ref(), app_proxy).expect("xai store"),
         ),
     };
     (context, data_dir)
@@ -410,6 +421,45 @@ fn refresh_model_discovery_uses_codex_builtin_catalog_without_models_endpoint() 
 }
 
 #[test]
+fn refresh_model_discovery_uses_xai_builtin_catalog_without_models_endpoint() {
+    run_async(async {
+        let upstream = spawn_model_catalog_probe_upstream(json!({
+            "object": "list",
+            "data": [{ "id": "must-not-be-observed", "object": "model" }]
+        }))
+        .await;
+        let (context, data_dir) = create_test_context();
+        let mut config = test_config_file(0);
+        config.upstreams = vec![xai_upstream_config("xai-default", &upstream.base_url)];
+        crate::proxy::config::write_config(context.paths.as_ref(), config)
+            .await
+            .expect("write config");
+
+        let service = ProxyServiceHandle::new();
+        service.start(&context).await.expect("start proxy");
+
+        let probes = service.refresh_model_discovery().await;
+        let probe = probes
+            .iter()
+            .find(|probe| probe.upstream_id == "xai-default")
+            .expect("xai probe");
+        assert_eq!(probe.provider, "xai");
+        assert_eq!(probe.status, UpstreamModelProbeStatus::Ok);
+        assert_eq!(probe.error, None);
+        assert!(probe.models.contains(&"grok-4.5".to_string()));
+        assert!(probe.models.contains(&"grok-composer-2.5-fast".to_string()));
+        assert!(
+            upstream.paths().is_empty(),
+            "xAI model discovery touched network"
+        );
+
+        let _ = service.stop().await;
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
 fn refresh_model_discovery_updates_cache_on_demand() {
     run_async(async {
         let upstream = spawn_model_catalog_probe_upstream(json!({
@@ -521,4 +571,68 @@ fn start_spawns_codex_keepalive_without_codex_upstream() {
         token_task.abort();
         let _ = std::fs::remove_dir_all(data_dir);
     });
+}
+
+#[test]
+fn stop_aborts_xai_account_refresh_task() {
+    run_async(async {
+        let (context, data_dir) = create_test_context();
+        crate::proxy::config::write_config(context.paths.as_ref(), test_config_file(0))
+            .await
+            .expect("write config");
+
+        let service = ProxyServiceHandle::new();
+        service.start(&context).await.expect("start proxy");
+        let refresh_task = xai_refresh_abort_handle(&service).await;
+        assert!(!refresh_task.is_finished());
+
+        service.stop().await.expect("stop proxy");
+        wait_for_task_finish(&refresh_task).await;
+
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
+fn reload_restarts_xai_account_refresh_task() {
+    run_async(async {
+        let (context, data_dir) = create_test_context();
+        crate::proxy::config::write_config(context.paths.as_ref(), test_config_file(0))
+            .await
+            .expect("write config");
+
+        let service = ProxyServiceHandle::new();
+        service.start(&context).await.expect("start proxy");
+        let previous_task = xai_refresh_abort_handle(&service).await;
+
+        service.reload(&context).await.expect("reload proxy");
+        wait_for_task_finish(&previous_task).await;
+        let replacement_task = xai_refresh_abort_handle(&service).await;
+        assert_ne!(previous_task.id(), replacement_task.id());
+        assert!(!replacement_task.is_finished());
+
+        service.stop().await.expect("stop proxy");
+        wait_for_task_finish(&replacement_task).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+async fn xai_refresh_abort_handle(service: &ProxyServiceHandle) -> AbortHandle {
+    let inner = service.inner.inner.lock().await;
+    inner
+        .running
+        .as_ref()
+        .and_then(|running| running.xai_account_refresh_task.as_ref())
+        .expect("xai account refresh task")
+        .abort_handle()
+}
+
+async fn wait_for_task_finish(task: &AbortHandle) {
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while !task.is_finished() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("background task should stop");
 }

@@ -58,6 +58,18 @@ pub(super) async fn aggregate_model_catalog_request(
 
     for group in &provider_upstreams.groups {
         for upstream in &group.items {
+            let mut models = upstream.advertised_model_ids.clone();
+            merge_model_catalog_ids(&mut models, builtin_model_ids(provider));
+            expand_model_ids_with_mappings(&mut models, &state.config.hot_model_mappings);
+            upstream.restrict_model_catalog(&mut models);
+            if model_catalog_probe_paths(provider).is_none() {
+                if !models.is_empty() {
+                    successful += 1;
+                    sources.push((upstream.id.clone(), models));
+                }
+                continue;
+            }
+
             let upstream_model_catalog = fetch_upstream_model_catalog(
                 state.as_ref(),
                 provider,
@@ -70,9 +82,6 @@ pub(super) async fn aggregate_model_catalog_request(
                 &empty_body,
             )
             .await;
-            let mut models = upstream.advertised_model_ids.clone();
-            expand_model_ids_with_mappings(&mut models, &state.config.hot_model_mappings);
-            upstream.restrict_model_catalog(&mut models);
             match upstream_model_catalog {
                 Ok(fetched_models) => {
                     successful += 1;
@@ -185,6 +194,7 @@ fn probe_account_id(upstream: &UpstreamRuntime) -> Option<String> {
         .kiro_account_id
         .clone()
         .or_else(|| upstream.codex_account_id.clone())
+        .or_else(|| upstream.xai_account_id.clone())
         .or_else(|| (upstream.selector_key != upstream.id).then(|| upstream.selector_key.clone()))
 }
 
@@ -270,6 +280,10 @@ async fn refresh_model_discovery_job(
 fn builtin_model_ids(provider: &str) -> Vec<String> {
     match provider {
         "codex" => supported_codex_model_ids(),
+        "xai" => crate::xai::BUILTIN_MODELS
+            .iter()
+            .map(|model| (*model).to_string())
+            .collect(),
         _ => Vec::new(),
     }
 }
