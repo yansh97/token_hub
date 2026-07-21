@@ -154,8 +154,10 @@ pub(super) fn extract_response_format_hint(object: &Map<String, Value>) -> Optio
 }
 
 fn format_timestamp() -> String {
-    let format =
-        time::format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second] UTC");
+    // time 0.3 新 API：parse_borrowed 明确版本，避免 deprecated parse()
+    let format = time::format_description::parse_borrowed::<2>(
+        "[year]-[month]-[day] [hour]:[minute]:[second] UTC",
+    );
     if let Ok(format) = format {
         if let Ok(value) = OffsetDateTime::now_utc().format(&format) {
             return value;
