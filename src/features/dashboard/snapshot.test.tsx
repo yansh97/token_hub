@@ -428,4 +428,50 @@ describe("dashboard/useDashboardSnapshot", () => {
       Object.defineProperty(document, "visibilityState", visibilityDescriptor);
     }
   });
+
+  it("refreshes immediately when the document becomes active again", async () => {
+    vi.useFakeTimers();
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const visibilityDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "visibilityState",
+    );
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    readDashboardSnapshotMock.mockResolvedValue(createSnapshot());
+
+    renderWithViewState(<AutoRefreshHarness />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
+
+    hasFocus.mockReturnValue(false);
+    fireEvent.blur(window);
+    hasFocus.mockReturnValue(true);
+    fireEvent.focus(window);
+
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    fireEvent(document, new Event("visibilitychange"));
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    fireEvent(document, new Event("visibilitychange"));
+
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(3);
+    expect(refreshDashboardModelDiscoveryMock).not.toHaveBeenCalled();
+
+    if (visibilityDescriptor) {
+      Object.defineProperty(document, "visibilityState", visibilityDescriptor);
+    }
+  });
 });

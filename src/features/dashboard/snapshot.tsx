@@ -166,12 +166,30 @@ export function useDashboardSnapshot({
     if (!autoRefreshEnabled) {
       return;
     }
+    const isDocumentActive = () =>
+      document.visibilityState === "visible" && document.hasFocus();
+    let wasActive = isDocumentActive();
+    const syncDocumentActivity = () => {
+      const isActive = isDocumentActive();
+      if (isActive && !wasActive) {
+        void loadSnapshotRef.current();
+      }
+      wasActive = isActive;
+    };
     const timerId = window.setInterval(() => {
-      if (document.visibilityState === "visible" && document.hasFocus()) {
+      if (isDocumentActive()) {
         void loadSnapshotRef.current();
       }
     }, DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(timerId);
+    window.addEventListener("focus", syncDocumentActivity);
+    window.addEventListener("blur", syncDocumentActivity);
+    document.addEventListener("visibilitychange", syncDocumentActivity);
+    return () => {
+      window.clearInterval(timerId);
+      window.removeEventListener("focus", syncDocumentActivity);
+      window.removeEventListener("blur", syncDocumentActivity);
+      document.removeEventListener("visibilitychange", syncDocumentActivity);
+    };
   }, [autoRefreshEnabled]);
 
   useEffect(() => {
