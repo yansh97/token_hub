@@ -300,11 +300,43 @@ fn finalize_forward_response(
             LOCAL_UPSTREAM_ID,
             None,
             inbound_path,
-            StatusCode::UNAUTHORIZED,
+            StatusCode::BAD_GATEWAY,
             "Missing upstream API key.".to_string(),
             Instant::now(),
         );
-        return http::error_response(StatusCode::UNAUTHORIZED, "Missing upstream API key.");
+        tracing::warn!(
+            provider,
+            status = StatusCode::BAD_GATEWAY.as_u16(),
+            exclusion_reason = "missing_upstream_credential",
+            "request rejected because upstream credential is not configured"
+        );
+        return http::error_response(StatusCode::BAD_GATEWAY, "Missing upstream API key.");
+    }
+    if summary.attempted == 0 && summary.model_unsupported {
+        let message = format!(
+            "Model '{}' is not supported by any configured upstream.",
+            meta.original_model.as_deref().unwrap_or("unknown")
+        );
+        log_upstream_error_if_needed(
+            log,
+            request_detail,
+            meta,
+            provider,
+            LOCAL_UPSTREAM_ID,
+            None,
+            inbound_path,
+            StatusCode::NOT_FOUND,
+            message.clone(),
+            Instant::now(),
+        );
+        tracing::warn!(
+            provider,
+            model = meta.original_model.as_deref().unwrap_or(""),
+            status = StatusCode::NOT_FOUND.as_u16(),
+            exclusion_reason = "model_not_supported",
+            "request rejected because no upstream supports the model"
+        );
+        return http::error_response(StatusCode::NOT_FOUND, message);
     }
     if let Some(response) = summary.last_retry_response {
         return response;
@@ -451,7 +483,7 @@ pub(super) fn log_upstream_error_if_needed(
         request_headers,
         request_body,
         ttfb_ms: None,
-        timings: Default::default(),
+        timings: RequestTimings::with_billing(meta.billing.clone()),
         start: start_time,
     };
     let usage = UsageSnapshot::default();

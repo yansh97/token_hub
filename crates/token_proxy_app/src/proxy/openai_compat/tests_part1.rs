@@ -224,6 +224,87 @@ fn responses_request_to_chat_maps_tools_and_tool_choice() {
 }
 
 #[test]
+fn responses_namespace_identity_stays_aligned_for_chat_and_gemini() {
+    let http_clients = ProxyHttpClients::new().expect("http clients");
+    let request = json!({
+        "model": "model",
+        "input": [
+            { "type": "function_call", "call_id": "call_1", "namespace": "mcp__github", "name": "get_me", "arguments": "{}" },
+            { "type": "function_call_output", "call_id": "call_1", "output": "ok" }
+        ],
+        "tools": [{
+            "type": "namespace",
+            "name": "mcp__github",
+            "tools": [{ "type": "function", "name": "get_me", "parameters": { "type": "object" } }]
+        }]
+    });
+
+    let chat = run_async(async {
+        transform_request_body(
+            FormatTransform::ResponsesToChat,
+            &bytes_from_json(request.clone()),
+            &http_clients,
+            None,
+        )
+        .await
+        .expect("chat transform")
+    });
+    let chat = json_from_bytes(chat);
+    assert_eq!(chat["tools"][0]["function"]["name"], "mcp__github__get_me");
+    assert_eq!(
+        chat["messages"][0]["tool_calls"][0]["function"]["name"],
+        chat["tools"][0]["function"]["name"]
+    );
+
+    let gemini = run_async(async {
+        transform_request_body(
+            FormatTransform::ResponsesToGemini,
+            &bytes_from_json(request),
+            &http_clients,
+            None,
+        )
+        .await
+        .expect("gemini transform")
+    });
+    let gemini = json_from_bytes(gemini);
+    assert_eq!(
+        gemini["tools"][0]["functionDeclarations"][0]["name"],
+        "mcp__github__get_me"
+    );
+    assert_eq!(
+        gemini["contents"][0]["parts"][1]["functionCall"]["name"],
+        gemini["tools"][0]["functionDeclarations"][0]["name"]
+    );
+}
+
+#[test]
+fn responses_namespace_flattening_rejects_ambiguous_names() {
+    let http_clients = ProxyHttpClients::new().expect("http clients");
+    let input = bytes_from_json(json!({
+        "model": "model",
+        "input": "hi",
+        "tools": [
+            { "type": "function", "name": "mcp__github__get_me" },
+            { "type": "namespace", "name": "mcp__github", "tools": [
+                { "type": "function", "name": "get_me" }
+            ] }
+        ]
+    }));
+
+    let error = run_async(async {
+        transform_request_body(
+            FormatTransform::ResponsesToChat,
+            &input,
+            &http_clients,
+            None,
+        )
+        .await
+        .expect_err("ambiguous identity must fail")
+    });
+    assert!(error.contains("conflict"), "error={error}");
+}
+
+#[test]
 fn chat_request_to_responses_maps_tools_and_tool_choice() {
     let http_clients = ProxyHttpClients::new().expect("http clients");
     let parameters = json!({

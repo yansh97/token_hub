@@ -53,6 +53,7 @@ pub(super) async fn aggregate_model_catalog_request(
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let empty_body = ReplayableBody::from_bytes(Bytes::new());
 
@@ -235,6 +236,7 @@ async fn refresh_model_discovery_job(
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let headers = HeaderMap::new();
     let request_auth = RequestAuth::default();

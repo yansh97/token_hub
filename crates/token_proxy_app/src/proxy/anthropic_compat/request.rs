@@ -13,11 +13,12 @@ pub(super) async fn responses_request_to_anthropic(
     body: &Bytes,
     http_clients: &ProxyHttpClients,
 ) -> Result<Bytes, String> {
-    let value: Value =
+    let mut value: Value =
         serde_json::from_slice(body).map_err(|_| "Request body must be JSON.".to_string())?;
-    let Some(object) = value.as_object() else {
+    let Some(object) = value.as_object_mut() else {
         return Err("Request body must be a JSON object.".to_string());
     };
+    crate::proxy::tool_identity::flatten_responses_namespaces(object, &[])?;
 
     let model = object
         .get("model")

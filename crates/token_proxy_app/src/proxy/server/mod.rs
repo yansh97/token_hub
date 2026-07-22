@@ -191,6 +191,7 @@ async fn proxy_request_inner(
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         };
         let outbound_path = resolve_outbound_path(&path, &plan, &meta);
         let outbound_path_with_query = build_outbound_path_with_query(&outbound_path, &uri);

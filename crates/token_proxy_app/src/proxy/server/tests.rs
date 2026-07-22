@@ -1122,7 +1122,8 @@ async fn auth_switch_upstream_handler(
                         "type": "invalid_request_error",
                         "code": "token_invalidated",
                         "param": null
-                    }
+                    },
+                    "usage": { "input_tokens": 11, "output_tokens": 1, "total_tokens": 12 }
                 })
             } else {
                 json!({
@@ -5218,8 +5219,8 @@ fn responses_codex_session_scoped_cooldown_isolates_failed_sessions() {
         codex.abort();
         let _ = std::fs::remove_dir_all(&data_dir);
 
-        assert_eq!(first_status, StatusCode::UNAUTHORIZED);
-        assert_eq!(second_status, StatusCode::UNAUTHORIZED);
+        assert_eq!(first_status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(second_status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
             requests.len(),
             4,
@@ -5303,8 +5304,8 @@ fn responses_codex_session_scoped_cooldown_does_not_share_missing_session() {
         codex.abort();
         let _ = std::fs::remove_dir_all(&data_dir);
 
-        assert_eq!(first_status, StatusCode::UNAUTHORIZED);
-        assert_eq!(second_status, StatusCode::UNAUTHORIZED);
+        assert_eq!(first_status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(second_status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
             requests.len(),
             4,
@@ -5420,6 +5421,112 @@ fn responses_request_falls_back_to_responses_provider_when_all_codex_accounts_ar
             "第二次请求应因账号 cooling 而跳过 codex，不再命中主 upstream"
         );
         assert_eq!(fallback_requests.len(), 2);
+    });
+}
+
+#[test]
+fn responses_request_returns_bad_gateway_when_codex_has_no_accounts() {
+    run_async(async {
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_CODEX,
+            0,
+            "codex-no-accounts",
+            "http://127.0.0.1:9",
+            FORMATS_RESPONSES,
+        )]);
+        config
+            .upstreams
+            .get_mut(PROVIDER_CODEX)
+            .expect("codex upstreams")
+            .groups[0]
+            .items[0]
+            .codex_account_id = None;
+        let data_dir = next_test_data_dir("responses_codex_no_accounts");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, _) = send_responses_request(state).await;
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+    });
+}
+
+#[test]
+fn responses_request_returns_not_found_when_model_is_not_supported() {
+    run_async(async {
+        let upstream = spawn_mock_upstream(StatusCode::OK, json!({})).await;
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_RESPONSES,
+            0,
+            "responses-model-filter",
+            upstream.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        config
+            .upstreams
+            .get_mut(PROVIDER_RESPONSES)
+            .expect("responses upstreams")
+            .groups[0]
+            .items[0]
+            .available_models = vec!["gpt-other".to_string()];
+        let data_dir = next_test_data_dir("responses_model_not_supported");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+
+        let (status, _) = send_responses_request(state).await;
+        let requests = upstream.requests();
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(requests.is_empty());
+    });
+}
+
+#[test]
+fn responses_request_returns_service_unavailable_when_all_codex_accounts_are_cooling() {
+    run_async(async {
+        let upstream = spawn_mock_upstream(StatusCode::OK, json!({})).await;
+        let mut config = config_with_runtime_upstreams(&[(
+            PROVIDER_CODEX,
+            0,
+            "codex-all-accounts-cooling",
+            upstream.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        config
+            .upstreams
+            .get_mut(PROVIDER_CODEX)
+            .expect("codex upstreams")
+            .groups[0]
+            .items[0]
+            .codex_account_id = None;
+        config.retryable_failure_cooldown = std::time::Duration::from_secs(15);
+        let data_dir = next_test_data_dir("responses_codex_all_accounts_cooling");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+        let expires_at = (OffsetDateTime::now_utc() + TimeDuration::days(1))
+            .format(&time::format_description::well_known::Rfc3339)
+            .expect("format expires_at");
+        seed_codex_account(
+            &state,
+            "codex-a.json",
+            "codex-access-a",
+            "chatgpt-a",
+            &expires_at,
+        )
+        .await;
+        state
+            .read()
+            .await
+            .account_selector
+            .mark_retryable_failure(PROVIDER_CODEX, "codex-a.json");
+
+        let (status, _) = send_responses_request(state).await;
+        let requests = upstream.requests();
+        upstream.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(requests.is_empty());
     });
 }
 
@@ -5654,10 +5761,10 @@ fn messages_request_stops_after_all_kiro_accounts_fail_and_does_not_retry_next_u
         next_upstream.abort();
         let _ = std::fs::remove_dir_all(&data_dir);
 
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
             json["error"]["message"].as_str(),
-            Some("Kiro account is not configured.")
+            Some("All Kiro accounts are temporarily cooling down.")
         );
         assert_eq!(kiro_requests.len(), 2);
         assert_eq!(
@@ -5826,8 +5933,9 @@ fn responses_request_logs_each_codex_account_failover_attempt() {
 
         let (status, json) = send_responses_request(state).await;
         let logged_count = wait_for_request_log_count(&pool, 2).await;
-        let logged_rows =
-            sqlx::query("SELECT account_id, status FROM request_logs ORDER BY id ASC;")
+        let logged_rows = sqlx::query(
+            "SELECT account_id, status, input_tokens, is_billable FROM request_logs ORDER BY id ASC;",
+        )
                 .fetch_all(&pool)
                 .await
                 .expect("query request logs");
@@ -5856,6 +5964,18 @@ fn responses_request_logs_each_codex_account_failover_attempt() {
             401
         );
         assert_eq!(
+            logged_rows[0]
+                .try_get::<i64, _>("input_tokens")
+                .unwrap_or_default(),
+            11
+        );
+        assert_eq!(
+            logged_rows[0]
+                .try_get::<i64, _>("is_billable")
+                .unwrap_or_default(),
+            0
+        );
+        assert_eq!(
             logged_rows[1]
                 .try_get::<Option<String>, _>("account_id")
                 .ok()
@@ -5868,6 +5988,12 @@ fn responses_request_logs_each_codex_account_failover_attempt() {
                 .try_get::<i64, _>("status")
                 .unwrap_or_default(),
             200
+        );
+        assert_eq!(
+            logged_rows[1]
+                .try_get::<i64, _>("is_billable")
+                .unwrap_or_default(),
+            1
         );
     });
 }
@@ -8838,6 +8964,7 @@ fn responses_compact_prefers_responses_provider_and_preserves_path() {
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     assert_eq!(outbound_path, RESPONSES_COMPACT_PATH);
@@ -8866,6 +8993,7 @@ fn responses_compact_can_route_to_codex_and_preserve_compact_suffix() {
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     assert_eq!(outbound_path, "/responses/compact");
@@ -8891,6 +9019,7 @@ fn responses_compact_can_route_to_xai_and_preserve_compact_suffix() {
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     assert_eq!(outbound_path, RESPONSES_COMPACT_PATH);
@@ -9136,6 +9265,7 @@ fn anthropic_beta_query_is_not_forwarded_to_responses_fallback() {
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     let uri = Uri::from_static("/v1/messages?beta=true");
@@ -9158,6 +9288,7 @@ fn anthropic_beta_query_is_preserved_for_native_anthropic() {
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     let uri = Uri::from_static("/v1/messages?beta=true");
@@ -9733,6 +9864,7 @@ fn openai_models_route_with_gemini_query_dispatches_to_gemini_and_rewrites_path(
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     assert_eq!(outbound, "/v1beta/models");
@@ -9766,6 +9898,7 @@ fn openai_model_detail_route_with_gemini_header_rewrites_to_gemini_model_detail(
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     assert_eq!(outbound, "/v1beta/models/gemini-1.5-flash");
@@ -9798,6 +9931,7 @@ fn openai_compatible_models_index_route_prefers_openai_provider_and_rewrites_pat
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     assert_eq!(outbound, "/v1/models");
@@ -9830,6 +9964,7 @@ fn openai_compatible_model_detail_route_rewrites_to_openai_models_detail() {
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         },
     );
     assert_eq!(outbound, "/v1/models/gpt-5");

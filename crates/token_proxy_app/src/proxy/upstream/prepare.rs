@@ -13,7 +13,10 @@ use super::super::{
     request_body::ReplayableBody,
     ProxyState, RequestMeta,
 };
-use super::{request, AttemptOutcome, PreparedUpstreamRequest, ResolvedUpstreamAuth};
+use super::{
+    request, AttemptOutcome, PreparedUpstreamRequest, ResolvedUpstreamAuth, RetryDirective,
+    RetryScope,
+};
 
 pub(super) async fn prepare_upstream_request(
     state: &ProxyState,
@@ -165,15 +168,23 @@ async fn resolve_kiro_upstream(
     upstream: &UpstreamRuntime,
     upstream_url: &str,
 ) -> Result<ResolvedUpstreamAuth, AttemptOutcome> {
-    let ordered_account_ids = if upstream
+    let has_pinned_account = upstream
         .kiro_account_id
         .as_deref()
         .map(str::trim)
-        .is_some_and(|value| !value.is_empty())
-    {
+        .is_some_and(|value| !value.is_empty());
+    let ordered_account_ids = if has_pinned_account {
         None
     } else {
-        Some(ordered_runtime_account_ids(state, "kiro", &CooldownScope::Global).await)
+        let candidates =
+            ordered_runtime_account_candidates(state, "kiro", &CooldownScope::Global).await;
+        if candidates.active_count > 0 && candidates.ids.is_empty() {
+            return Err(all_accounts_cooling_outcome(
+                "Kiro",
+                candidates.active_count,
+            ));
+        }
+        Some(candidates.ids)
     };
     let (selected_account_id, record) = state
         .kiro_accounts
@@ -182,9 +193,7 @@ async fn resolve_kiro_upstream(
             ordered_account_ids.as_deref(),
         )
         .await
-        .map_err(|err| {
-            AttemptOutcome::Fatal(http::error_response(StatusCode::UNAUTHORIZED, err))
-        })?;
+        .map_err(|err| account_resolution_outcome("Kiro", has_pinned_account, err))?;
     let global_proxy_url = state.kiro_accounts.app_proxy_url().await;
     let proxy_url = record
         .proxy_url
@@ -224,7 +233,14 @@ async fn resolve_codex_upstream(
     let ordered_account_ids = if has_pinned_account {
         None
     } else {
-        Some(ordered_runtime_account_ids(state, "codex", cooldown_scope).await)
+        let candidates = ordered_runtime_account_candidates(state, "codex", cooldown_scope).await;
+        if candidates.active_count > 0 && candidates.ids.is_empty() {
+            return Err(all_accounts_cooling_outcome(
+                "Codex",
+                candidates.active_count,
+            ));
+        }
+        Some(candidates.ids)
     };
     let (selected_account_id, record) = state
         .codex_accounts
@@ -290,7 +306,11 @@ async fn resolve_xai_upstream(
     let ordered_account_ids = if has_pinned_account {
         None
     } else {
-        Some(ordered_runtime_account_ids(state, "xai", cooldown_scope).await)
+        let candidates = ordered_runtime_account_candidates(state, "xai", cooldown_scope).await;
+        if candidates.active_count > 0 && candidates.ids.is_empty() {
+            return Err(all_accounts_cooling_outcome("xAI", candidates.active_count));
+        }
+        Some(candidates.ids)
     };
     let (selected_account_id, record) = state
         .xai_accounts
@@ -328,16 +348,26 @@ async fn resolve_xai_upstream(
     })
 }
 
-fn account_resolution_outcome(
+pub(super) fn account_resolution_outcome(
     provider_label: &str,
     has_pinned_account: bool,
     err: String,
 ) -> AttemptOutcome {
-    let response = http::error_response(StatusCode::UNAUTHORIZED, err.clone());
+    let mut response = http::error_response(StatusCode::BAD_GATEWAY, err.clone());
+    response.extensions_mut().insert(RetryDirective {
+        scope: RetryScope::NextOnly,
+        effective_body: None,
+    });
+    tracing::warn!(
+        provider = provider_label,
+        status = StatusCode::BAD_GATEWAY.as_u16(),
+        exclusion_reason = "no_usable_account",
+        error = %err,
+        "account provider has no usable runtime credential"
+    );
     if has_pinned_account {
         return AttemptOutcome::Fatal(response);
     }
-    tracing::warn!(provider = provider_label, error = %err, "account provider has no usable runtime credential");
     AttemptOutcome::Retryable {
         message: err,
         response: Some(response),
@@ -347,11 +377,53 @@ fn account_resolution_outcome(
     }
 }
 
+pub(super) fn all_accounts_cooling_outcome(
+    provider_label: &str,
+    active_count: usize,
+) -> AttemptOutcome {
+    let message = format!("All {provider_label} accounts are temporarily cooling down.");
+    let mut response = http::error_response(StatusCode::SERVICE_UNAVAILABLE, &message);
+    response.extensions_mut().insert(RetryDirective {
+        scope: RetryScope::NextOnly,
+        effective_body: None,
+    });
+    tracing::warn!(
+        provider = provider_label,
+        status = StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+        active_account_count = active_count,
+        ready_account_count = 0,
+        exclusion_reason = "all_accounts_cooling",
+        "account provider has no ready runtime credential"
+    );
+    AttemptOutcome::Retryable {
+        message,
+        response: Some(response),
+        is_timeout: false,
+        should_cooldown: false,
+        deferred_log: None,
+    }
+}
+
+pub(super) struct RuntimeAccountCandidates {
+    pub(super) ids: Vec<String>,
+    pub(super) active_count: usize,
+}
+
 pub(super) async fn ordered_runtime_account_ids(
     state: &ProxyState,
     provider: &str,
     cooldown_scope: &CooldownScope,
 ) -> Vec<String> {
+    ordered_runtime_account_candidates(state, provider, cooldown_scope)
+        .await
+        .ids
+}
+
+pub(super) async fn ordered_runtime_account_candidates(
+    state: &ProxyState,
+    provider: &str,
+    cooldown_scope: &CooldownScope,
+) -> RuntimeAccountCandidates {
     // 候选集合只收 effective Active（可调度）账号。
     // disabled/expired/invalid 不应进入 cooldown 排序与 resolve 候选，避免无用 refresh 副作用。
     let account_ids = match provider {
@@ -402,9 +474,17 @@ pub(super) async fn ordered_runtime_account_ids(
         candidate_count = account_ids.len(),
         "ordered runtime account candidates after active filter"
     );
-    state
+    let active_count = account_ids.len();
+    let ids = state
         .account_selector
-        .order_accounts_scoped(provider, &account_ids, cooldown_scope)
+        .order_accounts_scoped(provider, &account_ids, cooldown_scope);
+    tracing::debug!(
+        provider,
+        active_account_count = active_count,
+        ready_account_count = ids.len(),
+        "runtime account candidate ordering completed"
+    );
+    RuntimeAccountCandidates { ids, active_count }
 }
 
 const XAI_TOKEN_AUTH_HEADER: HeaderName =
@@ -550,6 +630,7 @@ pub(super) fn build_mapped_meta(meta: &RequestMeta, upstream: &UpstreamRuntime) 
         reasoning_effort,
         response_format: meta.response_format.clone(),
         estimated_input_tokens: meta.estimated_input_tokens,
+        billing: meta.billing.clone(),
     }
 }
 

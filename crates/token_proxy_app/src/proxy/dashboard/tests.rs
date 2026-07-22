@@ -513,6 +513,46 @@ async fn read_snapshot_sums_logged_costs_and_returns_recent_pricing_fields() {
 }
 
 #[tokio::test]
+async fn read_snapshot_excludes_non_billable_upstream_attempts() {
+    let pool = setup_test_db().await;
+    sqlx::query(
+        r#"
+INSERT INTO request_logs (
+  ts_ms, path, provider, upstream_id, model, stream, status,
+  input_tokens, output_tokens, total_tokens, latency_ms, cost_nano_usd,
+  client_request_id, attempt_index, is_billable
+) VALUES
+  (100, '/v1/responses', 'codex', 'account-a', 'gpt-5', 0, 401, 11, 1, 12, 10, 1100, 'billing-test', 0, 0),
+  (200, '/v1/responses', 'codex', 'account-b', 'gpt-5', 0, 200, 22, 2, 24, 20, 2200, 'billing-test', 1, 1)
+"#,
+    )
+    .execute(&pool)
+    .await
+    .expect("insert attempt rows");
+
+    let snapshot = read_snapshot(
+        &pool,
+        DashboardRange {
+            from_ts_ms: None,
+            to_ts_ms: None,
+        },
+        Some(0),
+        None,
+        None,
+        false,
+        None,
+    )
+    .await
+    .expect("read billable snapshot");
+
+    assert_eq!(snapshot.summary.total_requests, 1);
+    assert_eq!(snapshot.summary.total_tokens, 24);
+    assert_eq!(snapshot.summary.cost_nano_usd, 2200);
+    assert_eq!(snapshot.recent.len(), 1);
+    assert_eq!(snapshot.recent[0].upstream_id, "account-b");
+}
+
+#[tokio::test]
 async fn read_snapshot_groups_models_with_fallback_and_filters() {
     let pool = setup_test_db().await;
 

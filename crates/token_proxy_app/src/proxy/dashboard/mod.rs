@@ -313,7 +313,7 @@ SELECT
   COALESCE(SUM(COALESCE(image_input_tokens, 0)), 0) AS image_input_tokens,
   COALESCE(SUM(COALESCE(image_output_tokens, 0)), 0) AS image_output_tokens,
   COALESCE(SUM(latency_ms), 0) AS latency_sum_ms
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?3 IS NULL OR upstream_id = ?3)
@@ -394,7 +394,7 @@ async fn query_median_latency(
         r#"
 WITH filtered AS (
     SELECT latency_ms
-    FROM request_logs
+    FROM billable_request_logs
     WHERE (?1 IS NULL OR ts_ms >= ?1)
       AND (?2 IS NULL OR ts_ms <= ?2)
       AND (?3 IS NULL OR upstream_id = ?3)
@@ -467,7 +467,7 @@ SELECT
   COALESCE(SUM(COALESCE(cache_write_1h_tokens, 0)), 0) AS cache_write_1h_tokens,
   COALESCE(SUM(COALESCE(image_input_tokens, 0)), 0) AS image_input_tokens,
   COALESCE(SUM(COALESCE(image_output_tokens, 0)), 0) AS image_output_tokens
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?3 IS NULL OR upstream_id = ?3)
@@ -544,7 +544,7 @@ SELECT
   COALESCE(SUM(COALESCE(cache_write_1h_tokens, 0)), 0) AS cache_write_1h_tokens,
   COALESCE(SUM(COALESCE(image_input_tokens, 0)), 0) AS image_input_tokens,
   COALESCE(SUM(COALESCE(image_output_tokens, 0)), 0) AS image_output_tokens
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?3 IS NULL OR upstream_id = ?3)
@@ -623,7 +623,7 @@ SELECT
     ELSE 0
   END), 0) AS total_tokens,
   COUNT(*) AS requests
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?3 IS NULL OR upstream_id = ?3)
@@ -679,7 +679,7 @@ SELECT
   COALESCE(SUM(COALESCE(cache_write_1h_tokens, 0)), 0) AS cache_write_1h_tokens,
   COALESCE(SUM(COALESCE(image_input_tokens, 0)), 0) AS image_input_tokens,
   COALESCE(SUM(COALESCE(image_output_tokens, 0)), 0) AS image_output_tokens
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
 GROUP BY upstream_id
@@ -733,7 +733,7 @@ SELECT
   COALESCE(SUM(COALESCE(cache_write_1h_tokens, 0)), 0) AS cache_write_1h_tokens,
   COALESCE(SUM(COALESCE(image_input_tokens, 0)), 0) AS image_input_tokens,
   COALESCE(SUM(COALESCE(image_output_tokens, 0)), 0) AS image_output_tokens
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?3 IS NULL OR upstream_id = ?3)
@@ -798,7 +798,7 @@ SELECT
     WHEN input_tokens IS NOT NULL OR output_tokens IS NOT NULL THEN COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
     ELSE 0
   END), 0) AS total_tokens
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?4 IS NULL OR upstream_id = ?4)
@@ -982,7 +982,7 @@ SELECT
   first_client_flush_ms,
   first_output_ms,
   upstream_request_id
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?5 IS NULL OR upstream_id = ?5)
@@ -1104,7 +1104,7 @@ async fn resolve_bucket_ms(
 SELECT
   MIN(ts_ms) AS min_ts,
   MAX(ts_ms) AS max_ts
-FROM request_logs
+FROM billable_request_logs
 WHERE (?1 IS NULL OR ts_ms >= ?1)
   AND (?2 IS NULL OR ts_ms <= ?2)
   AND (?3 IS NULL OR upstream_id = ?3)

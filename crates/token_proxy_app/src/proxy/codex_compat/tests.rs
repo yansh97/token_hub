@@ -1287,6 +1287,39 @@ fn responses_request_to_codex_bounds_long_call_ids_and_preserves_pairing() {
 }
 
 #[test]
+fn responses_request_to_codex_bounds_all_retained_input_item_ids() {
+    let call_item_id = format!("fc_{}", "c".repeat(80));
+    let output_item_id = format!("output_{}", "o".repeat(80));
+    let message_item_id = format!("message_{}", "m".repeat(80));
+    let input = json!({
+        "model": "gpt-5.5",
+        "input": [
+            { "type": "function_call", "id": call_item_id, "call_id": "call_1", "name": "lookup", "arguments": "{}" },
+            { "type": "function_call_output", "id": output_item_id, "call_id": "call_1", "output": "ok" },
+            { "type": "message", "id": message_item_id, "role": "user", "content": [{ "type": "input_text", "text": "continue" }] },
+            { "type": "message", "id": "message_valid", "role": "user", "content": [{ "type": "input_text", "text": "valid" }] }
+        ]
+    });
+
+    let first = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("convert responses request");
+    let second = responses_request_to_codex(&Bytes::from(input.to_string()), None)
+        .expect("repeat conversion");
+    let first: Value = serde_json::from_slice(&first).expect("json");
+    let second: Value = serde_json::from_slice(&second).expect("json");
+    let items = first["input"].as_array().expect("input array");
+
+    for index in 0..3 {
+        let id = items[index]["id"].as_str().expect("retained id");
+        assert_eq!(id.chars().count(), 64, "index={index} id={id}");
+        assert_eq!(second["input"][index]["id"], id);
+    }
+    assert_ne!(items[0]["id"], items[1]["id"]);
+    assert_eq!(items[3]["id"], "message_valid");
+    assert_eq!(items[0]["call_id"], items[1]["call_id"]);
+}
+
+#[test]
 fn chat_request_to_codex_bounds_long_call_ids_and_preserves_pairing() {
     let call_id = format!("call_{}", "x".repeat(62));
     let input = json!({
@@ -1322,6 +1355,101 @@ fn chat_request_to_codex_bounds_long_call_ids_and_preserves_pairing() {
     assert!(call_id.starts_with("fc_"));
     assert_eq!(call_id.len(), 64);
     assert_eq!(function_output["call_id"], call_id);
+}
+
+#[test]
+fn chat_request_to_codex_preserves_custom_tool_call_family() {
+    let input = json!({
+        "model": "gpt-5.6",
+        "messages": [
+            { "role": "assistant", "content": null, "tool_calls": [{
+                "id": "call_patch",
+                "type": "custom",
+                "custom": { "name": "apply_patch", "input": "*** Begin Patch" }
+            }] },
+            { "role": "tool", "tool_call_id": "call_patch", "content": "done" }
+        ]
+    });
+    let output =
+        chat_request_to_codex(&Bytes::from(input.to_string()), None).expect("convert chat request");
+    let value: Value = serde_json::from_slice(&output).expect("json");
+    let items = value["input"].as_array().expect("input array");
+    let call = items
+        .iter()
+        .find(|item| item["type"] == "custom_tool_call")
+        .expect("custom call");
+    let result = items
+        .iter()
+        .find(|item| item["type"] == "custom_tool_call_output")
+        .expect("custom output");
+
+    assert_eq!(call["name"], "apply_patch");
+    assert_eq!(call["input"], "*** Begin Patch");
+    assert_eq!(result["call_id"], call["call_id"]);
+    assert_eq!(result["output"], "done");
+}
+
+#[test]
+fn chat_request_to_codex_pairs_missing_ids_and_drops_orphan_outputs() {
+    let input = json!({
+        "model": "gpt-5.6",
+        "messages": [
+            { "role": "tool", "content": "orphan" },
+            { "role": "assistant", "content": null, "tool_calls": [{
+                "type": "function",
+                "function": { "name": "lookup", "arguments": "{}" }
+            }] },
+            { "role": "tool", "content": "found" },
+            { "role": "tool", "content": "duplicate" }
+        ]
+    });
+    let output =
+        chat_request_to_codex(&Bytes::from(input.to_string()), None).expect("convert chat request");
+    let value: Value = serde_json::from_slice(&output).expect("json");
+    let items = value["input"].as_array().expect("input array");
+    let call = items
+        .iter()
+        .find(|item| item["type"] == "function_call")
+        .expect("function call");
+    let outputs = items
+        .iter()
+        .filter(|item| item["type"] == "function_call_output")
+        .collect::<Vec<_>>();
+
+    assert!(!call["call_id"].as_str().unwrap_or_default().is_empty());
+    assert_eq!(outputs.len(), 1);
+    assert_eq!(outputs[0]["call_id"], call["call_id"]);
+    assert_eq!(outputs[0]["output"], "found");
+}
+
+#[test]
+fn chat_request_to_codex_drops_ambiguous_duplicate_call_ids() {
+    let input = json!({
+        "model": "gpt-5.6",
+        "messages": [
+            { "role": "assistant", "content": null, "tool_calls": [
+                { "id": "call_duplicate", "type": "function", "function": { "name": "lookup", "arguments": "{}" } },
+                { "id": "call_duplicate", "type": "custom", "custom": { "name": "apply_patch", "input": "patch" } }
+            ] },
+            { "role": "tool", "tool_call_id": "call_duplicate", "content": "ambiguous" }
+        ]
+    });
+    let output =
+        chat_request_to_codex(&Bytes::from(input.to_string()), None).expect("convert chat request");
+    let value: Value = serde_json::from_slice(&output).expect("json");
+    let items = value["input"].as_array().expect("input array");
+
+    assert!(items.iter().all(|item| {
+        !matches!(
+            item["type"].as_str(),
+            Some(
+                "function_call"
+                    | "custom_tool_call"
+                    | "function_call_output"
+                    | "custom_tool_call_output"
+            )
+        )
+    }));
 }
 
 #[test]
