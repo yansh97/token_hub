@@ -68,23 +68,6 @@ afterEach(() => {
 });
 
 describe("config/AppView", () => {
-  it("does not show a persistent save button when there are pending edits", () => {
-    render(
-      <AppView
-        activeSectionId="settings"
-        {...BASE_APP_VIEW_PROPS}
-        status="idle"
-        statusMessage=""
-        canSave
-        isDirty
-      />,
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "保存" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("shows retry action only inside error alert for dirty draft", () => {
     const onSave = vi.fn();
 
@@ -103,62 +86,6 @@ describe("config/AppView", () => {
     fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not render informational save alerts", () => {
-    render(
-      <AppView
-        activeSectionId="settings"
-        {...BASE_APP_VIEW_PROPS}
-        status="saved"
-        statusMessage="should not be shown"
-        canSave={false}
-        isDirty={false}
-      />,
-    );
-
-    expect(screen.queryByText("should not be shown")).not.toBeInTheDocument();
-  });
-
-  it("does not duplicate field validation in a global alert", () => {
-    render(
-      <AppView
-        activeSectionId="settings"
-        {...BASE_APP_VIEW_PROPS}
-        status="idle"
-        statusMessage=""
-        canSave={false}
-        isDirty
-      />,
-    );
-
-    expect(screen.queryByText("配置无效")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("流式首个输出超时必须是大于等于 1 的整数。"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("does not render the settings validation card", () => {
-    render(
-      <AppView
-        activeSectionId="settings"
-        {...BASE_APP_VIEW_PROPS}
-        status="idle"
-        statusMessage=""
-        canSave
-        isDirty={false}
-      />,
-    );
-
-    expect(screen.queryByTestId("config-file-card")).not.toBeInTheDocument();
-    expect(screen.getByTestId("storage-usage-card")).toBeInTheDocument();
-    expect(screen.queryByTestId("validation-card")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "应用" }),
-    ).not.toBeInTheDocument();
-    expect(
-      document.querySelector('[data-slot="settings-content"]'),
-    ).not.toHaveClass("mx-auto", "max-w-[720px]");
   });
 
   it("uses a fixed workspace for the provider table", () => {

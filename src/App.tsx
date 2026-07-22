@@ -1,6 +1,7 @@
 import { SettingsPage } from "@/features/config/pages/settings-page";
 import { UpstreamsPage } from "@/features/config/pages/upstreams-page";
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
+import { DashboardViewStateProvider } from "@/features/dashboard/state";
 import { LogsPage } from "@/features/logs/pages/logs-page";
 import { UpdateNotifier } from "@/features/update/UpdateNotifier";
 import { UpdaterProvider } from "@/features/update/updater";
@@ -27,14 +28,16 @@ function App() {
   })();
 
   return (
-    <UpdaterProvider>
-      <UpdateNotifier />
-      <main className="app-shell">
-        <div data-slot="app-shell" className="relative z-10 h-full min-h-0">
-          {page}
-        </div>
-      </main>
-    </UpdaterProvider>
+    <DashboardViewStateProvider>
+      <UpdaterProvider>
+        <UpdateNotifier />
+        <main className="app-shell">
+          <div data-slot="app-shell" className="relative z-10 h-full min-h-0">
+            {page}
+          </div>
+        </main>
+      </UpdaterProvider>
+    </DashboardViewStateProvider>
   );
 }
 

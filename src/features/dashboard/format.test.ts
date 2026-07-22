@@ -4,8 +4,8 @@ import {
   createDashboardMinuteFormatter,
   createDashboardTimeFormatter,
   formatCompact,
-  formatDashboardClockTime,
   formatDashboardClientIp,
+  formatDashboardClockTime,
   formatDashboardProviderLabel,
   formatDashboardTimestamp,
   formatInteger,
@@ -55,21 +55,15 @@ describe("dashboard/format", () => {
     expect(formatDashboardClientIp("2001:db8::1")).toBe("2001:db8::1");
   });
 
-  it("formats compact numbers with K suffix for thousands", () => {
+  it("formats compact numbers across magnitude thresholds", () => {
     expect(formatCompact(0)).toBe("0");
     expect(formatCompact(999)).toBe("999");
     expect(formatCompact(1000)).toBe("1K");
     expect(formatCompact(1500)).toBe("1.5K");
     expect(formatCompact(985856)).toBe("985.9K");
-  });
-
-  it("formats compact numbers with M suffix for millions", () => {
     expect(formatCompact(1000000)).toBe("1M");
     expect(formatCompact(1500000)).toBe("1.5M");
     expect(formatCompact(12345678)).toBe("12.3M");
-  });
-
-  it("formats compact numbers with B suffix for billions", () => {
     expect(formatCompact(1000000000)).toBe("1B");
     expect(formatCompact(2500000000)).toBe("2.5B");
   });

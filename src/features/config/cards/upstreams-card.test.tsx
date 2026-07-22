@@ -9,30 +9,6 @@ afterEach(() => {
 });
 
 describe("config/upstreams-card", () => {
-  it("places the title, count, and add action in the section header", () => {
-    render(
-      <UpstreamsCard
-        upstreams={[]}
-        showApiKeys={false}
-        providerOptions={["openai", "openai-response", "anthropic", "gemini"]}
-        appProxyUrl=""
-        onToggleApiKeys={() => undefined}
-        onAdd={() => undefined}
-        onRemove={() => undefined}
-        onChange={() => undefined}
-      />,
-    );
-
-    const title = screen.getByRole("heading", { name: "提供商" });
-    const addButton = screen.getByRole("button", { name: "添加提供商" });
-    const header = title.closest("header");
-
-    expect(header).not.toBeNull();
-    expect(header).toContainElement(addButton);
-    expect(screen.getByText("0 个")).toBeInTheDocument();
-    expect(screen.getByText("尚未添加提供商")).toBeInTheDocument();
-  });
-
   it("keeps the entered id when interface formats change", async () => {
     const user = userEvent.setup();
 

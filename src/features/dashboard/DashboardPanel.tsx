@@ -1,12 +1,12 @@
-import { lazy, Suspense } from "react";
 import { AlertCircle } from "lucide-react";
-
-import { SectionCards } from "@/features/dashboard/components/section-cards";
+import { lazy, Suspense } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SectionCards } from "@/features/dashboard/components/section-cards";
 import {
   DashboardFilters,
   useDashboardSnapshot,
 } from "@/features/dashboard/snapshot";
+import { useDashboardViewState } from "@/features/dashboard/state";
 
 const ChartAreaInteractive = lazy(() =>
   import("@/features/dashboard/components/chart-area-interactive").then(
@@ -43,6 +43,7 @@ function ModelUsageFallback() {
 }
 
 export function DashboardPanel() {
+  const { autoRefreshEnabled, setAutoRefreshEnabled } = useDashboardViewState();
   const {
     snapshot,
     status,
@@ -53,13 +54,17 @@ export function DashboardPanel() {
     selectedModel,
     upstreamOptions,
     modelOptions,
+    modelDiscoveryLoading,
     refresh,
     onRangeChange,
     onUpstreamChange,
     onModelChange,
-  } = useDashboardSnapshot({ refreshModelDiscoveryOnRefresh: true });
+  } = useDashboardSnapshot({
+    autoRefreshEnabled,
+    refreshModelDiscoveryOnRefresh: true,
+  });
 
-  const isLoading = status === "loading";
+  const isLoading = status === "loading" || modelDiscoveryLoading;
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,6 +90,10 @@ export function DashboardPanel() {
         onUpstreamChange={onUpstreamChange}
         onModelChange={onModelChange}
         onRefresh={refresh}
+        autoRefresh={{
+          enabled: autoRefreshEnabled,
+          onToggle: setAutoRefreshEnabled,
+        }}
       />
 
       <SectionCards summary={snapshot?.summary ?? null} />

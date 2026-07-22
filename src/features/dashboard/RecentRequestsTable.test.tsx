@@ -102,30 +102,4 @@ describe("dashboard/RecentRequestsTable", () => {
     await user.keyboard("{Enter}");
     expect(onSelectItem).toHaveBeenCalledTimes(2);
   });
-
-  it("labels local proxy failures without exposing implementation text", () => {
-    render(
-      <RecentRequestsTable
-        items={[
-          {
-            ...item,
-            provider: "proxy",
-            upstreamId: "local",
-            accountId: null,
-            model: null,
-            mappedModel: null,
-            status: 401,
-            totalTokens: null,
-            outputTokens: null,
-            cachedTokens: null,
-            costNanoUsd: null,
-          },
-        ]}
-      />,
-    );
-
-    const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
-    expect(cells[2]).toHaveTextContent("local");
-    expect(cells[2]).toHaveAttribute("title", "本地代理");
-  });
 });

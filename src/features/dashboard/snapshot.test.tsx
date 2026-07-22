@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -7,7 +8,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDashboardSnapshot } from "@/features/dashboard/snapshot";
+import {
+  DASHBOARD_AUTO_REFRESH_INTERVAL_MS,
+  useDashboardSnapshot,
+} from "@/features/dashboard/snapshot";
+import { DashboardViewStateProvider } from "@/features/dashboard/state";
 import type { DashboardSnapshot } from "@/features/dashboard/types";
 
 const { readDashboardSnapshotMock, refreshDashboardModelDiscoveryMock } =
@@ -118,6 +123,15 @@ function HookHarness() {
   );
 }
 
+function AutoRefreshHarness({ enabled = true }: { enabled?: boolean }) {
+  useDashboardSnapshot({ autoRefreshEnabled: enabled });
+  return null;
+}
+
+function renderWithViewState(ui: React.ReactNode) {
+  return render(ui, { wrapper: DashboardViewStateProvider });
+}
+
 describe("dashboard/useDashboardSnapshot", () => {
   beforeEach(() => {
     readDashboardSnapshotMock.mockReset();
@@ -126,6 +140,8 @@ describe("dashboard/useDashboardSnapshot", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -196,7 +212,7 @@ describe("dashboard/useDashboardSnapshot", () => {
         }),
       );
 
-    render(<HookHarness />);
+    renderWithViewState(<HookHarness />);
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenNthCalledWith(1, {
@@ -237,7 +253,7 @@ describe("dashboard/useDashboardSnapshot", () => {
       .mockResolvedValueOnce(createSnapshot())
       .mockResolvedValueOnce(createSnapshot());
 
-    render(<HookHarness />);
+    renderWithViewState(<HookHarness />);
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
@@ -258,13 +274,20 @@ describe("dashboard/useDashboardSnapshot", () => {
     expect(screen.getByTestId("selected-model")).toHaveTextContent("gpt-5");
   });
 
-  it("runs model discovery only from dashboard refresh", async () => {
+  it("refreshes the snapshot before and after manual model discovery", async () => {
+    let finishModelDiscovery: (() => void) | undefined;
     readDashboardSnapshotMock
       .mockResolvedValueOnce(createSnapshot())
+      .mockResolvedValueOnce(createSnapshot())
       .mockResolvedValueOnce(createSnapshot());
-    refreshDashboardModelDiscoveryMock.mockResolvedValueOnce(undefined);
+    refreshDashboardModelDiscoveryMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishModelDiscovery = resolve;
+        }),
+    );
 
-    render(<HookHarness />);
+    renderWithViewState(<HookHarness />);
 
     await waitFor(() => {
       expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
@@ -277,5 +300,132 @@ describe("dashboard/useDashboardSnapshot", () => {
       expect(refreshDashboardModelDiscoveryMock).toHaveBeenCalledTimes(1);
       expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
     });
+    expect(readDashboardSnapshotMock.mock.invocationCallOrder[1]).toBeLessThan(
+      refreshDashboardModelDiscoveryMock.mock.invocationCallOrder[0],
+    );
+
+    finishModelDiscovery?.();
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(3);
+    });
+    expect(
+      refreshDashboardModelDiscoveryMock.mock.invocationCallOrder[0],
+    ).toBeLessThan(readDashboardSnapshotMock.mock.invocationCallOrder[2]);
+  });
+
+  it("uses the latest filters after manual model discovery", async () => {
+    let finishModelDiscovery: (() => void) | undefined;
+    readDashboardSnapshotMock.mockResolvedValue(createSnapshot());
+    refreshDashboardModelDiscoveryMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishModelDiscovery = resolve;
+        }),
+    );
+
+    renderWithViewState(<HookHarness />);
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "refresh-dashboard" }));
+
+    await waitFor(() => {
+      expect(refreshDashboardModelDiscoveryMock).toHaveBeenCalledTimes(1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "filter-alpha" }));
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
+        range: {
+          fromTsMs: expect.any(Number),
+          toTsMs: expect.any(Number),
+        },
+        offset: 0,
+        upstreamId: "alpha",
+        model: null,
+      });
+    });
+
+    finishModelDiscovery?.();
+
+    await waitFor(() => {
+      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(4);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenLastCalledWith({
+      range: {
+        fromTsMs: expect.any(Number),
+        toTsMs: expect.any(Number),
+      },
+      offset: 0,
+      upstreamId: "alpha",
+      model: null,
+    });
+  });
+
+  it("auto-refreshes only while the document is visible and focused", async () => {
+    vi.useFakeTimers();
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const visibilityDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "visibilityState",
+    );
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    readDashboardSnapshotMock.mockResolvedValue(createSnapshot());
+
+    const view = renderWithViewState(<AutoRefreshHarness />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
+    expect(refreshDashboardModelDiscoveryMock).not.toHaveBeenCalled();
+
+    view.rerender(<AutoRefreshHarness enabled={false} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
+
+    view.rerender(<AutoRefreshHarness />);
+
+    hasFocus.mockReturnValue(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
+
+    hasFocus.mockReturnValue(true);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    view.unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
+    });
+    expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
+
+    if (visibilityDescriptor) {
+      Object.defineProperty(document, "visibilityState", visibilityDescriptor);
+    }
   });
 });

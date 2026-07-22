@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Power, PowerOff, RefreshCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   readDashboardSnapshot,
   refreshDashboardModelDiscovery,
@@ -12,20 +11,24 @@ import {
   type DashboardTimeRange,
   resolveDashboardRange,
 } from "@/features/dashboard/range";
+import { useDashboardViewState } from "@/features/dashboard/state";
 import type {
   DashboardRange,
   DashboardSnapshot,
   DashboardUpstreamOption,
 } from "@/features/dashboard/types";
 import { parseError } from "@/lib/error";
+import { cn } from "@/lib/utils";
 
 export const RECENT_PAGE_SIZE = 50;
+export const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 10_000;
 const ALL_UPSTREAMS_VALUE = "__all_upstreams__";
 const ALL_MODELS_VALUE = "__all_models__";
 
 type DashboardStatus = "idle" | "loading" | "error";
 
 type UseDashboardSnapshotOptions = {
+  autoRefreshEnabled?: boolean;
   refreshModelDiscoveryOnRefresh?: boolean;
 };
 
@@ -68,23 +71,30 @@ function usePagination(totalRequests: number) {
 }
 
 export function useDashboardSnapshot({
+  autoRefreshEnabled = false,
   refreshModelDiscoveryOnRefresh = false,
 }: UseDashboardSnapshotOptions = {}) {
-  const [rangePreset, setRangePreset] = useState<DashboardTimeRange>("today");
+  const {
+    rangePreset,
+    setRangePreset,
+    selectedUpstreamId,
+    setSelectedUpstreamId,
+    selectedModel,
+    setSelectedModel,
+  } = useDashboardViewState();
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
-  const [selectedUpstreamId, setSelectedUpstreamId] = useState<string | null>(
-    null,
-  );
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [activeRange, setActiveRange] = useState<DashboardRange>(() =>
     resolveDashboardRange("today"),
   );
   const [status, setStatus] = useState<DashboardStatus>("loading");
   const [statusMessage, setStatusMessage] = useState("");
+  const [modelDiscoveryLoading, setModelDiscoveryLoading] = useState(false);
   const totalRequests = snapshot?.summary.totalRequests ?? 0;
   const { page, totalPages, resetPage, onPrevPage, onNextPage } =
     usePagination(totalRequests);
   const requestSeq = useRef(0);
+  const modelDiscoveryInFlight = useRef(false);
+  const mounted = useRef(true);
 
   const loadSnapshot = useCallback(async () => {
     // Ignore out-of-order responses; only the latest request updates state.
@@ -130,7 +140,19 @@ export function useDashboardSnapshot({
       setStatus("error");
       setStatusMessage(parseError(error));
     }
-  }, [page, rangePreset, selectedModel, selectedUpstreamId]);
+  }, [
+    page,
+    rangePreset,
+    selectedModel,
+    selectedUpstreamId,
+    setSelectedModel,
+    setSelectedUpstreamId,
+  ]);
+  const loadSnapshotRef = useRef(loadSnapshot);
+
+  useEffect(() => {
+    loadSnapshotRef.current = loadSnapshot;
+  }, [loadSnapshot]);
 
   useEffect(() => {
     // 提交后一拍再启动请求，避免 effect 同步路径被误判为级联 setState。
@@ -139,6 +161,26 @@ export function useDashboardSnapshot({
     }, 0);
     return () => window.clearTimeout(timerId);
   }, [loadSnapshot]);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled) {
+      return;
+    }
+    const timerId = window.setInterval(() => {
+      if (document.visibilityState === "visible" && document.hasFocus()) {
+        void loadSnapshotRef.current();
+      }
+    }, DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(timerId);
+  }, [autoRefreshEnabled]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      requestSeq.current += 1;
+    };
+  }, []);
 
   const markLoading = useCallback(() => {
     setStatus("loading");
@@ -151,7 +193,7 @@ export function useDashboardSnapshot({
       setRangePreset(next);
       resetPage();
     },
-    [markLoading, resetPage],
+    [markLoading, resetPage, setRangePreset],
   );
 
   const handleUpstreamChange = useCallback(
@@ -161,7 +203,7 @@ export function useDashboardSnapshot({
       setSelectedModel(null);
       resetPage();
     },
-    [markLoading, resetPage],
+    [markLoading, resetPage, setSelectedModel, setSelectedUpstreamId],
   );
 
   const handleModelChange = useCallback(
@@ -170,7 +212,7 @@ export function useDashboardSnapshot({
       setSelectedModel(nextModel);
       resetPage();
     },
-    [markLoading, resetPage],
+    [markLoading, resetPage, setSelectedModel],
   );
 
   const handlePrevPage = useCallback(() => {
@@ -186,16 +228,30 @@ export function useDashboardSnapshot({
   const refresh = useCallback(() => {
     markLoading();
     void (async () => {
+      await loadSnapshot();
       if (refreshModelDiscoveryOnRefresh) {
-        try {
-          await refreshDashboardModelDiscovery();
-        } catch (error) {
-          setStatus("error");
-          setStatusMessage(parseError(error));
+        if (modelDiscoveryInFlight.current) {
           return;
         }
+        modelDiscoveryInFlight.current = true;
+        setModelDiscoveryLoading(true);
+        try {
+          await refreshDashboardModelDiscovery();
+          if (mounted.current) {
+            await loadSnapshotRef.current();
+          }
+        } catch (error) {
+          if (mounted.current) {
+            setStatus("error");
+            setStatusMessage(parseError(error));
+          }
+        } finally {
+          modelDiscoveryInFlight.current = false;
+          if (mounted.current) {
+            setModelDiscoveryLoading(false);
+          }
+        }
       }
-      await loadSnapshot();
     })();
   }, [loadSnapshot, markLoading, refreshModelDiscoveryOnRefresh]);
 
@@ -203,6 +259,7 @@ export function useDashboardSnapshot({
     snapshot,
     status,
     statusMessage,
+    modelDiscoveryLoading,
     activeRange,
     rangePreset,
     selectedUpstreamId,
@@ -255,6 +312,11 @@ type DashboardFiltersProps = {
     statusText?: string;
     onToggle: (enabled: boolean) => void;
   };
+  /** 自动刷新相关，仅 DashboardPanel 使用 */
+  autoRefresh?: {
+    enabled: boolean;
+    onToggle: (enabled: boolean) => void;
+  };
 };
 
 export function DashboardFilters({
@@ -271,6 +333,7 @@ export function DashboardFilters({
   className,
   sticky = false,
   capture,
+  autoRefresh,
 }: DashboardFiltersProps) {
   return (
     <div
@@ -386,6 +449,42 @@ export function DashboardFilters({
                   {capture.statusText}
                 </span>
               ) : null}
+            </div>
+          ) : null}
+          {autoRefresh ? (
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  autoRefresh.enabled ? "bg-success" : "bg-muted-foreground/40",
+                )}
+                aria-hidden="true"
+              />
+              {autoRefresh.enabled ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="关闭自动刷新"
+                  aria-label="关闭自动刷新"
+                  className="text-destructive"
+                  onClick={() => autoRefresh.onToggle(false)}
+                >
+                  <PowerOff className="size-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="开启自动刷新"
+                  aria-label="开启自动刷新"
+                  className="text-success"
+                  onClick={() => autoRefresh.onToggle(true)}
+                >
+                  <Power className="size-3.5" />
+                </Button>
+              )}
             </div>
           ) : null}
           <Button

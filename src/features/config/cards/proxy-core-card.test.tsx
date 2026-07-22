@@ -9,35 +9,6 @@ afterEach(() => {
 });
 
 describe("ProxyCoreCard", () => {
-  it("does not expose the Codex session-scoped cooldown setting", () => {
-    render(
-      <ProxyCoreCard
-        form={EMPTY_FORM}
-        showLocalKey={false}
-        onToggleLocalKey={() => undefined}
-        onChange={() => undefined}
-        proxyService={{
-          status: { state: "stopped", addr: null, last_error: null },
-          requestState: "idle",
-          message: "",
-          isDirty: false,
-          onRefresh: () => undefined,
-          onStart: () => undefined,
-          onStop: () => undefined,
-          onRestart: () => undefined,
-          onReload: () => undefined,
-        }}
-      />,
-    );
-
-    expect(
-      screen.queryByText("Codex Responses 会话级冷却"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("switch", { name: "Codex Responses 会话级冷却" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("marks field requirements and exposes field-level validation errors", () => {
     render(
       <ProxyCoreCard

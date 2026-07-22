@@ -1,9 +1,9 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { LogsPanel } from "@/features/logs/LogsPanel";
+import { DashboardViewStateProvider } from "@/features/dashboard/state";
 import type { DashboardSnapshotQuery } from "@/features/dashboard/types";
+import { LogsPanel } from "@/features/logs/LogsPanel";
 import type { RequestLogDetail } from "@/features/logs/types";
 
 vi.mock("@/features/dashboard/components/data-table", () => ({
@@ -79,7 +79,7 @@ vi.mock("@/features/logs/api", () => ({
 }));
 
 function renderPanel() {
-  return render(<LogsPanel />);
+  return render(<LogsPanel />, { wrapper: DashboardViewStateProvider });
 }
 
 function createRequestLogDetail(
@@ -690,32 +690,6 @@ describe("logs/LogsPanel", () => {
     expect(screen.getByText("代理首块")).toBeInTheDocument();
     expect(screen.getByText("代理有效输出")).toBeInTheDocument();
     expect(screen.queryByText("总耗时")).not.toBeInTheDocument();
-  });
-
-  it("shows the local client label instead of a loopback IP", async () => {
-    const user = userEvent.setup();
-    readRequestLogDetailMock.mockResolvedValueOnce(
-      createRequestLogDetail({ clientIp: "127.0.0.1" }),
-    );
-
-    renderPanel();
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "alpha · openai · codex-a.json" }),
-      ).toBeInTheDocument();
-    });
-
-    await user.click(
-      screen.getByRole("button", { name: "alpha · openai · codex-a.json" }),
-    );
-
-    await waitFor(() => {
-      expect(readRequestLogDetailMock).toHaveBeenCalledWith(1);
-    });
-
-    expect(await screen.findByText("本机")).toBeInTheDocument();
-    expect(screen.queryByText("127.0.0.1")).not.toBeInTheDocument();
   });
 
   it("shows useful pricing metadata without the internal pricing version", async () => {

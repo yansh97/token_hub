@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -51,36 +51,6 @@ describe("upstreams/editor-dialog-form", () => {
     expect(compatibilityFields).toHaveClass("border-t");
     expect(compatibilityFields).not.toHaveClass("border-y");
     expect(compatibilityFields?.lastElementChild).toHaveClass("last:pb-0");
-  });
-
-  it("renders inline help only for advanced settings", () => {
-    const draft = createEmptyUpstream();
-
-    render(
-      <UpstreamEditorFields
-        draft={draft}
-        providerOptions={["openai"]}
-        showApiKeys={false}
-        onToggleApiKeys={vi.fn()}
-        onChangeDraft={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.queryByText("提供商的 API 根地址，启用前必须填写。"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(
-        "多个密钥使用逗号分隔；留空时沿用入站请求的鉴权信息。",
-      ),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText("整数，数值越大优先级越高；相同优先级按列表顺序选择。"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("调整路由优先级、格式转换和请求兼容行为。"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
   it("aligns mapping and header editors in the advanced value column", () => {

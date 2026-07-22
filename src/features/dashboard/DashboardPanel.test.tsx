@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardPanel } from "@/features/dashboard/DashboardPanel";
+import { DashboardViewStateProvider } from "@/features/dashboard/state";
 import type { DashboardSnapshotQuery } from "@/features/dashboard/types";
 
 vi.mock("@/features/dashboard/components/section-cards", () => ({
@@ -53,7 +54,7 @@ vi.mock("@/features/dashboard/api", () => ({
 }));
 
 function renderPanel() {
-  return render(<DashboardPanel />);
+  return render(<DashboardPanel />, { wrapper: DashboardViewStateProvider });
 }
 
 describe("dashboard/DashboardPanel", () => {
@@ -591,26 +592,19 @@ describe("dashboard/DashboardPanel", () => {
     });
   });
 
-  it("refreshes upstream model discovery before reloading the dashboard", async () => {
+  it("enables auto-refresh by default and allows toggling it", async () => {
     const user = userEvent.setup();
 
     renderPanel();
 
-    await waitFor(() => {
-      expect(screen.getByTestId("dashboard-summary-total")).toHaveTextContent(
-        "3",
-      );
-    });
-    expect(refreshDashboardModelDiscoveryMock).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: "刷新" }));
-
-    await waitFor(() => {
-      expect(refreshDashboardModelDiscoveryMock).toHaveBeenCalledTimes(1);
-      expect(readDashboardSnapshotMock).toHaveBeenCalledTimes(2);
-    });
     expect(
-      refreshDashboardModelDiscoveryMock.mock.invocationCallOrder[0],
-    ).toBeLessThan(readDashboardSnapshotMock.mock.invocationCallOrder[1]);
+      await screen.findByRole("button", { name: "关闭自动刷新" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "关闭自动刷新" }));
+
+    expect(
+      screen.getByRole("button", { name: "开启自动刷新" }),
+    ).toBeInTheDocument();
   });
 });
