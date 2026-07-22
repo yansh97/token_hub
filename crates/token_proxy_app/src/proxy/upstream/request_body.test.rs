@@ -39,6 +39,7 @@ fn xai_meta(model: &str, stream: bool) -> RequestMeta {
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     }
 }
 
@@ -96,18 +97,74 @@ async fn xai_responses_filters_unsupported_fields_and_orphaned_tool_controls() {
 }
 
 #[tokio::test]
-async fn xai_responses_keeps_tool_controls_for_additional_tools() {
+async fn xai_responses_promotes_additional_tools_and_keeps_controls() {
     let value = transformed_xai_body(
         "/v1/responses",
-        br#"{"model":"grok-4.3","previous_response_id":"resp_1","tool_choice":"auto","parallel_tool_calls":true,"input":[{"type":"additional_tools","tools":[{"type":"function","name":"Bash"}]}]}"#,
+        br#"{"model":"grok-4.3","previous_response_id":"resp_1","tools":[{"type":"function","name":"Read"}],"tool_choice":"auto","parallel_tool_calls":true,"input":[{"type":"message","role":"user","content":"hello"},{"type":"additional_tools","tools":[{"type":"function","name":"Bash"}]}]}"#,
         "grok-4.3",
     )
     .await;
 
     assert_eq!(value["tool_choice"], "auto");
     assert_eq!(value["parallel_tool_calls"], true);
-    assert_eq!(value["input"][0]["type"], "additional_tools");
+    assert_eq!(value["tools"][0]["name"], "Read");
+    assert_eq!(value["tools"][1]["name"], "Bash");
+    assert_eq!(value["input"].as_array().map(Vec::len), Some(1));
+    assert_eq!(value["input"][0]["type"], "message");
     assert!(value.get("previous_response_id").is_none());
+}
+
+#[tokio::test]
+async fn xai_responses_adds_object_type_to_root_tool_union_branches_only() {
+    let value = transformed_xai_body(
+        "/v1/responses",
+        br#"{"model":"grok-4.5","tools":[{"type":"function","name":"crop","strict":true,"parameters":{"type":"object","oneOf":[{"required":["radius"]},{"required":["size"],"not":{"required":["radius"]}}],"properties":{"nested":{"oneOf":[{"required":["value"]},{}]}}}},{"type":"web_search","name":"search","parameters":{"type":"object","anyOf":[{"required":["query"]}]}}],"input":"crop"}"#,
+        "grok-4.5",
+    )
+    .await;
+
+    assert_eq!(
+        value["tools"][0]["parameters"]["oneOf"][0]["type"],
+        "object"
+    );
+    assert_eq!(
+        value["tools"][0]["parameters"]["oneOf"][1]["type"],
+        "object"
+    );
+    assert!(
+        value["tools"][0]["parameters"]["properties"]["nested"]["oneOf"][0]
+            .get("type")
+            .is_none()
+    );
+    assert!(value["tools"][1]["parameters"]["anyOf"][0]
+        .get("type")
+        .is_none());
+}
+
+#[tokio::test]
+async fn xai_normalizes_image_references_without_touching_chat_content_parts() {
+    let value = transformed_xai_body(
+        "/v1/images/edits",
+        br#"{"model":"grok-imagine-image","image":{"type":"image_url","image_url":"https://example.com/a.png"},"images":[{"image_url":{"url":"https://example.com/b.png"}},{"url":"https://example.com/c.png","image_url":"https://example.com/ignored.png"}],"reference_images":[{"image_url":"https://example.com/d.png"}],"nested":{"image":{"image_url":"https://example.com/e.png"}},"content":[{"type":"image_url","image_url":{"url":"https://example.com/keep.png"}}]}"#,
+        "grok-imagine-image",
+    )
+    .await;
+
+    assert_eq!(value["image"]["url"], "https://example.com/a.png");
+    assert!(value["image"].get("image_url").is_none());
+    assert_eq!(value["images"][0]["url"], "https://example.com/b.png");
+    assert_eq!(value["images"][1]["url"], "https://example.com/c.png");
+    assert!(value["images"][1].get("image_url").is_none());
+    assert_eq!(
+        value["reference_images"][0]["url"],
+        "https://example.com/d.png"
+    );
+    assert_eq!(value["nested"]["image"]["url"], "https://example.com/e.png");
+    assert_eq!(
+        value["content"][0]["image_url"]["url"],
+        "https://example.com/keep.png"
+    );
+    assert!(value["content"][0].get("url").is_none());
 }
 
 #[tokio::test]
@@ -171,6 +228,75 @@ async fn xai_image_edits_multipart_body_is_not_json_transformed() {
 }
 
 #[tokio::test]
+async fn codex_responses_lite_header_and_metadata_force_parallel_tools_off() {
+    let upstream = test_upstream(false, false, false);
+    let mut header = axum::http::HeaderMap::new();
+    header.insert(
+        "x-openai-internal-codex-responses-lite",
+        axum::http::HeaderValue::from_static("true"),
+    );
+    for (headers, payload) in [
+        (
+            header,
+            br#"{"model":"gpt-5.6","input":"hi","parallel_tool_calls":true}"#.as_slice(),
+        ),
+        (
+            axum::http::HeaderMap::new(),
+            br#"{"model":"gpt-5.6","input":"hi","parallel_tool_calls":true,"client_metadata":{"ws_request_header_x_openai_internal_codex_responses_lite":"true"}}"#.as_slice(),
+        ),
+    ] {
+        let body = ReplayableBody::from_bytes(Bytes::copy_from_slice(payload));
+        let rewritten = match build_json_transformed_body_with_headers(
+            "codex",
+            &upstream,
+            "/v1/responses",
+            &body,
+            &xai_meta("gpt-5.6", true),
+            None,
+            &headers,
+        )
+        .await
+        {
+            Ok(Some(rewritten)) => rewritten,
+            Ok(None) => panic!("Responses Lite must change"),
+            Err(_) => panic!("Responses Lite transform must succeed"),
+        };
+        let bytes = rewritten
+            .read_bytes_if_small(4096)
+            .await
+            .expect("read")
+            .expect("bytes");
+        let value: Value = serde_json::from_slice(&bytes).expect("json");
+
+        assert_eq!(value["parallel_tool_calls"], false);
+    }
+}
+
+#[tokio::test]
+async fn codex_non_lite_request_does_not_change_parallel_tool_calls() {
+    let upstream = test_upstream(false, false, false);
+    let body = ReplayableBody::from_bytes(Bytes::from_static(
+        br#"{"model":"gpt-5.6","input":"hi","parallel_tool_calls":true}"#,
+    ));
+    let rewritten = match build_json_transformed_body_with_headers(
+        "codex",
+        &upstream,
+        "/v1/responses",
+        &body,
+        &xai_meta("gpt-5.6", true),
+        None,
+        &axum::http::HeaderMap::new(),
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(_) => panic!("non-lite transform inspection must succeed"),
+    };
+
+    assert!(rewritten.is_none());
+}
+
+#[tokio::test]
 async fn normalizes_anthropic_one_meg_model_suffix_in_upstream_body() {
     let upstream = test_upstream(false, false, false);
     let meta = RequestMeta {
@@ -181,6 +307,7 @@ async fn normalizes_anthropic_one_meg_model_suffix_in_upstream_body() {
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"claude-opus-4-6[1M][1m]","messages":[]}"#,
@@ -306,6 +433,7 @@ async fn strips_sampling_params_for_openai_responses_reasoning_model() {
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"openai/gpt-5.5","temperature":0.7,"top_p":0.9,"input":"hi"}"#,
@@ -348,6 +476,7 @@ async fn strips_sampling_params_for_openai_responses_reasoning_model_from_prefix
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"openai/gpt-5.5","temperature":0.7,"top_p":0.9,"input":"hi"}"#,
@@ -393,6 +522,7 @@ async fn rejects_large_openai_responses_reasoning_body_when_sampling_params_cann
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let input = "x".repeat(REQUEST_FILTER_LIMIT_BYTES + 1);
     let body = ReplayableBody::from_bytes(Bytes::from(format!(
@@ -569,6 +699,7 @@ async fn json_transform_pipeline_applies_reasoning_filters_and_role_rewrite_toge
         reasoning_effort: Some("high".to_string()),
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"gpt-5-reasoning-high","prompt_cache_retention":"24h","safety_identifier":"sid_1","input":[{"type":"message","role":"developer","content":[{"type":"input_text","text":"be precise"}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]}"#,
@@ -622,6 +753,7 @@ async fn openai_responses_grok_reasoning_effort_is_preserved() {
         reasoning_effort: Some("high".to_string()),
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"grok-4.20","input":"hi","reasoning":{"effort":"high","summary":"auto"}}"#,
@@ -664,6 +796,7 @@ async fn openai_chat_reasoning_effort_normalizes_glm_xhigh_to_max() {
         reasoning_effort: Some("xhigh".to_string()),
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"z-ai/glm-5.1-xhigh","messages":[{"role":"user","content":"hi"}]}"#,
@@ -708,6 +841,7 @@ async fn openai_chat_reasoning_effort_keeps_non_glm_xhigh() {
         reasoning_effort: Some("xhigh".to_string()),
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"openai/gpt-5.5-xhigh","messages":[{"role":"user","content":"hi"}]}"#,
@@ -751,6 +885,7 @@ async fn injects_codex_installation_id_into_client_metadata() {
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"gpt-5-codex","input":"hi","client_metadata":{"source":"token_proxy"}}"#,
@@ -798,6 +933,7 @@ async fn preserves_existing_codex_installation_id() {
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
     let body = ReplayableBody::from_bytes(Bytes::from_static(
         br#"{"model":"gpt-5-codex","input":"hi","client_metadata":{"x-codex-installation-id":"existing-device"}}"#,

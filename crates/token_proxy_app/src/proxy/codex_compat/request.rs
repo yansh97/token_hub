@@ -1,7 +1,10 @@
 use axum::body::Bytes;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use super::{
     namespace::{collect_tool_identities, flatten_responses_namespaces},
@@ -17,6 +20,7 @@ const GPT5_2_DEFAULT_INSTRUCTIONS: &str =
     "You are GPT-5.2 running in the Codex CLI, a terminal-based coding assistant.";
 const CODEX_CALL_ID_MAX_BYTES: usize = 64;
 const CODEX_CALL_ID_PREFIX: &str = "fc_";
+const CODEX_INPUT_ITEM_ID_MAX_CHARS: usize = 64;
 
 fn normalize_codex_call_id(id: &str) -> String {
     let candidate = match id {
@@ -329,34 +333,52 @@ fn collect_function_tool_names(value: &Value) -> Vec<String> {
 
 fn map_chat_messages_to_input(messages: &[Value], tool_map: &ToolNameMap) -> Vec<Value> {
     let mut input = Vec::new();
-    for message in messages {
+    let mut pending_calls = Vec::new();
+    for (message_index, message) in messages.iter().enumerate() {
         let Some(role) = message.get("role").and_then(Value::as_str) else {
             continue;
         };
         if role == "tool" {
-            if let Some(item) = map_tool_message(message) {
+            if let Some(item) = map_tool_message(message, &mut pending_calls) {
                 input.push(item);
             }
             continue;
         }
+        pending_calls.clear();
         if let Some(item) = map_regular_message(message, role) {
             input.push(item);
         }
         if role == "assistant" {
-            map_tool_calls(message, tool_map, &mut input);
+            pending_calls = map_tool_calls(message, message_index, tool_map, &mut input);
         }
     }
     input
 }
 
-fn map_tool_message(message: &Value) -> Option<Value> {
-    let call_id = message.get("tool_call_id").and_then(Value::as_str)?;
-    let call_id = normalize_codex_call_id(call_id);
+struct PendingToolCall {
+    call_id: String,
+    source_call_id: String,
+    output_type: &'static str,
+    consumed: bool,
+}
+
+fn map_tool_message(message: &Value, pending_calls: &mut [PendingToolCall]) -> Option<Value> {
+    let source_call_id = message
+        .get("tool_call_id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let pending = pending_calls.iter_mut().find(|pending| {
+        !pending.consumed
+            && (source_call_id.is_empty()
+                || pending.source_call_id == source_call_id
+                || pending.call_id == source_call_id)
+    })?;
+    pending.consumed = true;
     let empty = Value::String(String::new());
     let content = message.get("content").unwrap_or(&empty);
     Some(json!({
-        "type": "function_call_output",
-        "call_id": call_id,
+        "type": pending.output_type,
+        "call_id": pending.call_id,
         "output": value_to_string(content),
     }))
 }
@@ -412,33 +434,117 @@ fn push_text_part(parts: &mut Vec<Value>, role: &str, text: &str) {
     parts.push(json!({ "type": part_type, "text": text }));
 }
 
-fn map_tool_calls(message: &Value, tool_map: &ToolNameMap, input: &mut Vec<Value>) {
+fn map_tool_calls(
+    message: &Value,
+    message_index: usize,
+    tool_map: &ToolNameMap,
+    input: &mut Vec<Value>,
+) -> Vec<PendingToolCall> {
     let Some(tool_calls) = message.get("tool_calls").and_then(Value::as_array) else {
-        return;
+        return Vec::new();
     };
+    let mut source_id_counts = HashMap::new();
+    let mut used_call_ids = HashSet::new();
     for call in tool_calls {
-        if call.get("type").and_then(Value::as_str) != Some("function") {
+        if !matches!(
+            call.get("type").and_then(Value::as_str),
+            Some("function" | "custom")
+        ) {
             continue;
         }
-        let call_id =
-            normalize_codex_call_id(call.get("id").and_then(Value::as_str).unwrap_or_default());
-        let name = call
-            .get("function")
-            .and_then(|value| value.get("name"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let arguments = call
-            .get("function")
-            .and_then(|value| value.get("arguments"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        input.push(json!({
-            "type": "function_call",
-            "call_id": call_id,
-            "name": tool_map.shorten(name),
-            "arguments": arguments,
-        }));
+        let source_id = call.get("id").and_then(Value::as_str).unwrap_or_default();
+        if !source_id.is_empty() {
+            *source_id_counts
+                .entry(source_id.to_string())
+                .or_insert(0usize) += 1;
+            used_call_ids.insert(normalize_codex_call_id(source_id));
+        }
     }
+    let ambiguous_ids = source_id_counts
+        .into_iter()
+        .filter_map(|(id, count)| (count > 1).then_some(id))
+        .collect::<HashSet<_>>();
+    if !ambiguous_ids.is_empty() {
+        tracing::warn!(
+            duplicate_id_count = ambiguous_ids.len(),
+            "dropped ambiguous Codex tool calls with duplicate ids"
+        );
+    }
+
+    let mut pending = Vec::new();
+    for (call_index, call) in tool_calls.iter().enumerate() {
+        let Some(call_type @ ("function" | "custom")) = call.get("type").and_then(Value::as_str)
+        else {
+            continue;
+        };
+        let source_call_id = call.get("id").and_then(Value::as_str).unwrap_or_default();
+        if !source_call_id.is_empty() && ambiguous_ids.contains(source_call_id) {
+            continue;
+        }
+        let call_id = if source_call_id.is_empty() {
+            let base = format!("call_missing_{message_index}_{call_index}");
+            let mut candidate = base.clone();
+            let mut suffix = 1usize;
+            while used_call_ids.contains(&candidate) {
+                candidate = format!("{base}_{suffix}");
+                suffix += 1;
+            }
+            used_call_ids.insert(candidate.clone());
+            tracing::debug!(
+                message_index,
+                call_index,
+                "synthesized missing Codex tool call id"
+            );
+            candidate
+        } else {
+            normalize_codex_call_id(source_call_id)
+        };
+
+        let (item, output_type) = if call_type == "custom" {
+            let custom = call.get("custom").unwrap_or(&Value::Null);
+            let name = custom
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let custom_input = custom.get("input").map(value_to_string).unwrap_or_default();
+            (
+                json!({
+                    "type": "custom_tool_call",
+                    "call_id": call_id,
+                    "name": tool_map.shorten(name),
+                    "input": custom_input,
+                }),
+                "custom_tool_call_output",
+            )
+        } else {
+            let function = call.get("function").unwrap_or(&Value::Null);
+            let name = function
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let arguments = function
+                .get("arguments")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            (
+                json!({
+                    "type": "function_call",
+                    "call_id": call_id,
+                    "name": tool_map.shorten(name),
+                    "arguments": arguments,
+                }),
+                "function_call_output",
+            )
+        };
+        input.push(item);
+        pending.push(PendingToolCall {
+            call_id,
+            source_call_id: source_call_id.to_string(),
+            output_type,
+            consumed: false,
+        });
+    }
+    pending
 }
 
 fn map_tools(tools: &Value, tool_map: &ToolNameMap) -> Value {
@@ -1082,10 +1188,76 @@ fn non_empty_text(text: &str) -> Option<String> {
 }
 
 fn sanitize_responses_input_for_codex(items: &[Value]) -> Vec<Value> {
-    items
+    let mut sanitized = items
         .iter()
         .map(sanitize_responses_input_item_for_codex)
-        .collect()
+        .collect::<Vec<_>>();
+    normalize_codex_input_item_ids(&mut sanitized);
+    sanitized
+}
+
+// Codex caps every retained input item id, not only function call ids. Keep a
+// request-wide map so repeated source ids stay paired and cannot collide.
+fn normalize_codex_input_item_ids(items: &mut [Value]) {
+    let mut occupied = items
+        .iter()
+        .filter_map(|item| item.get("id").and_then(Value::as_str))
+        .filter(|id| id.chars().count() <= CODEX_INPUT_ITEM_ID_MAX_CHARS)
+        .map(str::to_string)
+        .collect::<HashSet<_>>();
+    let mut mapped = HashMap::new();
+    let mut changed = 0usize;
+
+    for item in items {
+        let Some(object) = item.as_object_mut() else {
+            continue;
+        };
+        let Some(id) = object
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| id.chars().count() > CODEX_INPUT_ITEM_ID_MAX_CHARS)
+            .map(str::to_string)
+        else {
+            continue;
+        };
+
+        let shortened = mapped.entry(id.clone()).or_insert_with(|| {
+            let mut attempt = 0usize;
+            loop {
+                let candidate = shorten_codex_input_item_id(&id, attempt);
+                if occupied.insert(candidate.clone()) {
+                    break candidate;
+                }
+                attempt += 1;
+            }
+        });
+        object.insert("id".to_string(), Value::String(shortened.clone()));
+        changed += 1;
+    }
+
+    if changed > 0 {
+        tracing::debug!(changed, "compacted overlong Codex input item ids");
+    }
+}
+
+fn shorten_codex_input_item_id(id: &str, attempt: usize) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"token-proxy:codex-input-item-id:v1:");
+    hasher.update(id.as_bytes());
+    hasher.update(attempt.to_be_bytes());
+    let digest: String = hasher
+        .finalize()
+        .iter()
+        .take(8)
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let suffix = format!("_{digest}");
+    let prefix_chars = CODEX_INPUT_ITEM_ID_MAX_CHARS - suffix.chars().count();
+    format!(
+        "{}{}",
+        id.chars().take(prefix_chars).collect::<String>(),
+        suffix
+    )
 }
 
 fn sanitize_responses_input_item_for_codex(item: &Value) -> Value {

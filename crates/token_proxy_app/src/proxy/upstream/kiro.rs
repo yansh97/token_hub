@@ -249,7 +249,7 @@ async fn send_endpoint_request(
         "token_rate register before kiro send"
     );
     let start_time = Instant::now();
-    let timings = RequestTimings::default();
+    let timings = RequestTimings::with_billing(context.mapped_meta.billing.clone());
     let response = match send_kiro_request(
         &context.client,
         context.method.clone(),

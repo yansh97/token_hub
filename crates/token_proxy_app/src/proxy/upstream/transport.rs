@@ -171,6 +171,7 @@ async fn send_upstream_request_once(
             body,
             meta,
             codex_openai_device_id,
+            request_headers,
         )
         .await?;
         let response_header_timeout = response_header_timeout_for_request(&state.config, meta);
@@ -407,6 +408,7 @@ async fn send_codex_attempt(
         body,
         meta,
         codex_openai_device_id,
+        request_headers,
     )
     .await
     .map_err(CodexAttemptError::Fatal)?;
@@ -763,6 +765,7 @@ mod tests {
             reasoning_effort: None,
             response_format: None,
             estimated_input_tokens: None,
+            billing: Default::default(),
         };
 
         assert_eq!(

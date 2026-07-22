@@ -219,7 +219,10 @@ CREATE TABLE IF NOT EXISTS request_logs (
   cost_nano_usd INTEGER,
   pricing_version TEXT,
   pricing_model TEXT,
-  pricing_context_tier TEXT
+  pricing_context_tier TEXT,
+  client_request_id TEXT,
+  attempt_index INTEGER,
+  is_billable INTEGER NOT NULL DEFAULT 1
 );
 "#,
     )
@@ -228,6 +231,12 @@ CREATE TABLE IF NOT EXISTS request_logs (
     .map_err(|err| format!("Failed to create request_logs table: {err}"))?;
 
     ensure_request_logs_columns(pool).await?;
+    sqlx::query(
+        "CREATE VIEW IF NOT EXISTS billable_request_logs AS SELECT * FROM request_logs WHERE is_billable = 1;",
+    )
+    .execute(pool)
+    .await
+    .map_err(|err| format!("Failed to create billable_request_logs view: {err}"))?;
     usage_backfill::backfill_request_log_usage(pool).await?;
     super::pricing::init_model_pricing_table(pool).await?;
     super::pricing::backfill_request_log_costs(pool).await?;
@@ -250,6 +259,14 @@ CREATE TABLE IF NOT EXISTS request_logs (
     .execute(pool)
     .await
     .map_err(|err| format!("Failed to create idx_request_logs_upstream_ts_ms: {err}"))?;
+
+    // 归因更新只扫描同一客户端请求的 attempts，避免日志表增长后逐次全表扫描。
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_request_logs_client_attempt ON request_logs(client_request_id, attempt_index DESC, id DESC);",
+    )
+    .execute(pool)
+    .await
+    .map_err(|err| format!("Failed to create idx_request_logs_client_attempt: {err}"))?;
 
     // 复合索引：优化中位数延迟查询（按时间范围过滤后按延迟排序）
     sqlx::query(
@@ -448,6 +465,27 @@ async fn ensure_request_logs_columns(pool: &SqlitePool) -> Result<(), String> {
             .execute(pool)
             .await
             .map_err(|err| format!("Failed to add pricing_context_tier column: {err}"))?;
+    }
+
+    if !columns.contains("client_request_id") {
+        sqlx::query("ALTER TABLE request_logs ADD COLUMN client_request_id TEXT;")
+            .execute(pool)
+            .await
+            .map_err(|err| format!("Failed to add client_request_id column: {err}"))?;
+    }
+
+    if !columns.contains("attempt_index") {
+        sqlx::query("ALTER TABLE request_logs ADD COLUMN attempt_index INTEGER;")
+            .execute(pool)
+            .await
+            .map_err(|err| format!("Failed to add attempt_index column: {err}"))?;
+    }
+
+    if !columns.contains("is_billable") {
+        sqlx::query("ALTER TABLE request_logs ADD COLUMN is_billable INTEGER NOT NULL DEFAULT 1;")
+            .execute(pool)
+            .await
+            .map_err(|err| format!("Failed to add is_billable column: {err}"))?;
     }
 
     Ok(())
@@ -695,6 +733,17 @@ FROM request_logs WHERE id = ?;
         assert!(columns.contains("pricing_version"));
         assert!(columns.contains("pricing_model"));
         assert!(columns.contains("pricing_context_tier"));
+        assert!(columns.contains("client_request_id"));
+        assert!(columns.contains("attempt_index"));
+        assert!(columns.contains("is_billable"));
+
+        let billing_index = sqlx::query(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_request_logs_client_attempt';",
+        )
+        .fetch_optional(&pool)
+        .await
+        .expect("query billing index");
+        assert!(billing_index.is_some());
 
         let pricing_table = sqlx::query(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_catalog_cache';",

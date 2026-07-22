@@ -404,6 +404,36 @@ fn responses_request_to_anthropic_maps_tool_choice_and_tool_result() {
 }
 
 #[test]
+fn responses_request_to_anthropic_keeps_namespace_history_and_declaration_aligned() {
+    let http_clients = ProxyHttpClients::new().expect("http clients");
+    let input = bytes_from_json(json!({
+        "model": "claude-3-5-sonnet",
+        "input": [
+            { "type": "function_call", "call_id": "call_1", "namespace": "mcp__github", "name": "get_me", "arguments": "{}" },
+            { "type": "function_call_output", "call_id": "call_1", "output": "ok" }
+        ],
+        "tools": [{
+            "type": "namespace",
+            "name": "mcp__github",
+            "tools": [{ "type": "function", "name": "get_me", "parameters": { "type": "object" } }]
+        }]
+    }));
+
+    let output = run_async(async {
+        responses_request_to_anthropic(&input, &http_clients)
+            .await
+            .expect("transform")
+    });
+    let value = json_from_bytes(output);
+
+    assert_eq!(value["tools"][0]["name"], "mcp__github__get_me");
+    assert_eq!(
+        value["messages"][1]["content"][0]["name"],
+        "mcp__github__get_me"
+    );
+}
+
+#[test]
 fn responses_request_to_anthropic_merges_system_roles_for_all_message_shapes() {
     let http_clients = ProxyHttpClients::new().expect("http clients");
     let cases = [

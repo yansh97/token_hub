@@ -55,6 +55,7 @@ pub(super) struct ForwardAttemptState {
     pub(super) last_retry_response: Option<Response>,
     pub(super) effective_body: Option<ReplayableBody>,
     pub(super) last_deferred_log: Option<DeferredTransportLog>,
+    pub(super) model_unsupported: bool,
 }
 
 impl ForwardAttemptState {
@@ -68,6 +69,7 @@ impl ForwardAttemptState {
             last_retry_response: None,
             effective_body: None,
             last_deferred_log: None,
+            model_unsupported: false,
         }
     }
 }
@@ -268,7 +270,57 @@ pub(super) async fn run_upstream_groups(
             break;
         }
     }
+    if summary.attempted == 0
+        && meta.original_model.is_some()
+        && provider_has_route_candidate(upstreams, inbound_format, target_upstream_id.as_deref())
+        && !provider_has_model_candidate(
+            upstreams,
+            inbound_format,
+            target_upstream_id.as_deref(),
+            meta.original_model.as_deref(),
+        )
+    {
+        summary.model_unsupported = true;
+        tracing::warn!(
+            provider,
+            model = meta.original_model.as_deref().unwrap_or(""),
+            exclusion_reason = "model_not_supported",
+            "all upstream candidates excluded by model allowlist"
+        );
+    }
     summary
+}
+
+fn provider_has_route_candidate(
+    upstreams: &ProviderUpstreams,
+    inbound_format: Option<InboundApiFormat>,
+    target_upstream_id: Option<&str>,
+) -> bool {
+    upstreams
+        .groups
+        .iter()
+        .flat_map(|group| &group.items)
+        .any(|item| {
+            inbound_format.is_none_or(|format| item.supports_inbound(format))
+                && target_upstream_id.is_none_or(|target| item.id == target)
+        })
+}
+
+fn provider_has_model_candidate(
+    upstreams: &ProviderUpstreams,
+    inbound_format: Option<InboundApiFormat>,
+    target_upstream_id: Option<&str>,
+    original_model: Option<&str>,
+) -> bool {
+    upstreams
+        .groups
+        .iter()
+        .flat_map(|group| &group.items)
+        .any(|item| {
+            inbound_format.is_none_or(|format| item.supports_inbound(format))
+                && target_upstream_id.is_none_or(|target| item.id == target)
+                && item.supports_model(original_model)
+        })
 }
 
 async fn try_group_upstreams(

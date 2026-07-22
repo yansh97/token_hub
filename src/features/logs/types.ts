@@ -33,6 +33,9 @@ export type RequestLogDetail = {
   pricingVersion: string | null;
   pricingModel: string | null;
   pricingContextTier: string | null;
+  clientRequestId: string | null;
+  attemptIndex: number | null;
+  isBillable: boolean;
   latencyMs: number;
   upstreamFirstByteMs?: number | null;
   upstreamResponseHeadersMs?: number | null;

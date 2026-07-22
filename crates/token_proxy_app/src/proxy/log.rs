@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::SqlitePool;
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex, OnceLock,
+    },
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -94,6 +97,38 @@ pub(crate) struct LogEntry {
     pub(crate) pricing_version: String,
     pub(crate) pricing_model: Option<String>,
     pub(crate) pricing_context_tier: Option<String>,
+    pub(crate) client_request_id: Option<String>,
+    pub(crate) attempt_index: Option<u64>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ClientRequestBilling {
+    request_id: Arc<str>,
+    next_completion_index: Arc<AtomicU64>,
+}
+
+impl Default for ClientRequestBilling {
+    fn default() -> Self {
+        Self {
+            request_id: format!("{:032x}", rand::random::<u128>()).into(),
+            next_completion_index: Arc::new(AtomicU64::new(0)),
+        }
+    }
+}
+
+impl ClientRequestBilling {
+    fn complete_attempt(&self) -> BillingAttempt {
+        BillingAttempt {
+            request_id: self.request_id.to_string(),
+            index: self.next_completion_index.fetch_add(1, Ordering::Relaxed),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct BillingAttempt {
+    request_id: String,
+    index: u64,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -108,9 +143,19 @@ pub(crate) struct RequestTimingSnapshot {
 #[derive(Clone, Default)]
 pub(crate) struct RequestTimings {
     inner: Arc<Mutex<RequestTimingSnapshot>>,
+    billing: Option<ClientRequestBilling>,
+    billing_attempt: Arc<OnceLock<BillingAttempt>>,
 }
 
 impl RequestTimings {
+    pub(crate) fn with_billing(billing: ClientRequestBilling) -> Self {
+        Self {
+            inner: Arc::default(),
+            billing: Some(billing),
+            billing_attempt: Arc::default(),
+        }
+    }
+
     pub(crate) fn mark_upstream_response_headers(&self, value: u128) {
         self.mark_once(|snapshot| &mut snapshot.upstream_response_headers_ms, value);
     }
@@ -134,6 +179,14 @@ impl RequestTimings {
 
     fn snapshot(&self) -> RequestTimingSnapshot {
         self.inner.lock().map(|guard| *guard).unwrap_or_default()
+    }
+
+    fn billing_attempt(&self) -> Option<&BillingAttempt> {
+        let billing = self.billing.as_ref()?;
+        Some(
+            self.billing_attempt
+                .get_or_init(|| billing.complete_attempt()),
+        )
     }
 
     fn mark_once(
@@ -253,6 +306,7 @@ pub(crate) fn build_log_entry(
         service_tier.as_deref(),
         &usage.billable_usage,
     );
+    let billing_attempt = context.timings.billing_attempt();
     LogEntry {
         ts_ms: now_ms(),
         client_ip: context.client_ip.clone(),
@@ -285,6 +339,8 @@ pub(crate) fn build_log_entry(
         pricing_context_tier: request_cost
             .as_ref()
             .map(|cost| cost.context_tier.as_str().to_string()),
+        client_request_id: billing_attempt.map(|attempt| attempt.request_id.clone()),
+        attempt_index: billing_attempt.map(|attempt| attempt.index),
     }
 }
 
@@ -348,6 +404,7 @@ async fn insert_log_entry(pool: &SqlitePool, entry: &LogEntry) -> Result<(), sql
     let pricing_context_tier = request_cost.as_ref().map(|cost| cost.context_tier.as_str());
     let usage_json = entry.usage_json.as_ref().map(Value::to_string);
 
+    let mut transaction = pool.begin().await?;
     sqlx::query(
         r#"
 INSERT INTO request_logs (
@@ -387,8 +444,11 @@ INSERT INTO request_logs (
   cost_nano_usd,
   pricing_version,
   pricing_model,
-  pricing_context_tier
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  pricing_context_tier,
+  client_request_id,
+  attempt_index,
+  is_billable
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1);
 "#,
     )
     .bind(to_i64_u128(entry.ts_ms))
@@ -428,8 +488,42 @@ INSERT INTO request_logs (
     .bind(pricing_settings.version.as_str())
     .bind(pricing_model)
     .bind(pricing_context_tier)
-    .execute(pool)
+    .bind(entry.client_request_id.as_deref())
+    .bind(entry.attempt_index.map(to_i64_u64))
+    .execute(&mut *transaction)
     .await?;
+
+    if let Some(client_request_id) = entry.client_request_id.as_deref() {
+        // attempt 完成顺序与异步落库顺序都可能不同；按完成序号重算唯一账单记录。
+        sqlx::query(
+            r#"
+UPDATE request_logs
+SET is_billable = CASE
+  WHEN id = (
+    SELECT id
+    FROM request_logs
+    WHERE client_request_id = ?
+    ORDER BY
+      attempt_index DESC,
+      id DESC
+    LIMIT 1
+  ) THEN 1
+  ELSE 0
+END
+WHERE client_request_id = ?;
+"#,
+        )
+        .bind(client_request_id)
+        .bind(client_request_id)
+        .execute(&mut *transaction)
+        .await?;
+        tracing::debug!(
+            client_request_id,
+            attempt_index = entry.attempt_index,
+            "reconciled client request billing attribution"
+        );
+    }
+    transaction.commit().await?;
 
     Ok(())
 }
@@ -445,6 +539,75 @@ fn to_i64_u64(value: u64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn out_of_order_attempts_keep_usage_but_bill_the_last_completed_response() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("connect sqlite");
+        crate::proxy::sqlite::init_schema(&pool)
+            .await
+            .expect("init schema");
+        let writer = LogWriter::new(Some(pool.clone()));
+        let billing = ClientRequestBilling::default();
+        let first_started = RequestTimings::with_billing(billing.clone());
+        let second_started = RequestTimings::with_billing(billing);
+        let mut entries = Vec::new();
+
+        // 后启动的 attempt 先失败，先启动的并发 attempt 后成功。
+        for (timings, status, input_tokens, output_tokens) in
+            [(second_started, 429, 11, 1), (first_started, 200, 22, 2)]
+        {
+            let context = LogContext {
+                client_ip: None,
+                path: "/v1/responses".to_string(),
+                provider: "openai-response".to_string(),
+                upstream_id: "retry-upstream".to_string(),
+                account_id: None,
+                model: Some("gpt-5".to_string()),
+                mapped_model: None,
+                stream: false,
+                status,
+                upstream_request_id: None,
+                request_headers: None,
+                request_body: None,
+                ttfb_ms: None,
+                timings,
+                start: Instant::now(),
+            };
+            let usage = UsageSnapshot::from_uncached_usage(
+                Some(TokenUsage {
+                    input_tokens: Some(input_tokens),
+                    output_tokens: Some(output_tokens),
+                    total_tokens: Some(input_tokens + output_tokens),
+                }),
+                None,
+            );
+            entries.push(build_log_entry(&context, usage, None));
+        }
+
+        // 再反转 SQLite 写入顺序，验证异步日志乱序仍按完成序号收敛。
+        writer.write(&entries[1]).await;
+        writer.write(&entries[0]).await;
+
+        let rows = sqlx::query(
+            "SELECT status, input_tokens, attempt_index, is_billable FROM request_logs ORDER BY attempt_index ASC;",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("query attempts");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].try_get::<i64, _>("status").ok(), Some(429));
+        assert_eq!(rows[0].try_get::<i64, _>("input_tokens").ok(), Some(11));
+        assert_eq!(rows[0].try_get::<i64, _>("attempt_index").ok(), Some(0));
+        assert_eq!(rows[0].try_get::<i64, _>("is_billable").ok(), Some(0));
+        assert_eq!(rows[1].try_get::<i64, _>("status").ok(), Some(200));
+        assert_eq!(rows[1].try_get::<i64, _>("input_tokens").ok(), Some(22));
+        assert_eq!(rows[1].try_get::<i64, _>("attempt_index").ok(), Some(1));
+        assert_eq!(rows[1].try_get::<i64, _>("is_billable").ok(), Some(1));
+    }
     use crate::proxy::pricing::{
         save_model_pricing_settings, BillableUsage, ModelPricingModel, ModelPricingProfile,
         ModelPricingSettingsInput,

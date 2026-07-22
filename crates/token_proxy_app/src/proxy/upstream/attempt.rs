@@ -345,7 +345,7 @@ pub(super) async fn attempt_send(
     // 在真正发上游前 register，TTFB 期间托盘也能显示 connections（↑ fallback）。
     let token_tracker = register_token_tracker_for_attempt(state, &meta).await;
     let start_time = Instant::now();
-    let timings = RequestTimings::default();
+    let timings = RequestTimings::with_billing(meta.billing.clone());
     let response = match send_upstream_request(
         state,
         method,

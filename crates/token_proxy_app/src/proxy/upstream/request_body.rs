@@ -1,4 +1,7 @@
-use axum::{body::Bytes, http::StatusCode};
+use axum::{
+    body::Bytes,
+    http::{HeaderMap, StatusCode},
+};
 use serde_json::{Map, Value};
 
 use super::super::{
@@ -15,6 +18,9 @@ const REQUEST_MODEL_MAPPING_LIMIT_BYTES: usize = 4 * 1024 * 1024;
 const REQUEST_REASONING_LIMIT_BYTES: usize = 100 * 1024 * 1024;
 const REQUEST_FILTER_LIMIT_BYTES: usize = 20 * 1024 * 1024;
 const CODEX_INSTALLATION_ID_KEY: &str = "x-codex-installation-id";
+const CODEX_RESPONSES_LITE_HEADER: &str = "x-openai-internal-codex-responses-lite";
+const CODEX_RESPONSES_LITE_METADATA_KEY: &str =
+    "ws_request_header_x_openai_internal_codex_responses_lite";
 
 pub(super) async fn build_upstream_body(
     provider: &str,
@@ -23,14 +29,16 @@ pub(super) async fn build_upstream_body(
     body: &ReplayableBody,
     meta: &RequestMeta,
     codex_openai_device_id: Option<&str>,
+    request_headers: &HeaderMap,
 ) -> Result<reqwest::Body, AttemptOutcome> {
-    let transformed = build_json_transformed_body(
+    let transformed = build_json_transformed_body_with_headers(
         provider,
         upstream,
         upstream_path_with_query,
         body,
         meta,
         codex_openai_device_id,
+        request_headers,
     )
     .await?;
     let final_source = transformed.as_ref().unwrap_or(body);
@@ -42,6 +50,7 @@ pub(super) async fn build_upstream_body(
     })
 }
 
+#[cfg(test)]
 async fn build_json_transformed_body(
     provider: &str,
     upstream: &UpstreamRuntime,
@@ -50,6 +59,27 @@ async fn build_json_transformed_body(
     meta: &RequestMeta,
     codex_openai_device_id: Option<&str>,
 ) -> Result<Option<ReplayableBody>, AttemptOutcome> {
+    build_json_transformed_body_with_headers(
+        provider,
+        upstream,
+        upstream_path_with_query,
+        body,
+        meta,
+        codex_openai_device_id,
+        &HeaderMap::new(),
+    )
+    .await
+}
+
+async fn build_json_transformed_body_with_headers(
+    provider: &str,
+    upstream: &UpstreamRuntime,
+    upstream_path_with_query: &str,
+    body: &ReplayableBody,
+    meta: &RequestMeta,
+    codex_openai_device_id: Option<&str>,
+    request_headers: &HeaderMap,
+) -> Result<Option<ReplayableBody>, AttemptOutcome> {
     let upstream_path = split_path_query(upstream_path_with_query).0;
     if !needs_json_transform(
         provider,
@@ -57,6 +87,7 @@ async fn build_json_transformed_body(
         upstream_path,
         meta,
         codex_openai_device_id,
+        request_headers,
     ) {
         return Ok(None);
     }
@@ -70,6 +101,7 @@ async fn build_json_transformed_body(
         upstream_path,
         meta,
         codex_openai_device_id,
+        request_headers,
     );
     let Some(bytes) = body.read_bytes_if_small(read_limit).await.map_err(|err| {
         AttemptOutcome::Fatal(http::error_response(
@@ -101,6 +133,14 @@ async fn build_json_transformed_body(
     changed |= apply_reasoning_effort(provider, upstream_path, object, meta, body_len);
     changed |= filter_openai_responses_fields(provider, upstream, upstream_path, object, body_len);
     changed |= filter_xai_responses_request(provider, upstream_path, object, meta, body_len);
+    changed |= normalize_xai_image_refs(provider, object, body_len);
+    changed |= force_codex_responses_lite_parallel_tool_calls(
+        provider,
+        upstream_path,
+        request_headers,
+        object,
+        body_len,
+    );
     changed |= strip_openai_responses_sampling_params(
         provider,
         upstream_path,
@@ -125,6 +165,7 @@ fn json_transform_read_limit(
     upstream_path: &str,
     meta: &RequestMeta,
     codex_openai_device_id: Option<&str>,
+    request_headers: &HeaderMap,
 ) -> usize {
     let mut limit = 0usize;
     if meta.model_override().is_some() && meta.mapped_model.is_some() {
@@ -142,6 +183,9 @@ fn json_transform_read_limit(
     if should_filter_xai_responses_request(provider, upstream_path) {
         limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
     }
+    if should_normalize_xai_image_refs(provider) {
+        limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
+    }
     if should_strip_openai_responses_sampling_params(provider, upstream_path, meta) {
         limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
     }
@@ -154,6 +198,9 @@ fn json_transform_read_limit(
     if should_inject_codex_installation_id(provider, codex_openai_device_id) {
         limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
     }
+    if should_inspect_codex_responses_lite(provider, upstream_path, request_headers) {
+        limit = limit.max(REQUEST_FILTER_LIMIT_BYTES);
+    }
     limit
 }
 
@@ -163,16 +210,65 @@ fn needs_json_transform(
     upstream_path: &str,
     meta: &RequestMeta,
     codex_openai_device_id: Option<&str>,
+    request_headers: &HeaderMap,
 ) -> bool {
     (meta.model_override().is_some() && meta.mapped_model.is_some())
         || should_normalize_anthropic_model(provider, upstream_path, meta)
         || should_apply_reasoning_effort(provider, upstream_path, meta)
         || should_filter_openai_responses_fields(provider, upstream, upstream_path)
         || should_filter_xai_responses_request(provider, upstream_path)
+        || should_normalize_xai_image_refs(provider)
         || should_strip_openai_responses_sampling_params(provider, upstream_path, meta)
         || should_rewrite_developer_roles(upstream, upstream_path)
         || should_filter_anthropic_count_tokens_request(provider, upstream_path)
         || should_inject_codex_installation_id(provider, codex_openai_device_id)
+        || should_inspect_codex_responses_lite(provider, upstream_path, request_headers)
+}
+
+fn should_inspect_codex_responses_lite(
+    provider: &str,
+    upstream_path: &str,
+    _request_headers: &HeaderMap,
+) -> bool {
+    provider == "codex"
+        && (upstream_path == OPENAI_RESPONSES_PATH || upstream_path == XAI_RESPONSES_COMPACT_PATH)
+}
+
+fn force_codex_responses_lite_parallel_tool_calls(
+    provider: &str,
+    upstream_path: &str,
+    request_headers: &HeaderMap,
+    object: &mut Map<String, Value>,
+    body_len: usize,
+) -> bool {
+    if body_len > REQUEST_FILTER_LIMIT_BYTES
+        || !should_inspect_codex_responses_lite(provider, upstream_path, request_headers)
+    {
+        return false;
+    }
+    let header_lite = request_headers
+        .get(CODEX_RESPONSES_LITE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("true"));
+    let metadata_lite = object
+        .get("client_metadata")
+        .and_then(Value::as_object)
+        .and_then(|metadata| metadata.get(CODEX_RESPONSES_LITE_METADATA_KEY))
+        .is_some_and(|value| {
+            value.as_bool() == Some(true)
+                || value
+                    .as_str()
+                    .is_some_and(|value| value.trim().eq_ignore_ascii_case("true"))
+        });
+    if !header_lite && !metadata_lite {
+        return false;
+    }
+    if object.get("parallel_tool_calls").and_then(Value::as_bool) == Some(false) {
+        return false;
+    }
+    object.insert("parallel_tool_calls".to_string(), Value::Bool(false));
+    tracing::debug!("forced parallel_tool_calls=false for Codex Responses Lite");
+    true
 }
 
 fn should_normalize_anthropic_model(
@@ -408,8 +504,12 @@ fn filter_xai_responses_request(
             ],
         );
         changed |= remove_xai_input_items_by_type(object, "compaction_trigger");
-    } else if !has_xai_request_tools(object) {
-        changed |= remove_json_fields(object, &["tools", "tool_choice", "parallel_tool_calls"]);
+    } else {
+        changed |= promote_xai_additional_tools(object);
+        changed |= normalize_xai_root_tool_union_branches(object);
+        if !has_xai_request_tools(object) {
+            changed |= remove_json_fields(object, &["tools", "tool_choice", "parallel_tool_calls"]);
+        }
     }
 
     if changed {
@@ -419,6 +519,182 @@ fn filter_xai_responses_request(
         );
     }
     changed
+}
+
+// Responses Lite encodes extra declarations as input items, while xAI accepts
+// declarations only in the root tools array. Preserve root order, then append extras.
+fn promote_xai_additional_tools(object: &mut Map<String, Value>) -> bool {
+    let Some(input) = object.get_mut("input").and_then(Value::as_array_mut) else {
+        return false;
+    };
+
+    let original_len = input.len();
+    let mut promoted = Vec::new();
+    input.retain(|item| {
+        if item.get("type").and_then(Value::as_str) != Some("additional_tools") {
+            return true;
+        }
+        if let Some(tools) = item.get("tools").and_then(Value::as_array) {
+            promoted.extend(tools.iter().cloned());
+        }
+        false
+    });
+    if input.len() == original_len {
+        return false;
+    }
+
+    if !promoted.is_empty() {
+        match object.get_mut("tools") {
+            Some(Value::Array(tools)) => tools.extend(promoted),
+            _ => {
+                object.insert("tools".to_string(), Value::Array(promoted));
+            }
+        }
+    }
+    tracing::debug!("promoted xAI additional_tools into root tools");
+    true
+}
+
+// xAI requires every branch of an object-only root union to declare its type.
+// Nested unions keep their original schema semantics.
+fn normalize_xai_root_tool_union_branches(object: &mut Map<String, Value>) -> bool {
+    let Some(tools) = object.get_mut("tools").and_then(Value::as_array_mut) else {
+        return false;
+    };
+    let mut changed = false;
+    for tool in tools {
+        let Some(tool) = tool.as_object_mut() else {
+            continue;
+        };
+        let tool_type = tool.get("type").and_then(Value::as_str);
+        if !matches!(tool_type, Some("function" | "custom")) {
+            continue;
+        }
+        if let Some(parameters) = tool.get_mut("parameters") {
+            changed |= normalize_xai_object_root_union(parameters);
+        }
+        if let Some(parameters) = tool
+            .get_mut("function")
+            .and_then(Value::as_object_mut)
+            .and_then(|function| function.get_mut("parameters"))
+        {
+            changed |= normalize_xai_object_root_union(parameters);
+        }
+    }
+    if changed {
+        tracing::debug!("normalized xAI root tool union branch types");
+    }
+    changed
+}
+
+fn normalize_xai_object_root_union(parameters: &mut Value) -> bool {
+    let Some(parameters) = parameters.as_object_mut() else {
+        return false;
+    };
+    if parameters.get("type").and_then(Value::as_str) != Some("object") {
+        return false;
+    }
+
+    let mut changed = false;
+    for union_name in ["anyOf", "oneOf"] {
+        let Some(branches) = parameters.get_mut(union_name).and_then(Value::as_array_mut) else {
+            continue;
+        };
+        for branch in branches {
+            let Some(branch) = branch.as_object_mut() else {
+                continue;
+            };
+            if !branch.contains_key("type") {
+                branch.insert("type".to_string(), Value::String("object".to_string()));
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
+fn should_normalize_xai_image_refs(provider: &str) -> bool {
+    provider == "xai"
+}
+
+fn normalize_xai_image_refs(
+    provider: &str,
+    object: &mut Map<String, Value>,
+    body_len: usize,
+) -> bool {
+    if body_len > REQUEST_FILTER_LIMIT_BYTES || !should_normalize_xai_image_refs(provider) {
+        return false;
+    }
+    let changed = normalize_xai_image_refs_in_object(object);
+    if changed {
+        tracing::debug!("normalized xAI image reference fields");
+    }
+    changed
+}
+
+// Only image API reference containers use `url`; chat content parts keep
+// `image_url` because it is a different OpenAI wire shape.
+fn normalize_xai_image_refs_in_object(object: &mut Map<String, Value>) -> bool {
+    let mut changed = false;
+    for (key, value) in object {
+        match key.as_str() {
+            "image" => changed |= normalize_xai_image_ref(value),
+            "images" | "reference_images" => {
+                if let Some(references) = value.as_array_mut() {
+                    for reference in references {
+                        changed |= normalize_xai_image_ref(reference);
+                    }
+                }
+            }
+            _ => changed |= normalize_xai_image_refs_in_value(value),
+        }
+    }
+    changed
+}
+
+fn normalize_xai_image_refs_in_value(value: &mut Value) -> bool {
+    match value {
+        Value::Object(object) => normalize_xai_image_refs_in_object(object),
+        Value::Array(values) => {
+            let mut changed = false;
+            for value in values {
+                changed |= normalize_xai_image_refs_in_value(value);
+            }
+            changed
+        }
+        _ => false,
+    }
+}
+
+fn normalize_xai_image_ref(value: &mut Value) -> bool {
+    let Some(reference) = value.as_object_mut() else {
+        return false;
+    };
+    let existing_url = reference
+        .get("url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|url| !url.is_empty())
+        .map(str::to_string);
+    let image_url = reference.get("image_url").and_then(|value| match value {
+        Value::String(url) => Some(url.as_str()),
+        Value::Object(object) => object.get("url").and_then(Value::as_str),
+        _ => None,
+    });
+    let Some(url) = existing_url.or_else(|| {
+        image_url
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+            .map(str::to_string)
+    }) else {
+        return false;
+    };
+
+    let inserted = reference.get("url").and_then(Value::as_str) != Some(url.as_str());
+    if inserted {
+        reference.insert("url".to_string(), Value::String(url));
+    }
+    inserted | reference.remove("image_url").is_some()
 }
 
 fn remove_json_fields(object: &mut Map<String, Value>, fields: &[&str]) -> bool {

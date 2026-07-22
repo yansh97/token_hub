@@ -34,6 +34,10 @@ pub struct RequestLogDetail {
     pub pricing_version: Option<String>,
     pub pricing_model: Option<String>,
     pub pricing_context_tier: Option<String>,
+    /// 同一客户端请求的上游 attempt 共享该标识，便于审计 failover。
+    pub client_request_id: Option<String>,
+    pub attempt_index: Option<i64>,
+    pub is_billable: bool,
     pub latency_ms: i64,
     pub upstream_first_byte_ms: Option<i64>,
     pub upstream_response_headers_ms: Option<i64>,
@@ -82,6 +86,9 @@ SELECT
   pricing_version,
   pricing_model,
   pricing_context_tier,
+  client_request_id,
+  attempt_index,
+  is_billable,
   latency_ms,
   upstream_first_byte_ms,
   upstream_response_headers_ms,
@@ -208,6 +215,15 @@ LIMIT 1;
             .try_get::<Option<String>, _>("pricing_context_tier")
             .ok()
             .flatten(),
+        client_request_id: row
+            .try_get::<Option<String>, _>("client_request_id")
+            .ok()
+            .flatten(),
+        attempt_index: row
+            .try_get::<Option<i64>, _>("attempt_index")
+            .ok()
+            .flatten(),
+        is_billable: row.try_get::<i64, _>("is_billable").unwrap_or(1) != 0,
         latency_ms: row.try_get::<i64, _>("latency_ms").unwrap_or_default(),
         upstream_first_byte_ms: row
             .try_get::<Option<i64>, _>("upstream_first_byte_ms")

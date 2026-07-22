@@ -30,6 +30,7 @@ pub mod service;
 pub mod sqlite;
 pub(crate) use token_proxy_protocol::{sse, token_estimator};
 pub mod token_rate;
+mod tool_identity;
 mod upstream;
 mod upstream_selector;
 mod usage;
@@ -65,6 +66,7 @@ struct RequestMeta {
     reasoning_effort: Option<String>,
     response_format: Option<String>,
     estimated_input_tokens: Option<u64>,
+    billing: log::ClientRequestBilling,
 }
 
 impl RequestMeta {

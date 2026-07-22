@@ -56,6 +56,26 @@ _Avoid_: 原地重试、跨上游 failover、任意 400 重试
 单次可重试失败允许的后续路由范围；`SameThenNext` 允许先原地再跨上游，`NextOnly` 跳过原地直接跨上游。它描述失败后的路由边界，不是重试次数。
 _Avoid_: Retry Count、Cooldown Scope
 
+**Upstream Attempt（上游 Attempt）**:
+一次实际发往某个上游或账户的发送及其响应记录。每个 attempt 保留原始 usage、token、成本、账户和状态，用于排障与上游消耗审计；它不等于客户端看到的一次请求。
+_Avoid_: 客户端请求账单、最终请求
+
+**Final Client Request Billing（客户端最终请求账单）**:
+同一入站请求经过重试或 failover 后，Dashboard、成本和请求量统计使用的唯一账单记录。中间 attempt 仍保留，但 `is_billable=0`；代理按请求内单调的 attempt 完成序号选择最终 attempt 候选，不能用并发发送启动顺序代替完成顺序。
+_Avoid_: 将所有 upstream attempt usage 相加作为客户端账单
+
+**No Configured Credential（未配置凭据）**:
+Provider 有路由配置，但没有任何可用账号或 API 凭据，返回 HTTP 502。它是本地上游配置缺失，不是客户端鉴权失败。
+_Avoid_: 401、账号冷却
+
+**All Accounts Cooling（全部账号冷却）**:
+Provider 存在有效账号，但当前请求作用域内全部处于 cooldown，返回 HTTP 503；若配置了其它 provider fallback，仍可继续降级。
+_Avoid_: 未配置账号、账号禁用
+
+**Model Not Supported（模型不支持）**:
+存在匹配入站协议的上游，但请求模型被所有上游的可用模型白名单排除，返回 HTTP 404。
+_Avoid_: 上游未配置、上游暂时不可用
+
 **Responses Stream Event**:
 `/v1/responses` 流中的单个 JSON 生命周期事件。每个事件都必须携带单调递增的 `sequence_number`；错误终止事件也不例外。`[DONE]` 是流结束哨兵，不是事件，不编号。
 _Avoid_: SSE Chunk（传输分块可能拆分或合并事件）

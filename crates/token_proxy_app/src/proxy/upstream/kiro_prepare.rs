@@ -55,22 +55,27 @@ pub(super) async fn prepare_kiro_context<'a>(
 ) -> Result<KiroContext<'a>, AttemptOutcome> {
     let mapped_meta = super::build_mapped_meta(meta, upstream);
     let request_value = read_request_json(state, body).await?;
-    let ordered_account_ids = if upstream
+    let has_pinned_account = upstream
         .kiro_account_id
         .as_deref()
         .map(str::trim)
-        .is_some_and(|value| !value.is_empty())
-    {
+        .is_some_and(|value| !value.is_empty());
+    let ordered_account_ids = if has_pinned_account {
         None
     } else {
-        Some(
-            super::ordered_runtime_account_ids(
-                state,
-                "kiro",
-                &crate::proxy::cooldown_scope::CooldownScope::Global,
-            )
-            .await,
+        let candidates = super::prepare::ordered_runtime_account_candidates(
+            state,
+            "kiro",
+            &crate::proxy::cooldown_scope::CooldownScope::Global,
         )
+        .await;
+        if candidates.active_count > 0 && candidates.ids.is_empty() {
+            return Err(super::prepare::all_accounts_cooling_outcome(
+                "Kiro",
+                candidates.active_count,
+            ));
+        }
+        Some(candidates.ids)
     };
     let (account_id, record) = state
         .kiro_accounts
@@ -80,7 +85,7 @@ pub(super) async fn prepare_kiro_context<'a>(
         )
         .await
         .map_err(|err| {
-            AttemptOutcome::Fatal(http::error_response(StatusCode::UNAUTHORIZED, err))
+            super::prepare::account_resolution_outcome("Kiro", has_pinned_account, err)
         })?;
     let is_idc = record.auth_method.trim().eq_ignore_ascii_case("idc");
     let profile_arn = resolve_profile_arn(&record);

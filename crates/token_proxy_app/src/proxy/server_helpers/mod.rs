@@ -74,6 +74,7 @@ pub(crate) async fn parse_request_meta_best_effort(
         reasoning_effort: None,
         response_format: None,
         estimated_input_tokens: None,
+        billing: Default::default(),
     };
 
     let Some(bytes) = body
@@ -134,6 +135,7 @@ pub(crate) async fn parse_request_meta_best_effort(
         reasoning_effort,
         response_format,
         estimated_input_tokens,
+        billing: fallback_meta.billing,
     }
 }
 
