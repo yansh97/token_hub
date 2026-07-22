@@ -6,7 +6,6 @@ mod codex;
 mod commands;
 mod kiro;
 mod logging;
-mod proxy;
 mod tray;
 mod window;
 mod xai;
@@ -40,7 +39,7 @@ type LogLevel = logging::LogLevel;
 
 const REQUEST_DETAIL_CAPTURE_EVENT: &str = "request-detail-capture-changed";
 
-type RequestDetailCaptureEvent = proxy::request_detail::RequestDetailCaptureState;
+type RequestDetailCaptureEvent = token_proxy_app::app::RequestDetailCaptureState;
 
 /// 统一启动前置顺序：配置读取和代理状态写入完成后，才允许执行启动动作。
 ///
@@ -66,27 +65,17 @@ where
 }
 
 async fn refresh_model_pricing_catalog(
-    paths: Arc<token_proxy_account_store::paths::TokenProxyPaths>,
+    token_proxy_app: token_proxy_app::app::TokenProxyApp,
     proxy_url: Option<String>,
 ) {
-    match proxy::sqlite::open_write_pool(paths.as_ref()).await {
-        Ok(pool) => {
-            if let Err(err) =
-                proxy::pricing::refresh_remote_model_pricing_catalog(&pool, proxy_url.as_deref())
-                    .await
-            {
-                tracing::warn!(
-                    error = %err,
-                    "model pricing catalog refresh failed; cached or bundled catalog remains active"
-                );
-            }
-        }
-        Err(err) => {
-            tracing::warn!(
-                error = %err,
-                "model pricing catalog refresh skipped because database could not open"
-            );
-        }
+    if let Err(err) = token_proxy_app
+        .refresh_model_pricing_catalog(proxy_url.as_deref())
+        .await
+    {
+        tracing::warn!(
+            error = %err,
+            "model pricing catalog refresh failed; cached or bundled catalog remains active"
+        );
     }
 }
 
@@ -151,19 +140,12 @@ pub fn run() {
                 Some(on_request_detail_change),
             )?;
             let paths = token_proxy_app.paths();
-            let token_rate = token_proxy_app.token_rate();
-            let request_detail = token_proxy_app.request_detail();
-            let proxy_service = token_proxy_app.proxy();
             let app_proxy_state = token_proxy_app.app_proxy();
             let kiro_store = token_proxy_app.kiro_accounts();
             let codex_store = token_proxy_app.codex_accounts();
             let xai_store = token_proxy_app.xai_accounts();
-            let proxy_context = token_proxy_app.proxy_context();
 
             app.manage(paths.clone());
-            app.manage(token_rate.clone());
-            app.manage(request_detail.clone());
-            app.manage(proxy_service.clone());
             let agent_node_service = agent_node_service::AgentNodeServiceHandle::new();
             app.manage(agent_node_service.clone());
             app.manage(logging_state.clone());
@@ -174,20 +156,17 @@ pub fn run() {
             app.manage(token_proxy_app.codex_login());
             app.manage(xai_store.clone());
             app.manage(token_proxy_app.xai_login());
-            app.manage(proxy_context.clone());
-            app.manage(token_proxy_app);
             let app_handle = app.handle().clone();
-            let tray_state = tray::init_tray(&app_handle, proxy_service.clone())?;
+            let tray_state = tray::init_tray(&app_handle, token_proxy_app.clone())?;
             app.manage(tray_state.clone());
+            app.manage(token_proxy_app.clone());
 
             let paths_for_startup = paths.clone();
-            let paths_for_pricing = paths.clone();
             let app_proxy_for_startup = app_proxy_state.clone();
             let logging_for_startup = logging_state.clone();
             let tray_state_for_startup = tray_state.clone();
             let tray_state_for_startup_error = tray_state.clone();
-            let proxy_for_startup = proxy_service.clone();
-            let proxy_context_for_startup = proxy_context.clone();
+            let token_proxy_app_for_startup = token_proxy_app.clone();
             tauri::async_runtime::spawn(async move {
                 let startup_result = run_after_app_proxy_initialized(
                     paths_for_startup.as_ref(),
@@ -195,7 +174,7 @@ pub fn run() {
                     move |response, proxy_url| async move {
                         // 此时共享代理状态已经就绪；pricing 网络任务独立执行，不阻塞 proxy 启动。
                         tauri::async_runtime::spawn(refresh_model_pricing_catalog(
-                            paths_for_pricing,
+                            token_proxy_app_for_startup.clone(),
                             proxy_url,
                         ));
 
@@ -203,7 +182,7 @@ pub fn run() {
                         tray_state_for_startup
                             .apply_config(&response.config.tray_token_rate)
                             .await;
-                        match proxy_for_startup.start(&proxy_context_for_startup).await {
+                        match token_proxy_app_for_startup.start_proxy().await {
                             Ok(status) => tray_state_for_startup.apply_status(&status),
                             Err(err) => {
                                 tray_state_for_startup.apply_error("启动失败", &err);

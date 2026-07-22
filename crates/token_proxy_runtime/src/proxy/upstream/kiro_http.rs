@@ -1,0 +1,150 @@
+use axum::http::{Method, StatusCode};
+use std::time::Duration;
+use tokio::time::timeout;
+
+use super::kiro_headers::build_kiro_headers;
+use super::request;
+use super::{result, AttemptOutcome};
+use crate::proxy::http;
+use crate::proxy::openai_compat::FormatTransform;
+use crate::proxy::request_body::ReplayableBody;
+use crate::proxy::request_detail::RequestDetailSnapshot;
+use crate::proxy::{ProxyState, RequestMeta};
+use token_proxy_config::UpstreamRuntime;
+
+pub(super) enum KiroSendError {
+    Timeout,
+    Upstream(reqwest::Error),
+}
+
+pub(super) fn build_client(
+    state: &ProxyState,
+    proxy_url: Option<&str>,
+) -> Result<reqwest::Client, AttemptOutcome> {
+    state
+        .http_clients
+        .client_for_proxy_url(proxy_url)
+        .map_err(|message| {
+            AttemptOutcome::Fatal(http::error_response(StatusCode::BAD_GATEWAY, message))
+        })
+}
+
+pub(super) async fn read_request_json(
+    state: &ProxyState,
+    body: &ReplayableBody,
+) -> Result<serde_json::Value, AttemptOutcome> {
+    let Some(bytes) = body
+        .read_bytes_if_small(state.config.max_request_body_bytes)
+        .await
+        .map_err(|err| {
+            AttemptOutcome::Fatal(http::error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Failed to read request body: {err}"),
+            ))
+        })?
+    else {
+        return Err(AttemptOutcome::Fatal(http::error_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "Request body is too large to transform.",
+        )));
+    };
+    serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|_| {
+        AttemptOutcome::Fatal(http::error_response(
+            StatusCode::BAD_REQUEST,
+            "Request body must be JSON.",
+        ))
+    })
+}
+
+pub(super) async fn send_kiro_request(
+    client: &reqwest::Client,
+    method: Method,
+    url: &str,
+    access_token: &str,
+    amz_target: &str,
+    is_idc: bool,
+    payload: &[u8],
+    overrides: Option<&[token_proxy_config::HeaderOverride]>,
+    sync_response_timeout: Duration,
+) -> Result<reqwest::Response, KiroSendError> {
+    let mut request_headers = build_kiro_headers(access_token, amz_target, is_idc);
+    if let Some(overrides) = overrides {
+        request::apply_header_overrides(&mut request_headers, overrides);
+    }
+
+    let result = timeout(
+        sync_response_timeout,
+        client
+            .request(method, url)
+            .headers(request_headers)
+            .body(payload.to_vec())
+            .send(),
+    )
+    .await;
+    match result {
+        Ok(Ok(response)) => Ok(response),
+        Ok(Err(err)) => Err(KiroSendError::Upstream(err)),
+        Err(_) => Err(KiroSendError::Timeout),
+    }
+}
+
+pub(super) async fn refresh_kiro_account(
+    state: &ProxyState,
+    account_id: &str,
+) -> Result<(), AttemptOutcome> {
+    state
+        .kiro_accounts
+        .refresh_account(account_id)
+        .await
+        .map_err(|err| AttemptOutcome::Fatal(http::error_response(StatusCode::UNAUTHORIZED, err)))
+}
+
+pub(super) async fn handle_send_error(
+    state: &ProxyState,
+    meta: &RequestMeta,
+    upstream: &UpstreamRuntime,
+    account_id: Option<String>,
+    inbound_path: &str,
+    response_transform: FormatTransform,
+    request_detail: Option<RequestDetailSnapshot>,
+    err: KiroSendError,
+    start_time: std::time::Instant,
+) -> AttemptOutcome {
+    match err {
+        KiroSendError::Upstream(err) => {
+            // 发送错误路径无有效 tracker 生命周期，使用 disabled 占位。
+            result::handle_upstream_result(
+                state,
+                Err(err),
+                meta,
+                "kiro",
+                &upstream.id,
+                account_id.clone(),
+                inbound_path,
+                state.log.clone(),
+                crate::proxy::token_rate::RequestTokenTracker::disabled(),
+                start_time,
+                Default::default(),
+                None,
+                response_transform,
+                None,
+                request_detail,
+                &crate::proxy::cooldown_scope::CooldownScope::Global,
+            )
+            .await
+        }
+        KiroSendError::Timeout => {
+            let message = format!(
+                "Upstream did not respond within {}s.",
+                state.config.sync_response_timeout.as_secs()
+            );
+            AttemptOutcome::Retryable {
+                message: message.clone(),
+                response: None,
+                is_timeout: true,
+                should_cooldown: true,
+                deferred_log: Some(message),
+            }
+        }
+    }
+}

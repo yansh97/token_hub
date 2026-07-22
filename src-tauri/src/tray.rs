@@ -9,10 +9,9 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager};
 
-use crate::proxy::service::{ProxyServiceHandle, ProxyServiceState, ProxyServiceStatus};
-#[cfg(target_os = "macos")]
-use crate::proxy::token_rate::TokenRateSnapshot;
-use crate::proxy::token_rate::TokenRateTracker;
+use token_proxy_app::app::{
+    ProxyServiceState, ProxyServiceStatus, TokenProxyApp, TokenRateSnapshot,
+};
 use token_proxy_config::{TrayTokenRateConfig, TrayTokenRateFormat};
 
 type AppMenuItem = MenuItem<tauri::Wry>;
@@ -40,7 +39,7 @@ struct TrayStateInner {
     stop_item: AppMenuItem,
     restart_item: AppMenuItem,
     status_item: AppMenuItem,
-    token_rate: Arc<TokenRateTracker>,
+    token_proxy_app: TokenProxyApp,
     token_rate_config: RwLock<TrayTokenRateConfig>,
     last_title: RwLock<Option<String>>,
     should_quit: AtomicBool,
@@ -80,7 +79,10 @@ impl TrayState {
             elapsed_ms = start.elapsed().as_millis(),
             "tray apply_config set_enabled start"
         );
-        self.inner.token_rate.set_enabled(enabled).await;
+        self.inner
+            .token_proxy_app
+            .set_token_rate_enabled(enabled)
+            .await;
         tracing::debug!(
             enabled,
             elapsed_ms = start.elapsed().as_millis(),
@@ -100,7 +102,7 @@ impl TrayState {
             elapsed_ms = start.elapsed().as_millis(),
             "tray apply_config notify_activity"
         );
-        self.inner.token_rate.notify_activity();
+        self.inner.token_proxy_app.notify_token_rate_activity();
         tracing::debug!(
             elapsed_ms = start.elapsed().as_millis(),
             "tray apply_config done"
@@ -168,7 +170,7 @@ impl TrayState {
             return;
         }
         // 启用后始终显示速率；无 token 时展示并发请求数。
-        let snapshot = self.inner.token_rate.snapshot().await;
+        let snapshot = self.inner.token_proxy_app.token_rate_snapshot().await;
         let title = format_rate_title(snapshot, config.format);
         self.set_title(Some(title));
     }
@@ -250,7 +252,7 @@ impl TrayState {
 
 pub(crate) fn init_tray(
     app: &AppHandle,
-    proxy_service: ProxyServiceHandle,
+    token_proxy_app: TokenProxyApp,
 ) -> Result<TrayState, Box<dyn std::error::Error>> {
     let show_item = MenuItem::with_id(
         app,
@@ -288,7 +290,6 @@ pub(crate) fn init_tray(
         .menu(&menu)
         .build(app)?;
 
-    let token_rate = app.state::<Arc<TokenRateTracker>>().inner().clone();
     let tray_state = TrayState {
         inner: Arc::new(TrayStateInner {
             tray,
@@ -297,7 +298,7 @@ pub(crate) fn init_tray(
             stop_item: stop_item.clone(),
             restart_item: restart_item.clone(),
             status_item: status_item.clone(),
-            token_rate,
+            token_proxy_app: token_proxy_app.clone(),
             token_rate_config: RwLock::new(TrayTokenRateConfig::default()),
             last_title: RwLock::new(None),
             should_quit: AtomicBool::new(false),
@@ -307,7 +308,7 @@ pub(crate) fn init_tray(
     };
 
     let tray_state_for_menu = tray_state.clone();
-    let proxy_for_menu = proxy_service.clone();
+    let token_proxy_app_for_menu = token_proxy_app;
     tray_state.inner.tray.on_menu_event(move |app, event| {
         let id = event.id().as_ref();
         match id {
@@ -315,15 +316,10 @@ pub(crate) fn init_tray(
                 crate::window::toggle_main_window(app);
             }
             MENU_START => {
-                let app = app.clone();
                 let tray_state = tray_state_for_menu.clone();
-                let proxy_service = proxy_for_menu.clone();
+                let token_proxy_app = token_proxy_app_for_menu.clone();
                 tauri::async_runtime::spawn(async move {
-                    let proxy_context = app
-                        .state::<crate::proxy::service::ProxyContext>()
-                        .inner()
-                        .clone();
-                    match proxy_service.start(&proxy_context).await {
+                    match token_proxy_app.start_proxy().await {
                         Ok(status) => tray_state.apply_status(&status),
                         Err(err) => tray_state.apply_error("启动失败", &err),
                     }
@@ -331,24 +327,19 @@ pub(crate) fn init_tray(
             }
             MENU_STOP => {
                 let tray_state = tray_state_for_menu.clone();
-                let proxy_service = proxy_for_menu.clone();
+                let token_proxy_app = token_proxy_app_for_menu.clone();
                 tauri::async_runtime::spawn(async move {
-                    match proxy_service.stop().await {
+                    match token_proxy_app.stop_proxy().await {
                         Ok(status) => tray_state.apply_status(&status),
                         Err(err) => tray_state.apply_error("停止失败", &err),
                     }
                 });
             }
             MENU_RESTART => {
-                let app = app.clone();
                 let tray_state = tray_state_for_menu.clone();
-                let proxy_service = proxy_for_menu.clone();
+                let token_proxy_app = token_proxy_app_for_menu.clone();
                 tauri::async_runtime::spawn(async move {
-                    let proxy_context = app
-                        .state::<crate::proxy::service::ProxyContext>()
-                        .inner()
-                        .clone();
-                    match proxy_service.restart(&proxy_context).await {
+                    match token_proxy_app.restart_proxy().await {
                         Ok(status) => tray_state.apply_status(&status),
                         Err(err) => tray_state.apply_error("重启失败", &err),
                     }
@@ -371,9 +362,9 @@ pub(crate) fn init_tray(
 
 #[cfg(target_os = "macos")]
 fn start_token_rate_loop(tray_state: TrayState, loop_id: u64) {
-    let token_rate = tray_state.inner.token_rate.clone();
+    let token_proxy_app = tray_state.inner.token_proxy_app.clone();
     tauri::async_runtime::spawn(async move {
-        let mut activity_rx = token_rate.subscribe_activity();
+        let mut activity_rx = token_proxy_app.subscribe_token_rate_activity();
         // 与 TokenRateTracker 的 RATE_WINDOW 对齐：请求结束后再刷约 1s，避免标题卡在残留速率。
         const RATE_WINDOW_DRAIN: Duration = Duration::from_millis(1100);
         const TICK: Duration = Duration::from_millis(333);
@@ -381,7 +372,7 @@ fn start_token_rate_loop(tray_state: TrayState, loop_id: u64) {
             if !tray_state.should_keep_token_rate_loop(loop_id) {
                 break 'main;
             }
-            if token_rate.has_active_requests() {
+            if token_proxy_app.has_active_proxy_requests() {
                 let mut interval = tokio::time::interval(TICK);
                 loop {
                     interval.tick().await;
@@ -389,7 +380,7 @@ fn start_token_rate_loop(tray_state: TrayState, loop_id: u64) {
                         break 'main;
                     }
                     tray_state.update_token_rate_title().await;
-                    if !token_rate.has_active_requests() {
+                    if !token_proxy_app.has_active_proxy_requests() {
                         break;
                     }
                 }
@@ -401,7 +392,7 @@ fn start_token_rate_loop(tray_state: TrayState, loop_id: u64) {
                     if !tray_state.should_keep_token_rate_loop(loop_id) {
                         break 'main;
                     }
-                    if token_rate.has_active_requests() {
+                    if token_proxy_app.has_active_proxy_requests() {
                         // 新请求进来，回到主循环继续高频刷新。
                         continue 'main;
                     }

@@ -181,3 +181,96 @@ async fn migrate_status(pool: &SqlitePool) -> Result<(), String> {
         .await
         .map_err(|error| format!("Failed to commit provider_accounts migration: {error}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::{sqlite::SqlitePoolOptions, Row};
+
+    async fn memory_pool() -> SqlitePool {
+        SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("connect sqlite")
+    }
+
+    #[tokio::test]
+    async fn init_schema_creates_provider_accounts_table() {
+        let pool = memory_pool().await;
+
+        init_schema(&pool).await.expect("init schema");
+
+        let table = sqlx::query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provider_accounts';",
+        )
+        .fetch_optional(&pool)
+        .await
+        .expect("query sqlite schema");
+        assert!(table.is_some());
+    }
+
+    #[tokio::test]
+    async fn init_schema_migrates_owned_legacy_state() {
+        let pool = memory_pool().await;
+        sqlx::query(
+            r#"
+CREATE TABLE provider_accounts (
+  provider_kind TEXT NOT NULL,
+  account_id TEXT PRIMARY KEY,
+  email TEXT,
+  expires_at TEXT,
+  expires_at_ms INTEGER,
+  auth_method TEXT,
+  provider_name TEXT,
+  record_json TEXT NOT NULL,
+  updated_at_ms INTEGER NOT NULL
+);
+CREATE TABLE account_state_logs (id INTEGER PRIMARY KEY, ts_ms INTEGER NOT NULL);
+"#,
+        )
+        .execute(&pool)
+        .await
+        .expect("create legacy schema");
+        sqlx::query(
+            r#"
+INSERT INTO provider_accounts (
+  provider_kind, account_id, record_json, updated_at_ms
+) VALUES (
+  'codex', 'legacy.json', '{"enabled":false,"priority":7}', 0
+);
+"#,
+        )
+        .execute(&pool)
+        .await
+        .expect("insert legacy account");
+
+        init_schema(&pool).await.expect("migrate account schema");
+
+        let row = sqlx::query(
+            "SELECT record_json, priority FROM provider_accounts WHERE account_id = 'legacy.json';",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("read migrated account");
+        let record_json = row
+            .try_get::<String, _>("record_json")
+            .expect("decode record");
+        let record: serde_json::Value =
+            serde_json::from_str(&record_json).expect("parse migrated record");
+        let legacy_table = sqlx::query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_state_logs';",
+        )
+        .fetch_optional(&pool)
+        .await
+        .expect("query legacy table");
+
+        assert_eq!(
+            record.get("status").and_then(serde_json::Value::as_str),
+            Some("disabled")
+        );
+        assert!(record.get("enabled").is_none());
+        assert_eq!(row.try_get::<i64, _>("priority").ok(), Some(7));
+        assert!(legacy_table.is_none());
+    }
+}

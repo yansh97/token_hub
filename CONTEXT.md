@@ -84,6 +84,18 @@ _Avoid_: SSE Chunk（传输分块可能拆分或合并事件）
 Responses 流尚未向客户端提交时返回的 HTTP 4xx/5xx JSON 错误。它必须保留真实 HTTP 状态，并满足 OpenAI `ErrorResponse` 的 `type/message/param/code` 字段合同。
 _Avoid_: `response.failed`（只用于已经提交的 SSE 流）
 
+**Request-Scoped Content Policy Rejection（请求级内容策略拒绝）**:
+由当前请求的 prompt 或 media 触发的内容策略拒绝；更换账号不会改变结果，也不得影响账号 cooldown。
+_Avoid_: 账号访问失败、未知 403
+
+**Account Access Failure（账号访问失败）**:
+由账号 suspension、disabled 或 subscription/entitlement 缺失导致的访问拒绝；它属于账号身份，可参与账号 failover 和 cooldown。
+_Avoid_: 请求级内容策略拒绝
+
+**Unknown Forbidden（未知 403）**:
+缺少足够结构化证据来判断作用域的 403；保持账号级失败语义，避免把真实账号封禁误判为单请求拒绝。
+_Avoid_: 含糊的 Policy Violation
+
 **In-stream Terminal Failure**:
 Responses SSE 已以 HTTP 200 提交后用于终止流的 `response.failed` 事件。事件必须包含连续的 `sequence_number`，其 `response` 必须包含 `created_at`、`model` 和完整失败状态；请求日志仍记录真实 4xx/5xx 失败状态。
 _Avoid_: HTTP Error Response（响应头提交后已无法更改 HTTP 状态）
@@ -97,7 +109,7 @@ _Avoid_: xAI 账户、Grok OAuth 账户
 _Avoid_: xAI API Key、CPA API Key、普通 OpenAI 上游
 
 **xAI CLI Gateway（xAI CLI 网关）**:
-xAI OAuth 账户发送文本 Responses 请求的受信服务端点 `cli-chat-proxy.grok.com`；它不提供普通 API Key 上游的模型发现合同。
+xAI OAuth 账户发送文本 Responses 请求并读取该身份实时模型目录的受信服务端点 `cli-chat-proxy.grok.com`；该模型目录不是普通 API Key 上游的标准合同。
 _Avoid_: xAI 官方 API、OpenAI-compatible base URL
 
 **xAI Official API（xAI 官方 API）**:

@@ -117,26 +117,18 @@ async fn serve(paths: token_proxy_account_store::paths::TokenProxyPaths) -> Resu
     token_proxy_account_store::app_proxy::set(&app_proxy, proxy_url.clone()).await;
 
     // 价格目录刷新独立于代理启动；失败时继续使用 SQLite 缓存或内置快照。
-    let pricing_paths = paths.clone();
+    let pricing_app = app.clone();
     tokio::spawn(async move {
-        let result = async {
-            let pool = token_proxy_app::proxy::sqlite::open_write_pool(&pricing_paths).await?;
-            token_proxy_app::proxy::pricing::refresh_remote_model_pricing_catalog(
-                &pool,
-                proxy_url.as_deref(),
-            )
+        let result = pricing_app
+            .refresh_model_pricing_catalog(proxy_url.as_deref())
             .await
-            .map(|_| ())
-        }
-        .await;
+            .map(|_| ());
         if let Err(err) = result {
             eprintln!("model pricing catalog refresh failed: {err}");
         }
     });
 
-    let ctx = app.proxy_context();
-    let proxy = app.proxy();
-    let status = proxy.start(&ctx).await?;
+    let status = app.start_proxy().await?;
     if let Some(addr) = status.addr.as_deref() {
         println!("proxy running on {addr}");
     } else {
@@ -147,7 +139,7 @@ async fn serve(paths: token_proxy_account_store::paths::TokenProxyPaths) -> Resu
     tokio::signal::ctrl_c()
         .await
         .map_err(|err| format!("Failed to listen for Ctrl+C: {err}"))?;
-    let _ = proxy.stop().await?;
+    let _ = app.stop_proxy().await?;
     Ok(())
 }
 

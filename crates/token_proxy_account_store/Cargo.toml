@@ -15,3 +15,6 @@ time = { version = "0.3", features = ["formatting"] }
 tokio = { version = "1.53", features = ["fs", "sync"] }
 tracing = { version = "0.1.44", features = ["release_max_level_off"] }
 url = "2.5.8"
+
+[dev-dependencies]
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread"] }

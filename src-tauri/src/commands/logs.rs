@@ -1,34 +1,24 @@
-use std::sync::Arc;
-
-use tauri::Manager;
-
-use crate::proxy;
+use token_proxy_app::app::{RequestDetailCaptureState, RequestLogDetail, TokenProxyApp};
 
 #[tauri::command]
 pub async fn read_request_log_detail(
-    app: tauri::AppHandle,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     id: u64,
-) -> Result<proxy::logs::RequestLogDetail, String> {
-    let paths = app.state::<Arc<token_proxy_account_store::paths::TokenProxyPaths>>();
-    let pool = proxy::sqlite::open_read_pool(paths.inner().as_ref()).await?;
-    proxy::logs::read_request_log_detail(&pool, id).await
+) -> Result<RequestLogDetail, String> {
+    token_proxy_app.read_request_log_detail(id).await
 }
 
 #[tauri::command]
 pub fn read_request_detail_capture(
-    capture_state: tauri::State<'_, Arc<proxy::request_detail::RequestDetailCapture>>,
-) -> proxy::request_detail::RequestDetailCaptureState {
-    capture_state.snapshot()
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
+) -> RequestDetailCaptureState {
+    token_proxy_app.request_detail_capture()
 }
 
 #[tauri::command]
 pub fn set_request_detail_capture(
-    capture_state: tauri::State<'_, Arc<proxy::request_detail::RequestDetailCapture>>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     enabled: bool,
-) -> proxy::request_detail::RequestDetailCaptureState {
-    if enabled {
-        capture_state.arm()
-    } else {
-        capture_state.disarm()
-    }
+) -> RequestDetailCaptureState {
+    token_proxy_app.set_request_detail_capture(enabled)
 }

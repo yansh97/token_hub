@@ -6,7 +6,7 @@
 //! - CLI/Tauri 通过 [`app::TokenProxyApp`] 组装运行时
 
 pub mod app;
-pub mod logging;
+mod pricing_refresh;
 pub mod storage_usage;
 
-pub mod proxy;
+pub use token_proxy_runtime::logging;

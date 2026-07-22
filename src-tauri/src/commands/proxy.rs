@@ -1,6 +1,6 @@
-use crate::{proxy, tray};
+use crate::tray;
 use serde_json::Value;
-use tauri::Manager;
+use token_proxy_app::app::{ProxyServiceStatus, TokenProxyApp};
 use url::Url;
 
 const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -123,22 +123,20 @@ fn extract_upstream_model_ids(body: &Value) -> Vec<String> {
 
 #[tauri::command]
 pub async fn proxy_status(
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     tray_state: tauri::State<'_, tray::TrayState>,
-) -> Result<proxy::service::ProxyServiceStatus, String> {
-    let status = proxy_service.status().await;
+) -> Result<ProxyServiceStatus, String> {
+    let status = token_proxy_app.proxy_status().await;
     tray_state.apply_status(&status);
     Ok(status)
 }
 
 #[tauri::command]
 pub async fn proxy_start(
-    app: tauri::AppHandle,
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     tray_state: tauri::State<'_, tray::TrayState>,
-) -> Result<proxy::service::ProxyServiceStatus, String> {
-    let proxy_context = app.state::<proxy::service::ProxyContext>();
-    match proxy_service.start(proxy_context.inner()).await {
+) -> Result<ProxyServiceStatus, String> {
+    match token_proxy_app.start_proxy().await {
         Ok(status) => {
             tray_state.apply_status(&status);
             Ok(status)
@@ -152,10 +150,10 @@ pub async fn proxy_start(
 
 #[tauri::command]
 pub async fn proxy_stop(
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     tray_state: tauri::State<'_, tray::TrayState>,
-) -> Result<proxy::service::ProxyServiceStatus, String> {
-    match proxy_service.stop().await {
+) -> Result<ProxyServiceStatus, String> {
+    match token_proxy_app.stop_proxy().await {
         Ok(status) => {
             tray_state.apply_status(&status);
             Ok(status)
@@ -169,21 +167,19 @@ pub async fn proxy_stop(
 
 #[tauri::command]
 pub async fn prepare_relaunch(
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     tray_state: tauri::State<'_, tray::TrayState>,
 ) -> Result<(), String> {
     tray_state.mark_quit();
-    proxy_service.stop().await.map(|_| ())
+    token_proxy_app.stop_proxy().await.map(|_| ())
 }
 
 #[tauri::command]
 pub async fn proxy_restart(
-    app: tauri::AppHandle,
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     tray_state: tauri::State<'_, tray::TrayState>,
-) -> Result<proxy::service::ProxyServiceStatus, String> {
-    let proxy_context = app.state::<proxy::service::ProxyContext>();
-    match proxy_service.restart(proxy_context.inner()).await {
+) -> Result<ProxyServiceStatus, String> {
+    match token_proxy_app.restart_proxy().await {
         Ok(status) => {
             tray_state.apply_status(&status);
             Ok(status)
@@ -197,12 +193,10 @@ pub async fn proxy_restart(
 
 #[tauri::command]
 pub async fn proxy_reload(
-    app: tauri::AppHandle,
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     tray_state: tauri::State<'_, tray::TrayState>,
-) -> Result<proxy::service::ProxyServiceStatus, String> {
-    let proxy_context = app.state::<proxy::service::ProxyContext>();
-    match proxy_service.reload(proxy_context.inner()).await {
+) -> Result<ProxyServiceStatus, String> {
+    match token_proxy_app.reload_proxy().await {
         Ok(status) => {
             tray_state.apply_status(&status);
             Ok(status)

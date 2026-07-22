@@ -3,9 +3,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tauri::Manager;
+use token_proxy_app::app::{ProxyConfigSaveResult, TokenProxyApp};
 use token_proxy_app::storage_usage::DataStorageUsage;
 
-use crate::{app_proxy, client_config, logging, proxy, tray};
+use crate::{app_proxy, client_config, logging, tray};
 
 #[tauri::command]
 pub async fn read_proxy_config(
@@ -57,12 +58,12 @@ pub fn read_default_hot_model_mappings() -> HashMap<String, String> {
 #[tauri::command]
 pub async fn save_proxy_config(
     app: tauri::AppHandle,
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     tray_state: tauri::State<'_, tray::TrayState>,
     logging_state: tauri::State<'_, logging::LoggingState>,
     app_proxy_state: tauri::State<'_, app_proxy::AppProxyState>,
     config: token_proxy_config::ProxyConfigFile,
-) -> Result<proxy::service::ProxyConfigSaveResult, String> {
+) -> Result<ProxyConfigSaveResult, String> {
     tracing::debug!("save_proxy_config start");
     let start = Instant::now();
     tracing::debug!("save_proxy_config apply_config start");
@@ -88,10 +89,7 @@ pub async fn save_proxy_config(
     );
     logging_state.apply_level(log_level);
     app_proxy::set(&app_proxy_state, app_proxy_url).await;
-    let proxy_context = app.state::<proxy::service::ProxyContext>();
-    let result = proxy_service
-        .apply_saved_config(proxy_context.inner())
-        .await;
+    let result = token_proxy_app.apply_saved_proxy_config().await;
     tray_state.apply_status(&result.status);
     if let Some(error) = result.apply_error.as_deref() {
         tray_state.apply_error("应用失败", error);
