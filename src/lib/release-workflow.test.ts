@@ -20,4 +20,13 @@ describe("release workflow", () => {
       "uses: ./.github/actions/wait-for-release",
     );
   });
+
+  it("includes the synchronized upstream version in release notes", () => {
+    expect(releaseWorkflow).toContain(
+      'fs.readFileSync(".upstream-version", "utf8")',
+    );
+    expect(releaseWorkflow).toContain(
+      `https://github.com/mxyhi/token_proxy/releases/tag/v\${upstreamVersion}`,
+    );
+  });
 });

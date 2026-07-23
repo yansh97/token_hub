@@ -17,6 +17,7 @@
 
 - Token Hub 的自动发布提交标志为 `chore: token-hub release vX.Y.Z`。
 - 不要使用通用的 `chore: release vX.Y.Z`，该格式可能来自上游，不能触发 Token Hub 发布。
+- Token Hub 使用独立版本号；`.upstream-version` 记录当前同步的上游版本，并由发布工作流写入 GitHub Release 说明。每次合并上游后必须同步更新该文件。
 - 发布前需确认版本号、Tauri 更新源、签名公钥和 `Token.Hub` 发布资产匹配规则保持一致。
 - 合并上游时保留 Token Hub 的应用标识、更新源和签名配置；上游版本号和功能代码应正常同步。
 

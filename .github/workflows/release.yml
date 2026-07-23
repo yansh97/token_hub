@@ -116,8 +116,13 @@ jobs:
           PREVIOUS_TAG: ${{ steps.previous_tag.outputs.previous_tag }}
         with:
           script: |
+            const fs = require("fs");
             const tag = process.env.RELEASE_TAG;
             const previousTag = process.env.PREVIOUS_TAG;
+            const upstreamVersion = fs.readFileSync(".upstream-version", "utf8").trim();
+            if (!/^\d+\.\d+\.\d+$/.test(upstreamVersion)) {
+              throw new Error(`Invalid .upstream-version: ${upstreamVersion}`);
+            }
             const params = {
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -127,7 +132,8 @@ jobs:
               params.previous_tag_name = previousTag;
             }
             const { data } = await github.rest.repos.generateReleaseNotes(params);
-            core.setOutput("release_body", data.body ?? "");
+            const upstream = `**Upstream:** [mxyhi/token_proxy v${upstreamVersion}](https://github.com/mxyhi/token_proxy/releases/tag/v${upstreamVersion})`;
+            core.setOutput("release_body", `${upstream}\n\n${data.body ?? ""}`);
 
       # 桌面端 Release target 矩阵只在这里维护一份。
       - name: Export release matrix
