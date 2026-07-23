@@ -1,10 +1,12 @@
 export type CodexAccountStatus = "active" | "disabled" | "expired" | "invalid";
+export type CodexAuthMethod = "oauth" | "agent_identity";
 
 export type CodexAccountSummary = {
   account_id: string;
   email?: string | null;
   expires_at?: string | null;
   status: CodexAccountStatus;
+  auth_method?: CodexAuthMethod;
   auto_refresh_enabled?: boolean;
   proxy_url?: string | null;
   priority: number;

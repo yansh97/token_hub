@@ -218,6 +218,7 @@ async fn inspect_request_repair(
         timings,
         token_tracker,
         xai_client_tools,
+        skip_same_upstream_retry,
     } = attempt;
     let status = response.status();
     let version = response.version();
@@ -273,6 +274,7 @@ async fn inspect_request_repair(
             timings,
             token_tracker,
             xai_client_tools,
+            skip_same_upstream_retry,
         },
         repair,
     ))
@@ -394,5 +396,6 @@ pub(super) async fn attempt_send(
         timings,
         token_tracker,
         xai_client_tools,
+        skip_same_upstream_retry: false,
     })
 }

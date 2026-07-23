@@ -77,10 +77,11 @@ async fn refresh_quota_cache_with_endpoint(
         expires_at: record.expires_at().map(|value| {
             value
                 .format(&Rfc3339)
-                .unwrap_or_else(|_| record.expires_at.clone())
+                .unwrap_or_else(|_| record.expires_at_str().unwrap_or_default().to_string())
         }),
         status: record.effective_status(),
-        auto_refresh_enabled: record.auto_refresh_enabled,
+        auth_method: record.auth_method(),
+        auto_refresh_enabled: record.auto_refresh_enabled(),
         proxy_url: record.proxy_url.clone(),
         priority: record.priority,
     };
@@ -140,16 +141,45 @@ async fn fetch_account_quota_with_endpoint(
 ) -> Result<CodexQuotaFetchResult, String> {
     let mut effective_record = record.clone();
     let proxy_url = store.effective_proxy_url(record.proxy_url.as_deref()).await;
+    let authorization = store.authorization_header(&account.account_id).await?;
     let response = match request_usage(
         usage_endpoint,
-        &record.access_token,
+        &authorization,
         record.account_id.as_deref(),
         proxy_url.as_deref(),
     )
     .await
     {
         Ok(response) => response,
-        Err(err) if err.relogin_required => {
+        Err(err) if err.task_invalid && record.agent_identity().is_some() => {
+            let expected_task_id = record
+                .agent_identity()
+                .and_then(|identity| identity.task_id)
+                .unwrap_or_default();
+            tracing::warn!(
+                account_id = account.account_id.as_str(),
+                "codex usage request rejected stale agent identity task"
+            );
+            store
+                .recover_agent_identity_task(&account.account_id, expected_task_id)
+                .await?;
+            let refreshed = store.load_account(&account.account_id).await?;
+            let authorization = store.authorization_header(&account.account_id).await?;
+            let proxy_url = store
+                .effective_proxy_url(refreshed.proxy_url.as_deref())
+                .await;
+            let response = request_usage(
+                usage_endpoint,
+                &authorization,
+                refreshed.account_id.as_deref(),
+                proxy_url.as_deref(),
+            )
+            .await
+            .map_err(|retry_err| retry_err.message)?;
+            effective_record = refreshed;
+            response
+        }
+        Err(err) if err.relogin_required && record.oauth().is_some() => {
             tracing::warn!(
                 account_id = account.account_id.as_str(),
                 error = %err.message,
@@ -162,12 +192,13 @@ async fn fetch_account_quota_with_endpoint(
                     format!("Codex usage request failed after token refresh failed: {refresh_err}")
                 })?;
             let refreshed = store.load_account(&account.account_id).await?;
+            let authorization = store.authorization_header(&account.account_id).await?;
             let proxy_url = store
                 .effective_proxy_url(refreshed.proxy_url.as_deref())
                 .await;
             let response = request_usage(
                 usage_endpoint,
-                &refreshed.access_token,
+                &authorization,
                 refreshed.account_id.as_deref(),
                 proxy_url.as_deref(),
             )
@@ -186,7 +217,7 @@ async fn fetch_account_quota_with_endpoint(
 
 async fn request_usage(
     usage_endpoint: &str,
-    access_token: &str,
+    authorization: &str,
     chatgpt_account_id: Option<&str>,
     proxy_url: Option<&str>,
 ) -> Result<CodexUsageResponse, CodexUsageError> {
@@ -194,7 +225,8 @@ async fn request_usage(
     let mut send_errors = Vec::new();
 
     for attempt in attempts {
-        match request_usage_once(usage_endpoint, access_token, chatgpt_account_id, &attempt).await {
+        match request_usage_once(usage_endpoint, authorization, chatgpt_account_id, &attempt).await
+        {
             Ok(response) => return Ok(response),
             Err(UsageRequestError::Send(err)) => {
                 send_errors.push(format!("{}: {}", attempt.label, format_reqwest_error(&err)));
@@ -204,6 +236,7 @@ async fn request_usage(
                 return Err(CodexUsageError {
                     message: format!("Codex usage request failed: {}", formatted.message),
                     relogin_required: formatted.relogin_required,
+                    task_invalid: formatted.task_invalid,
                 });
             }
         }
@@ -217,6 +250,7 @@ async fn request_usage(
     Err(CodexUsageError {
         message: format!("Codex usage request failed: {detail}"),
         relogin_required: false,
+        task_invalid: false,
     })
 }
 
@@ -266,7 +300,7 @@ fn reset_at_from_seconds(seconds: i64) -> Option<String> {
 
 async fn request_usage_once(
     usage_endpoint: &str,
-    access_token: &str,
+    authorization: &str,
     chatgpt_account_id: Option<&str>,
     attempt: &UsageAttempt,
 ) -> Result<CodexUsageResponse, UsageRequestError> {
@@ -274,7 +308,7 @@ async fn request_usage_once(
         .map_err(UsageRequestError::Build)?;
     let mut request = http
         .get(usage_endpoint)
-        .header("Authorization", format!("Bearer {access_token}"))
+        .header("Authorization", authorization)
         .header("Accept", "application/json")
         // 配额探针与代理流量复用同一身份，避免版本漂移触发边缘过滤。
         .header("User-Agent", super::USER_AGENT);
@@ -356,18 +390,30 @@ fn format_usage_error(err: UsageRequestError) -> FormattedUsageError {
         UsageRequestError::Build(message) => FormattedUsageError {
             message,
             relogin_required: false,
+            task_invalid: false,
         },
         UsageRequestError::Send(err) => FormattedUsageError {
             message: format_reqwest_error(&err),
             relogin_required: false,
+            task_invalid: false,
         },
-        UsageRequestError::Status(status, body) => FormattedUsageError {
-            message: format_usage_status_error(status, &body),
-            relogin_required: usage_status_requires_relogin(&body),
-        },
+        UsageRequestError::Status(status, body) => {
+            let task_invalid =
+                CodexAccountStore::is_agent_identity_task_invalid(status, body.as_bytes());
+            FormattedUsageError {
+                message: if task_invalid {
+                    "Agent Identity task is invalid.".to_string()
+                } else {
+                    format_usage_status_error(status, &body)
+                },
+                relogin_required: !task_invalid && usage_status_requires_relogin(&body),
+                task_invalid,
+            }
+        }
         UsageRequestError::Decode(message) => FormattedUsageError {
             message,
             relogin_required: false,
+            task_invalid: false,
         },
     }
 }
@@ -413,11 +459,13 @@ struct UsageAttempt {
 struct CodexUsageError {
     message: String,
     relogin_required: bool,
+    task_invalid: bool,
 }
 
 struct FormattedUsageError {
     message: String,
     relogin_required: bool,
+    task_invalid: bool,
 }
 
 struct CodexQuotaFetchResult {

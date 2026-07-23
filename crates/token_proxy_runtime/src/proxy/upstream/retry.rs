@@ -8,7 +8,7 @@ use super::super::{
     config::UpstreamRuntime, openai_compat::FormatTransform, request_body::ReplayableBody,
     request_detail::RequestDetailSnapshot, ProxyState, RequestMeta,
 };
-use super::{attempt, result, AttemptOutcome};
+use super::{attempt, result, AttemptOutcome, RetryDirective, RetryScope};
 use crate::proxy::cooldown_scope::CooldownScope;
 use crate::proxy::http;
 use crate::proxy::log::RequestTimings;
@@ -25,6 +25,8 @@ pub(super) struct UpstreamAttempt {
     /// 发送上游前已 register，覆盖 TTFB；成功后移入 response stream。
     pub(super) token_tracker: RequestTokenTracker,
     pub(super) xai_client_tools: Option<XaiClientToolMapping>,
+    /// Agent Identity 401 已由账户层分类或恢复，禁止 dispatch 再原地重放整条链路。
+    pub(super) skip_same_upstream_retry: bool,
 }
 
 pub(super) struct UpstreamAttemptFailure {
@@ -106,13 +108,14 @@ pub(super) async fn finalize_attempt(
     attempt: UpstreamAttempt,
     cooldown_scope: &CooldownScope,
 ) -> AttemptOutcome {
+    let skip_same_upstream_retry = attempt.skip_same_upstream_retry;
     schedule_account_response_tasks(
         state,
         provider,
         attempt.selected_account_id.as_deref(),
         &attempt.response,
     );
-    result::handle_upstream_result(
+    let mut outcome = result::handle_upstream_result(
         state,
         Ok(attempt.response),
         &attempt.meta,
@@ -130,7 +133,20 @@ pub(super) async fn finalize_attempt(
         request_detail,
         cooldown_scope,
     )
-    .await
+    .await;
+    if skip_same_upstream_retry {
+        if let AttemptOutcome::Retryable {
+            response: Some(response),
+            ..
+        } = &mut outcome
+        {
+            response.extensions_mut().insert(RetryDirective {
+                scope: RetryScope::NextOnly,
+                effective_body: None,
+            });
+        }
+    }
+    outcome
 }
 
 pub(super) fn mark_account_retryable_failure(
@@ -281,6 +297,34 @@ async fn retry_after_account_refresh(
     let Some(account_id) = first.selected_account_id.clone() else {
         return Ok(first);
     };
+    if provider == "codex" {
+        match state.codex_accounts.get_account_record(&account_id).await {
+            Ok(record) if record.agent_identity().is_some() => {
+                return retry_after_agent_identity_task_recovery(
+                    state,
+                    method,
+                    provider,
+                    upstream,
+                    inbound_path,
+                    upstream_path_with_query,
+                    headers,
+                    body,
+                    meta,
+                    request_auth,
+                    first,
+                    record,
+                    request_detail,
+                    cooldown_scope,
+                )
+                .await;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::warn!(account_id, error = %error, "codex account reload after 401 failed");
+                return Ok(first);
+            }
+        }
+    }
     if let Err(err) = refresh_account(state, provider, &account_id).await {
         tracing::warn!(
             provider,
@@ -312,6 +356,122 @@ async fn retry_after_account_refresh(
         cooldown_scope,
     )
     .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn retry_after_agent_identity_task_recovery(
+    state: &ProxyState,
+    method: Method,
+    provider: &str,
+    upstream: &UpstreamRuntime,
+    inbound_path: &str,
+    upstream_path_with_query: &str,
+    headers: &HeaderMap,
+    body: &ReplayableBody,
+    meta: &RequestMeta,
+    request_auth: &RequestAuth,
+    first: UpstreamAttempt,
+    record: token_proxy_account_codex::CodexTokenRecord,
+    request_detail: Option<&RequestDetailSnapshot>,
+    cooldown_scope: &CooldownScope,
+) -> Result<UpstreamAttempt, UpstreamAttemptFailure> {
+    let account_id = first
+        .selected_account_id
+        .clone()
+        .expect("selected Codex account checked before Agent Identity recovery");
+    let expected_task_id = record
+        .agent_identity()
+        .and_then(|identity| identity.task_id)
+        .unwrap_or_default()
+        .to_string();
+    let UpstreamAttempt {
+        response,
+        selected_account_id,
+        meta: attempt_meta,
+        start_time,
+        timings,
+        token_tracker,
+        xai_client_tools,
+        skip_same_upstream_retry: _,
+    } = first;
+    let status = response.status();
+    let version = response.version();
+    let headers_snapshot = response.headers().clone();
+    let body_bytes = match response.bytes().await {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            tracing::warn!(account_id, error = %error, "agent identity 401 response body read failed");
+            return Err(UpstreamAttemptFailure {
+                outcome: AttemptOutcome::Fatal(http::error_response(
+                    StatusCode::BAD_GATEWAY,
+                    "Failed to read Agent Identity upstream response.",
+                )),
+                selected_account_id,
+            });
+        }
+    };
+    if !token_proxy_account_codex::CodexAccountStore::is_agent_identity_task_invalid(
+        status.as_u16(),
+        &body_bytes,
+    ) {
+        let mut rebuilt = axum::http::Response::builder()
+            .status(status)
+            .version(version)
+            .body(reqwest::Body::from(body_bytes))
+            .expect("valid upstream response status and version");
+        *rebuilt.headers_mut() = headers_snapshot;
+        return Ok(UpstreamAttempt {
+            response: reqwest::Response::from(rebuilt),
+            selected_account_id,
+            meta: attempt_meta,
+            start_time,
+            timings,
+            token_tracker,
+            xai_client_tools,
+            skip_same_upstream_retry: true,
+        });
+    }
+
+    tracing::warn!(
+        account_id,
+        "codex upstream rejected stale agent identity task"
+    );
+    if let Err(error) = state
+        .codex_accounts
+        .recover_agent_identity_task(&account_id, &expected_task_id)
+        .await
+    {
+        tracing::warn!(account_id, error = %error, "agent identity task recovery failed");
+        return Err(UpstreamAttemptFailure {
+            outcome: AttemptOutcome::Fatal(http::error_response(StatusCode::UNAUTHORIZED, error)),
+            selected_account_id,
+        });
+    }
+    let mut retry_upstream = upstream.clone();
+    pin_account(provider, &mut retry_upstream, account_id.clone());
+    tracing::info!(
+        account_id,
+        "agent identity task recovered after unauthorized response"
+    );
+    let mut retry = attempt::attempt_send(
+        state,
+        method,
+        provider,
+        &retry_upstream,
+        inbound_path,
+        upstream_path_with_query,
+        headers,
+        body,
+        meta,
+        request_auth,
+        request_detail,
+        cooldown_scope,
+    )
+    .await;
+    if let Ok(attempt) = &mut retry {
+        attempt.skip_same_upstream_retry = true;
+    }
+    retry
 }
 
 async fn finalize_account_failover_attempt(

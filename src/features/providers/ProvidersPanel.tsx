@@ -481,6 +481,12 @@ function codexModeLabel(mode: CodexManualInputMode) {
   return m.codex_manual_mode_login();
 }
 
+function formatCodexAuthMethod(authMethod?: string | null) {
+  return authMethod === "agent_identity"
+    ? m.codex_auth_method_agent_identity()
+    : m.codex_auth_method_oauth();
+}
+
 function codexManualPlaceholder(mode: CodexManualInputMode) {
   if (mode === "codex_session") {
     return m.codex_manual_json_placeholder();
@@ -1311,7 +1317,7 @@ function buildCodexRow(
     expiresAtLabel: formatDateValue(account.expires_at ?? null),
     planType: quota.planType,
     quotaSummary: quota.quotaSummary,
-    sourceOrMethodLabel: PLACEHOLDER,
+    sourceOrMethodLabel: formatCodexAuthMethod(account.auth_method),
     detailDescription: `${m.providers_codex_title()} · ${account.account_id}`,
     detailFields: [
       { label: m.providers_table_provider(), value: m.providers_codex_title() },
@@ -1320,13 +1326,15 @@ function buildCodexRow(
       { label: m.providers_table_status(), value: formatCodexStatus(account.status) },
       { label: m.providers_table_expires(), value: formatDateValue(account.expires_at ?? null) },
       { label: m.providers_table_plan(), value: quota.planType },
+      { label: m.providers_table_source(), value: formatCodexAuthMethod(account.auth_method) },
     ],
     quotaError: quota.quotaError,
     quotaItems: quota.quotaItems,
     proxyUrlValue: account.proxy_url ?? "",
-    canRefresh: true,
+    canRefresh: account.auth_method !== "agent_identity",
     logoutLabel: m.codex_account_logout(),
-    autoRefreshEnabled: account.auto_refresh_enabled ?? true,
+    autoRefreshEnabled:
+      account.auth_method === "agent_identity" ? null : (account.auto_refresh_enabled ?? true),
   };
 }
 
@@ -1540,7 +1548,9 @@ function useProvidersPanelState() {
     // 批量刷新必须基于 Codex 全量列表，不能复用当前分页/筛选后的表格行。
     const accounts =
       codexAccounts.accounts.length > 0 ? codexAccounts.accounts : await codexAccounts.refresh();
-    const targets = accounts.filter((account) => account.auto_refresh_enabled ?? true);
+    const targets = accounts.filter(
+      (account) => account.auth_method !== "agent_identity" && (account.auto_refresh_enabled ?? true)
+    );
     if (targets.length === 0) {
       toast.error(m.providers_refresh_all_codex_tokens_empty());
       return;

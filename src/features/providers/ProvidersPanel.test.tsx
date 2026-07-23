@@ -36,6 +36,16 @@ const providerMocks = vi.hoisted(() => {
       priority: 0,
       proxy_url: "",
     },
+    {
+      account_id: "codex-agent",
+      email: "agent@example.com",
+      expires_at: null,
+      status: "active" as const,
+      auth_method: "agent_identity" as const,
+      auto_refresh_enabled: null,
+      priority: 10,
+      proxy_url: "",
+    },
   ];
   const allXaiAccounts = [
     {
@@ -955,9 +965,64 @@ describe("providers/ProvidersPanel", () => {
       expect(providerMocks.refreshCodexAccount).toHaveBeenCalledWith("codex-1");
       expect(providerMocks.refreshCodexAccount).toHaveBeenCalledWith("codex-2");
     });
+    expect(providerMocks.refreshCodexAccount).not.toHaveBeenCalledWith("codex-agent");
     expect(providerMocks.toastSuccess).toHaveBeenCalledWith(
       m.providers_refresh_all_codex_tokens_success({ count: 2 })
     );
+  });
+
+  it("renders Agent Identity without OAuth-only controls", async () => {
+    const user = userEvent.setup();
+    providerMocks.listProviderAccountsPage.mockResolvedValueOnce({
+      items: [
+        {
+          provider_kind: "codex",
+          account_id: "codex-agent",
+          email: "agent@example.com",
+          expires_at: null,
+          status: "active",
+          auth_method: "agent_identity",
+          provider_name: "codex",
+          auto_refresh_enabled: null,
+          priority: 10,
+          proxy_url: "",
+          quota: {
+            plan_type: "team",
+            error: null,
+            checked_at: null,
+            items: [],
+          },
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      status_counts: {
+        all: 1,
+        active: 1,
+        disabled: 0,
+        expired: 0,
+        invalid: 0,
+        cooling_down: 0,
+      },
+    });
+
+    render(<ProvidersPanel />);
+    const row = await findAccountRow("agent@example.com");
+    expect(within(row).getByText(m.codex_auth_method_agent_identity())).toBeInTheDocument();
+    await user.click(
+      within(row).getByRole("button", { name: m.providers_account_dialog_title() })
+    );
+    const dialog = screen.getByRole("dialog");
+
+    expect(dialog).toHaveTextContent(m.codex_auth_method_agent_identity());
+    expect(
+      within(dialog).queryByRole("button", { name: m.common_refresh() })
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("switch", { name: m.providers_account_auto_refresh() })
+    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(m.providers_table_expires())).not.toBeInTheDocument();
   });
 
   it("opens account dialog from edit action", async () => {

@@ -13,8 +13,8 @@ use token_proxy_account_store::oauth_util::{
 use super::oauth::CodexOAuthClient;
 use super::store::CodexAccountStore;
 use super::types::{
-    CodexAccountSummary, CodexLoginPollResponse, CodexLoginStartResponse, CodexLoginStatus,
-    CodexQuotaCache, CodexTokenRecord,
+    CodexAccountSummary, CodexCredential, CodexLoginPollResponse, CodexLoginStartResponse,
+    CodexLoginStatus, CodexQuotaCache, CodexTokenRecord,
 };
 
 const AUTH_CODE_TIMEOUT: Duration = Duration::from_secs(600);
@@ -223,22 +223,24 @@ async fn run_auth_code_login(
         }
     };
     let record = CodexTokenRecord {
-        access_token: token.access_token,
-        refresh_token: token.refresh_token,
-        client_id: Some(
-            super::oauth::CodexRefreshTokenClient::Codex
-                .client_id()
-                .to_string(),
-        ),
-        id_token: token.id_token,
-        auto_refresh_enabled: true,
+        credential: CodexCredential::Oauth {
+            access_token: token.access_token,
+            refresh_token: token.refresh_token,
+            client_id: Some(
+                super::oauth::CodexRefreshTokenClient::Codex
+                    .client_id()
+                    .to_string(),
+            ),
+            id_token: token.id_token,
+            auto_refresh_enabled: true,
+            openai_device_id: None,
+            expires_at: expires_at_from_seconds(token.expires_in),
+            last_refresh: Some(now_rfc3339()),
+        },
         status: super::types::CodexAccountStatus::Active,
         account_id: None,
         user_id: None,
-        openai_device_id: None,
         email: None,
-        expires_at: expires_at_from_seconds(token.expires_in),
-        last_refresh: Some(now_rfc3339()),
         proxy_url: None,
         priority: 0,
         quota: CodexQuotaCache::default(),

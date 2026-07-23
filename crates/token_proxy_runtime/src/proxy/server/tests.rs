@@ -8,6 +8,8 @@ use axum::{
     routing::any,
     Router,
 };
+use base64::engine::general_purpose::{STANDARD as BASE64_STANDARD, URL_SAFE_NO_PAD};
+use base64::Engine as _;
 use serde_json::{json, Value};
 use sqlx::Row;
 use std::{
@@ -344,6 +346,31 @@ struct MockAuthSwitchState {
 #[derive(Clone)]
 struct MockCodexRefreshRetryState {
     requests: Arc<Mutex<Vec<RecordedRequest>>>,
+}
+
+#[derive(Clone)]
+struct MockAgentIdentityUpstreamState {
+    requests: Arc<Mutex<Vec<RecordedRequest>>>,
+    reject_recovered_task: bool,
+}
+
+struct MockAgentIdentityRegistration {
+    base_url: String,
+    registrations: Arc<Mutex<Vec<Value>>>,
+    task: JoinHandle<()>,
+}
+
+impl MockAgentIdentityRegistration {
+    fn registration_count(&self) -> usize {
+        self.registrations
+            .lock()
+            .expect("Agent Identity registrations lock")
+            .len()
+    }
+
+    fn abort(self) {
+        self.task.abort();
+    }
 }
 
 struct MockCodexEmptyChatSwitchState {
@@ -1308,6 +1335,145 @@ async fn spawn_codex_refresh_retry_mock_upstream() -> MockUpstream {
     }
 }
 
+fn agent_assertion_task_id(authorization: &str) -> Option<String> {
+    let encoded = authorization.strip_prefix("AgentAssertion ")?;
+    let envelope: Value = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(encoded).ok()?).ok()?;
+    envelope.get("task_id")?.as_str().map(str::to_string)
+}
+
+async fn agent_identity_upstream_handler(
+    State(state): State<Arc<MockAgentIdentityUpstreamState>>,
+    headers: HeaderMap,
+    uri: Uri,
+    body: Body,
+) -> axum::response::Response {
+    let bytes = to_bytes(body, usize::MAX).await.expect("read mock body");
+    let json_body = serde_json::from_slice::<Value>(&bytes).expect("mock request json");
+    let authorization = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let task_id = authorization
+        .as_deref()
+        .and_then(agent_assertion_task_id)
+        .unwrap_or_default();
+    state
+        .requests
+        .lock()
+        .expect("requests lock")
+        .push(RecordedRequest {
+            path: uri.path().to_string(),
+            body: json_body,
+            authorization,
+            chatgpt_account_id: headers
+                .get("chatgpt-account-id")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_string),
+        });
+
+    let (status, body) =
+        if task_id == "task-old" || (task_id == "task-new" && state.reject_recovered_task) {
+            (
+                StatusCode::UNAUTHORIZED,
+                json!({ "error": { "code": "invalid_task_id", "message": "task expired" } }),
+            )
+        } else if task_id == "task-new" {
+            (
+                StatusCode::OK,
+                json!({
+                    "id": "resp_agent_identity",
+                    "object": "response",
+                    "created_at": 123,
+                    "model": "gpt-5-codex",
+                    "status": "completed",
+                    "output": [{
+                        "type": "message",
+                        "id": "msg_agent_identity",
+                        "status": "completed",
+                        "role": "assistant",
+                        "content": [{ "type": "output_text", "text": "from Agent Identity" }]
+                    }],
+                    "usage": { "input_tokens": 1, "output_tokens": 2, "total_tokens": 3 }
+                }),
+            )
+        } else {
+            (
+                StatusCode::UNAUTHORIZED,
+                json!({ "error": { "code": "invalid_agent_assertion" } }),
+            )
+        };
+    (
+        status,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        body.to_string(),
+    )
+        .into_response()
+}
+
+async fn spawn_agent_identity_mock_upstream(reject_recovered_task: bool) -> MockUpstream {
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let state = Arc::new(MockAgentIdentityUpstreamState {
+        requests: requests.clone(),
+        reject_recovered_task,
+    });
+    let app = Router::new()
+        .route("/{*path}", any(agent_identity_upstream_handler))
+        .with_state(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind Agent Identity mock upstream");
+    let addr = listener
+        .local_addr()
+        .expect("Agent Identity upstream address");
+    let task = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("Agent Identity mock upstream should run");
+    });
+    MockUpstream {
+        base_url: format!("http://{addr}"),
+        requests,
+        task,
+    }
+}
+
+async fn spawn_agent_identity_registration() -> MockAgentIdentityRegistration {
+    async fn handler(
+        State(registrations): State<Arc<Mutex<Vec<Value>>>>,
+        axum::Json(body): axum::Json<Value>,
+    ) -> impl IntoResponse {
+        registrations
+            .lock()
+            .expect("Agent Identity registrations lock")
+            .push(body);
+        axum::Json(json!({ "task_id": "task-new" }))
+    }
+
+    let registrations = Arc::new(Mutex::new(Vec::new()));
+    let app = Router::new()
+        .route(
+            "/v1/agent/runtime-proxy/task/register",
+            axum::routing::post(handler),
+        )
+        .with_state(registrations.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind Agent Identity registration mock");
+    let addr = listener
+        .local_addr()
+        .expect("Agent Identity registration address");
+    let task = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("Agent Identity registration mock should run");
+    });
+    MockAgentIdentityRegistration {
+        base_url: format!("http://{addr}"),
+        registrations,
+        task,
+    }
+}
+
 async fn codex_empty_chat_switch_upstream_handler(
     State(state): State<Arc<MockCodexEmptyChatSwitchState>>,
     headers: HeaderMap,
@@ -1798,22 +1964,24 @@ async fn build_test_state_handle_with_paths(
                         .save_record_for_test(
                             account_id.to_string(),
                             token_proxy_account_codex::CodexTokenRecord {
-                                access_token: "codex-access-token".to_string(),
-                                refresh_token: "codex-refresh-token".to_string(),
-                                client_id: Some(
-                                    token_proxy_account_codex::CodexRefreshTokenClient::Codex
-                                        .client_id()
-                                        .to_string(),
-                                ),
-                                id_token: "codex-id-token".to_string(),
-                                auto_refresh_enabled: true,
+                                credential: token_proxy_account_codex::CodexCredential::Oauth {
+                                    access_token: "codex-access-token".to_string(),
+                                    refresh_token: "codex-refresh-token".to_string(),
+                                    client_id: Some(
+                                        token_proxy_account_codex::CodexRefreshTokenClient::Codex
+                                            .client_id()
+                                            .to_string(),
+                                    ),
+                                    id_token: "codex-id-token".to_string(),
+                                    auto_refresh_enabled: true,
+                                    openai_device_id: None,
+                                    expires_at: expires_at.clone(),
+                                    last_refresh: None,
+                                },
                                 status: token_proxy_account_codex::CodexAccountStatus::Active,
                                 account_id: Some("chatgpt-account".to_string()),
                                 user_id: None,
-                                openai_device_id: None,
                                 email: Some("codex@example.com".to_string()),
-                                expires_at: expires_at.clone(),
-                                last_refresh: None,
                                 proxy_url: None,
                                 priority: 0,
                                 quota: token_proxy_account_codex::CodexQuotaCache::default(),
@@ -1957,22 +2125,24 @@ async fn seed_codex_account_with_options(
         .save_record_for_test(
             storage_account_id.to_string(),
             token_proxy_account_codex::CodexTokenRecord {
-                access_token: access_token.to_string(),
-                refresh_token: refresh_token.to_string(),
-                client_id: Some(
-                    token_proxy_account_codex::CodexRefreshTokenClient::Codex
-                        .client_id()
-                        .to_string(),
-                ),
-                id_token: "codex-id-token".to_string(),
-                auto_refresh_enabled: true,
+                credential: token_proxy_account_codex::CodexCredential::Oauth {
+                    access_token: access_token.to_string(),
+                    refresh_token: refresh_token.to_string(),
+                    client_id: Some(
+                        token_proxy_account_codex::CodexRefreshTokenClient::Codex
+                            .client_id()
+                            .to_string(),
+                    ),
+                    id_token: "codex-id-token".to_string(),
+                    auto_refresh_enabled: true,
+                    openai_device_id: openai_device_id.map(ToOwned::to_owned),
+                    expires_at: expires_at.to_string(),
+                    last_refresh: None,
+                },
                 status: token_proxy_account_codex::CodexAccountStatus::Active,
                 account_id: Some(chatgpt_account_id.to_string()),
                 user_id: None,
-                openai_device_id: openai_device_id.map(ToOwned::to_owned),
                 email: Some(format!("{storage_account_id}@example.com")),
-                expires_at: expires_at.to_string(),
-                last_refresh: None,
                 proxy_url: None,
                 priority: 0,
                 quota: token_proxy_account_codex::CodexQuotaCache::default(),
@@ -1980,6 +2150,43 @@ async fn seed_codex_account_with_options(
         )
         .await
         .expect("seed codex account");
+}
+
+fn test_agent_private_key() -> String {
+    // RFC 8410 PKCS#8 prefix followed by a deterministic, test-only Ed25519 seed.
+    let mut der = vec![
+        0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04,
+        0x20,
+    ];
+    der.extend_from_slice(&[7_u8; 32]);
+    BASE64_STANDARD.encode(der)
+}
+
+async fn seed_agent_identity_account(state: &ProxyStateHandle, storage_account_id: &str) {
+    let state_guard = state.read().await;
+    state_guard
+        .codex_accounts
+        .save_record_for_test(
+            storage_account_id.to_string(),
+            token_proxy_account_codex::CodexTokenRecord {
+                credential: token_proxy_account_codex::CodexCredential::AgentIdentity {
+                    agent_runtime_id: "runtime-proxy".to_string(),
+                    agent_private_key: test_agent_private_key(),
+                    task_id: Some("task-old".to_string()),
+                    plan_type: Some("team".to_string()),
+                    chatgpt_account_is_fedramp: false,
+                },
+                status: token_proxy_account_codex::CodexAccountStatus::Active,
+                account_id: Some("chatgpt-agent".to_string()),
+                user_id: Some("user-agent".to_string()),
+                email: Some("agent@example.com".to_string()),
+                proxy_url: None,
+                priority: 10,
+                quota: token_proxy_account_codex::CodexQuotaCache::default(),
+            },
+        )
+        .await
+        .expect("seed Agent Identity account");
 }
 
 async fn seed_kiro_account(
@@ -4562,6 +4769,170 @@ fn responses_request_injects_codex_installation_id_from_selected_account() {
             requests[0].body["client_metadata"]["x-codex-installation-id"].as_str(),
             Some("device-install-123")
         );
+    });
+}
+
+#[test]
+fn responses_request_recovers_pinned_agent_identity_task_once() {
+    run_async(async {
+        assert_agent_identity_task_recovery(true, false, StatusCode::OK).await;
+    });
+}
+
+#[test]
+fn responses_request_recovers_pooled_agent_identity_before_failover() {
+    run_async(async {
+        assert_agent_identity_task_recovery(false, false, StatusCode::OK).await;
+    });
+}
+
+#[test]
+fn responses_request_does_not_repeat_agent_identity_task_recovery() {
+    run_async(async {
+        assert_agent_identity_task_recovery(true, true, StatusCode::UNAUTHORIZED).await;
+    });
+}
+
+async fn assert_agent_identity_task_recovery(
+    pinned: bool,
+    reject_recovered_task: bool,
+    expected_status: StatusCode,
+) {
+    let codex = spawn_agent_identity_mock_upstream(reject_recovered_task).await;
+    let registration = spawn_agent_identity_registration().await;
+    let mut config = config_with_runtime_upstreams(&[(
+        PROVIDER_CODEX,
+        0,
+        "codex-agent-identity",
+        codex.base_url.as_str(),
+        FORMATS_RESPONSES,
+    )]);
+    if !pinned {
+        config
+            .upstreams
+            .get_mut(PROVIDER_CODEX)
+            .expect("Codex upstreams")
+            .groups[0]
+            .items[0]
+            .codex_account_id = None;
+    }
+
+    let data_dir = next_test_data_dir("responses_agent_identity_recovery");
+    let state = build_test_state_handle(config, data_dir.clone()).await;
+    let agent_account_id = if pinned {
+        "codex-codex-agent-identity.json"
+    } else {
+        "codex-agent-a.json"
+    };
+    seed_agent_identity_account(&state, agent_account_id).await;
+    if !pinned {
+        let expires_at = (OffsetDateTime::now_utc() + TimeDuration::days(1))
+            .format(&time::format_description::well_known::Rfc3339)
+            .expect("format expires_at");
+        seed_codex_account(
+            &state,
+            "codex-oauth-b.json",
+            "codex-access-b",
+            "chatgpt-b",
+            &expires_at,
+        )
+        .await;
+    }
+    {
+        let state_guard = state.read().await;
+        state_guard
+            .codex_accounts
+            .set_test_agent_identity_urls(&registration.base_url, "http://unused")
+            .await;
+    }
+
+    let (status, json) = send_responses_request(state.clone()).await;
+    let requests = codex.requests();
+    let registration_count = registration.registration_count();
+    let persisted_task_id = state
+        .read()
+        .await
+        .codex_accounts
+        .load_account_for_test(agent_account_id)
+        .await
+        .expect("load recovered Agent Identity")
+        .agent_identity()
+        .and_then(|identity| identity.task_id)
+        .map(str::to_string);
+
+    codex.abort();
+    registration.abort();
+    let _ = std::fs::remove_dir_all(&data_dir);
+
+    assert_eq!(status, expected_status);
+    if expected_status == StatusCode::OK {
+        assert_eq!(
+            json["output"][0]["content"][0]["text"].as_str(),
+            Some("from Agent Identity")
+        );
+    }
+    assert_eq!(registration_count, 1, "stale task should register once");
+    assert_eq!(requests.len(), 2, "request should replay at most once");
+    assert_eq!(
+        requests[0]
+            .authorization
+            .as_deref()
+            .and_then(agent_assertion_task_id)
+            .as_deref(),
+        Some("task-old")
+    );
+    assert_eq!(
+        requests[1]
+            .authorization
+            .as_deref()
+            .and_then(agent_assertion_task_id)
+            .as_deref(),
+        Some("task-new")
+    );
+    assert_eq!(persisted_task_id.as_deref(), Some("task-new"));
+    assert!(requests
+        .iter()
+        .all(|request| request.chatgpt_account_id.as_deref() == Some("chatgpt-agent")));
+}
+
+#[test]
+fn responses_request_does_not_register_task_for_ordinary_agent_identity_401() {
+    run_async(async {
+        let codex = spawn_mock_upstream(
+            StatusCode::UNAUTHORIZED,
+            json!({ "error": { "code": "invalid_api_key", "message": "invalid assertion" } }),
+        )
+        .await;
+        let registration = spawn_agent_identity_registration().await;
+        let config = config_with_runtime_upstreams(&[(
+            PROVIDER_CODEX,
+            0,
+            "codex-agent-identity-ordinary-401",
+            codex.base_url.as_str(),
+            FORMATS_RESPONSES,
+        )]);
+        let data_dir = next_test_data_dir("responses_agent_identity_ordinary_401");
+        let state = build_test_state_handle(config, data_dir.clone()).await;
+        seed_agent_identity_account(&state, "codex-codex-agent-identity-ordinary-401.json").await;
+        {
+            let state_guard = state.read().await;
+            state_guard
+                .codex_accounts
+                .set_test_agent_identity_urls(&registration.base_url, "http://unused")
+                .await;
+        }
+
+        let (status, _json) = send_responses_request(state).await;
+        let requests = codex.requests();
+        let registration_count = registration.registration_count();
+
+        codex.abort();
+        registration.abort();
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(requests.len(), 1);
+        assert_eq!(registration_count, 0);
     });
 }
 

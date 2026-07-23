@@ -96,6 +96,22 @@ _Avoid_: 请求级内容策略拒绝
 缺少足够结构化证据来判断作用域的 403；保持账号级失败语义，避免把真实账号封禁误判为单请求拒绝。
 _Avoid_: 含糊的 Policy Violation
 
+**Codex OAuth Account（Codex OAuth 账户）**:
+持久化 access/refresh token、到期时间和自动刷新设置的 Codex 身份；上游使用 Bearer 鉴权，401 可触发一次 OAuth token refresh。
+_Avoid_: Agent Identity、Codex API Key
+
+**Codex Agent Identity Account（Codex Agent Identity 账户）**:
+从官方 Codex `auth.json` 导入的独立凭据类型，持久化 runtime ID、PKCS#8 Ed25519 私钥与 task binding，不持久化或伪造 OAuth token，也没有 token 到期/自动刷新语义。
+_Avoid_: OAuth 登录开关、access token 别名、应用内生成身份
+
+**AgentAssertion（Agent Assertion）**:
+每次 Codex 请求根据 runtime ID、当前 task ID 和 UTC 时间动态签名生成的 `Authorization` 值；断言本身不得写入日志或持久化。
+_Avoid_: Bearer token、静态 API Key
+
+**Agent Task Binding（Agent Task 绑定）**:
+Agent Identity 与服务端 task ID 的持久化绑定。缺失时按账户加锁注册；只有明确的 task-invalid 401 才允许重新注册并重放一次，普通 401 不注册 task，也不进入 OAuth refresh。
+_Avoid_: Same-Upstream Retry、无限 401 重试、每请求注册
+
 **In-stream Terminal Failure**:
 Responses SSE 已以 HTTP 200 提交后用于终止流的 `response.failed` 事件。事件必须包含连续的 `sequence_number`，其 `response` 必须包含 `created_at`、`model` 和完整失败状态；请求日志仍记录真实 4xx/5xx 失败状态。
 _Avoid_: HTTP Error Response（响应头提交后已无法更改 HTTP 状态）

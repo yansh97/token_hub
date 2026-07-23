@@ -256,10 +256,22 @@ async fn resolve_codex_upstream(
         .clone()
         .or_else(|| upstream.proxy_url.clone())
         .or(global_proxy_url);
-    let value = http::bearer_header(&record.access_token).ok_or_else(|| {
+    let authorization = state
+        .codex_accounts
+        .authorization_header(&selected_account_id)
+        .await
+        .map_err(|error| {
+            tracing::warn!(
+                account_id = selected_account_id.as_str(),
+                error = %error,
+                "codex upstream authorization preparation failed"
+            );
+            AttemptOutcome::Fatal(http::error_response(StatusCode::UNAUTHORIZED, error))
+        })?;
+    let value = HeaderValue::from_str(&authorization).map_err(|_| {
         AttemptOutcome::Fatal(http::error_response(
             StatusCode::UNAUTHORIZED,
-            "Upstream access token contains invalid characters.",
+            "Upstream authorization contains invalid characters.",
         ))
     })?;
     let mut extra_headers = HeaderMap::new();
@@ -285,10 +297,12 @@ async fn resolve_codex_upstream(
         extra_headers,
         proxy_url,
         selected_account_id: Some(selected_account_id),
-        codex_openai_device_id: record
-            .openai_device_id
-            .clone()
-            .filter(|value| !value.trim().is_empty()),
+        codex_openai_device_id: record.oauth().and_then(|oauth| {
+            oauth
+                .openai_device_id
+                .map(str::to_string)
+                .filter(|value| !value.trim().is_empty())
+        }),
     })
 }
 

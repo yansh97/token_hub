@@ -260,6 +260,11 @@ function CodexAccountRow({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-foreground">{accountLabel}</p>
             <Badge variant={statusVariant}>{statusLabel}</Badge>
+            <Badge variant="outline">
+              {account.auth_method === "agent_identity"
+                ? m.codex_auth_method_agent_identity()
+                : m.codex_auth_method_oauth()}
+            </Badge>
             {quota?.planType ? <Badge variant="outline">{quota.planType}</Badge> : null}
           </div>
           <p className="text-xs text-muted-foreground">

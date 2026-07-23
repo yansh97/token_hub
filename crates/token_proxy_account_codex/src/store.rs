@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex as StdMutex;
+use std::sync::{Arc, Mutex as StdMutex};
 
+use serde::Deserialize;
 use serde_json::Value;
 use time::{Duration, OffsetDateTime};
 use tokio::sync::{Mutex, RwLock};
@@ -17,7 +18,7 @@ use token_proxy_account_store::paths::TokenProxyPaths;
 
 use super::error::error_requires_relogin;
 use super::oauth::{CodexOAuthClient, CodexRefreshTokenClient};
-use super::types::{CodexAccountStatus, CodexAccountSummary, CodexTokenRecord};
+use super::types::{CodexAccountStatus, CodexAccountSummary, CodexCredential, CodexTokenRecord};
 
 pub struct CodexAccountStore {
     paths: TokenProxyPaths,
@@ -25,8 +26,13 @@ pub struct CodexAccountStore {
     app_proxy: AppProxyState,
     quota_refreshing: Mutex<HashSet<String>>,
     token_refreshing: StdMutex<HashSet<String>>,
+    agent_task_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
     #[cfg(any(test, feature = "test-support"))]
     token_url_override: RwLock<Option<String>>,
+    #[cfg(any(test, feature = "test-support"))]
+    agent_auth_url_override: RwLock<Option<String>>,
+    #[cfg(any(test, feature = "test-support"))]
+    agent_jwks_url_override: RwLock<Option<String>>,
 }
 
 const CODEX_TOKEN_REFRESH_WINDOW: Duration = Duration::minutes(15);
@@ -54,8 +60,13 @@ impl CodexAccountStore {
             app_proxy,
             quota_refreshing: Mutex::new(HashSet::new()),
             token_refreshing: StdMutex::new(HashSet::new()),
+            agent_task_locks: Mutex::new(HashMap::new()),
             #[cfg(any(test, feature = "test-support"))]
             token_url_override: RwLock::new(None),
+            #[cfg(any(test, feature = "test-support"))]
+            agent_auth_url_override: RwLock::new(None),
+            #[cfg(any(test, feature = "test-support"))]
+            agent_jwks_url_override: RwLock::new(None),
         })
     }
 
@@ -64,19 +75,7 @@ impl CodexAccountStore {
         let cache = self.cache.read().await;
         let mut items: Vec<CodexAccountSummary> = cache
             .iter()
-            .map(|(account_id, record)| CodexAccountSummary {
-                account_id: account_id.clone(),
-                email: record.email.clone(),
-                expires_at: record.expires_at().map(|value| {
-                    value
-                        .format(&time::format_description::well_known::Rfc3339)
-                        .unwrap_or_else(|_| record.expires_at.clone())
-                }),
-                status: record.effective_status(),
-                auto_refresh_enabled: record.auto_refresh_enabled,
-                proxy_url: record.proxy_url.clone(),
-                priority: record.priority,
-            })
+            .map(|(account_id, record)| account_summary(account_id.clone(), record))
             .collect();
         items.sort_by(|left, right| {
             right
@@ -113,7 +112,7 @@ impl CodexAccountStore {
                 }
                 Err(err) => return Err(format!("Failed to read JSON file: {err}")),
             };
-            let records = match parse_import_records(&contents) {
+            let records = match self.parse_import_records(&contents).await {
                 Ok(records) => records,
                 Err(err) if metadata.is_dir() => {
                     let _ = err;
@@ -138,8 +137,55 @@ impl CodexAccountStore {
     }
 
     pub async fn import_text(&self, contents: &str) -> Result<Vec<CodexAccountSummary>, String> {
-        let records = parse_import_records(contents)?;
+        let records = self.parse_import_records(contents).await?;
         self.import_records(records, "text").await
+    }
+
+    async fn parse_import_records(&self, contents: &str) -> Result<Vec<CodexTokenRecord>, String> {
+        let candidates = parse_agent_identity_candidates(contents)?;
+        let Some(candidates) = candidates else {
+            return parse_oauth_import_records(contents);
+        };
+        let proxy_url = self.effective_proxy_url(None).await;
+        let client = token_proxy_account_store::oauth_util::build_reqwest_client(
+            proxy_url.as_deref(),
+            std::time::Duration::from_secs(30),
+        )
+        .map_err(|_| "Failed to build Agent Identity import client.".to_string())?;
+        let mut jwks = None;
+        let mut records = Vec::with_capacity(candidates.len());
+        for candidate in candidates {
+            let raw = match candidate {
+                AgentIdentityImport::Record(raw) => raw,
+                AgentIdentityImport::Jwt(jwt) => {
+                    if jwks.is_none() {
+                        let jwks_base_url = self.agent_jwks_base_url().await;
+                        jwks =
+                            Some(super::agent_identity::fetch_jwks(&client, &jwks_base_url).await?);
+                    }
+                    let claims = super::agent_identity::verify_jwt(
+                        &jwt,
+                        jwks.as_ref().expect("JWKS loaded before JWT verification"),
+                    )?;
+                    RawAgentIdentity {
+                        agent_runtime_id: claims.agent_runtime_id,
+                        agent_private_key: claims.agent_private_key,
+                        task_id: None,
+                        account_id: claims.account_id,
+                        chatgpt_user_id: claims.chatgpt_user_id,
+                        email: optional_nonempty(claims.email),
+                        plan_type: super::agent_identity::normalize_plan_type(&claims.plan_type),
+                        chatgpt_account_is_fedramp: claims.chatgpt_account_is_fedramp,
+                    }
+                }
+            };
+            records.push(raw.into_record()?);
+        }
+        tracing::info!(
+            count = records.len(),
+            "agent identity import credentials verified"
+        );
+        Ok(records)
     }
 
     pub async fn import_refresh_tokens(
@@ -183,9 +229,114 @@ impl CodexAccountStore {
         self.refresh_if_needed(account_id, record).await
     }
 
+    /// Builds a fresh upstream Authorization value without exposing credential material to logs.
+    pub async fn authorization_header(&self, account_id: &str) -> Result<String, String> {
+        let record = self.ensure_agent_identity_task(account_id, None).await?;
+        if let Some(oauth) = record.oauth() {
+            if oauth.access_token.trim().is_empty() {
+                return Err("Codex OAuth access token is missing.".to_string());
+            }
+            return Ok(format!("Bearer {}", oauth.access_token));
+        }
+        let identity = record
+            .agent_identity()
+            .ok_or_else(|| "Codex credential type is unsupported.".to_string())?;
+        super::agent_identity::authorization_header(identity)
+    }
+
+    /// Re-registers only when the persisted task still matches the failed request.
+    pub async fn recover_agent_identity_task(
+        &self,
+        account_id: &str,
+        expected_task_id: &str,
+    ) -> Result<(), String> {
+        let record = self
+            .ensure_agent_identity_task(account_id, Some(expected_task_id))
+            .await?;
+        if record.agent_identity().is_none() {
+            return Err("Codex account is not an Agent Identity account.".to_string());
+        }
+        Ok(())
+    }
+
+    pub fn is_agent_identity_task_invalid(status: u16, body: &[u8]) -> bool {
+        super::agent_identity::is_task_invalid_response(status, body)
+    }
+
+    async fn ensure_agent_identity_task(
+        &self,
+        account_id: &str,
+        expected_task_id: Option<&str>,
+    ) -> Result<CodexTokenRecord, String> {
+        let current = self.load_account(account_id).await?;
+        let Some(identity) = current.agent_identity() else {
+            return Ok(current);
+        };
+        if task_is_current(identity.task_id, expected_task_id) {
+            return Ok(current);
+        }
+
+        let task_lock = {
+            let mut locks = self.agent_task_locks.lock().await;
+            locks
+                .entry(account_id.to_string())
+                .or_insert_with(|| Arc::new(Mutex::new(())))
+                .clone()
+        };
+        let _guard = task_lock.lock().await;
+        let mut record = self.load_account(account_id).await?;
+        let identity = record
+            .agent_identity()
+            .ok_or_else(|| "Codex account is not an Agent Identity account.".to_string())?;
+        if task_is_current(identity.task_id, expected_task_id) {
+            return Ok(record);
+        }
+
+        let proxy_url = self.effective_proxy_url(record.proxy_url.as_deref()).await;
+        let client = token_proxy_account_store::oauth_util::build_reqwest_client(
+            proxy_url.as_deref(),
+            std::time::Duration::from_secs(30),
+        )
+        .map_err(|_| "Failed to build Agent Identity task registration client.".to_string())?;
+        let auth_base_url = self.agent_auth_base_url().await;
+        let task_id =
+            super::agent_identity::register_task(&client, &auth_base_url, identity).await?;
+        let CodexCredential::AgentIdentity {
+            task_id: stored_task_id,
+            ..
+        } = &mut record.credential
+        else {
+            return Err("Codex account is not an Agent Identity account.".to_string());
+        };
+        *stored_task_id = Some(task_id);
+        self.save_record(account_id.to_string(), record.clone())
+            .await?;
+        tracing::info!(account_id, "agent identity task registered and persisted");
+        Ok(record)
+    }
+
+    async fn agent_auth_base_url(&self) -> String {
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(url) = self.agent_auth_url_override.read().await.clone() {
+            return url;
+        }
+        super::agent_identity::DEFAULT_AGENT_IDENTITY_AUTH_URL.to_string()
+    }
+
+    async fn agent_jwks_base_url(&self) -> String {
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(url) = self.agent_jwks_url_override.read().await.clone() {
+            return url;
+        }
+        super::agent_identity::DEFAULT_CHATGPT_BACKEND_URL.to_string()
+    }
+
     pub async fn refresh_account(&self, account_id: &str) -> Result<(), String> {
         let record = self.load_account(account_id).await?;
-        if record.refresh_token.trim().is_empty() {
+        let oauth = record
+            .oauth()
+            .ok_or_else(|| "Agent Identity accounts do not use OAuth token refresh.".to_string())?;
+        if oauth.refresh_token.trim().is_empty() {
             return Err("Codex account has no refresh token. Please sign in again.".to_string());
         }
         let refreshed = self.refresh_record_guarded(account_id, record).await?;
@@ -216,7 +367,10 @@ impl CodexAccountStore {
         enabled: bool,
     ) -> Result<CodexAccountSummary, String> {
         let mut record = self.load_account(account_id).await?;
-        record.auto_refresh_enabled = enabled;
+        let oauth = record.oauth_mut().ok_or_else(|| {
+            "Agent Identity accounts do not support automatic token refresh.".to_string()
+        })?;
+        *oauth.auto_refresh_enabled = enabled;
         self.save_record(account_id.to_string(), record).await
     }
 
@@ -268,19 +422,7 @@ impl CodexAccountStore {
         provider_accounts::upsert_codex_account(&self.paths, &account_id, &record).await?;
         let mut cache = self.cache.write().await;
         cache.insert(account_id.clone(), record.clone());
-        Ok(CodexAccountSummary {
-            account_id,
-            email: record.email.clone(),
-            expires_at: record.expires_at().map(|value| {
-                value
-                    .format(&time::format_description::well_known::Rfc3339)
-                    .unwrap_or_else(|_| record.expires_at.clone())
-            }),
-            status: record.effective_status(),
-            auto_refresh_enabled: record.auto_refresh_enabled,
-            proxy_url: record.proxy_url.clone(),
-            priority: record.priority,
-        })
+        Ok(account_summary(account_id, &record))
     }
 
     /// Seeds an exact record for cross-crate integration tests.
@@ -313,13 +455,16 @@ impl CodexAccountStore {
         {
             // Re-importing the same real Codex account should refresh credentials in place
             // instead of creating duplicate local entries. Keep app-local settings.
-            record.auto_refresh_enabled = existing_record.auto_refresh_enabled;
             record.status = existing_record.status;
-            if record.client_id.is_none() {
-                record.client_id = existing_record.client_id.clone();
-            }
-            if record.openai_device_id.is_none() {
-                record.openai_device_id = existing_record.openai_device_id.clone();
+            if let (Some(imported), Some(existing)) = (record.oauth_mut(), existing_record.oauth())
+            {
+                *imported.auto_refresh_enabled = existing.auto_refresh_enabled;
+                if imported.client_id.is_none() {
+                    *imported.client_id = existing.client_id.map(str::to_string);
+                }
+                if imported.openai_device_id.is_none() {
+                    *imported.openai_device_id = existing.openai_device_id.map(str::to_string);
+                }
             }
             if record.proxy_url.is_none() {
                 record.proxy_url = existing_record.proxy_url.clone();
@@ -373,22 +518,24 @@ impl CodexAccountStore {
             .refresh_token_with_client(refresh_token, client)
             .await?;
         let mut record = CodexTokenRecord {
-            access_token: response.access_token,
-            refresh_token: if response.refresh_token.trim().is_empty() {
-                refresh_token.to_string()
-            } else {
-                response.refresh_token
+            credential: CodexCredential::Oauth {
+                access_token: response.access_token,
+                refresh_token: if response.refresh_token.trim().is_empty() {
+                    refresh_token.to_string()
+                } else {
+                    response.refresh_token
+                },
+                client_id: Some(client.client_id().to_string()),
+                id_token: response.id_token,
+                auto_refresh_enabled: true,
+                openai_device_id: None,
+                expires_at: expires_at_from_seconds(response.expires_in),
+                last_refresh: Some(now_rfc3339()),
             },
-            client_id: Some(client.client_id().to_string()),
-            id_token: response.id_token,
-            auto_refresh_enabled: true,
             status: CodexAccountStatus::Active,
             account_id: None,
             user_id: None,
-            openai_device_id: None,
             email: None,
-            expires_at: expires_at_from_seconds(response.expires_in),
-            last_refresh: Some(now_rfc3339()),
             proxy_url: None,
             priority: 0,
             quota: super::types::CodexQuotaCache::default(),
@@ -414,6 +561,12 @@ impl CodexAccountStore {
         *guard = Some(token_url.to_string());
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub async fn set_test_agent_identity_urls(&self, auth_url: &str, jwks_url: &str) {
+        *self.agent_auth_url_override.write().await = Some(auth_url.to_string());
+        *self.agent_jwks_url_override.write().await = Some(jwks_url.to_string());
+    }
+
     async fn refresh_if_needed(
         &self,
         account_id: &str,
@@ -427,12 +580,15 @@ impl CodexAccountStore {
         if !record_needs_refresh(&record) {
             return Ok(record);
         }
-        if !record.auto_refresh_enabled {
+        let Some(oauth) = record.oauth() else {
+            return Ok(record);
+        };
+        if !oauth.auto_refresh_enabled {
             return Ok(record);
         }
         // Allow imported access-token-only records to stay usable until expiry.
         // When refresh_token is missing we should not fail reads/listing by forcing refresh.
-        if record.refresh_token.trim().is_empty() {
+        if oauth.refresh_token.trim().is_empty() {
             return Ok(record);
         }
         self.refresh_record_guarded(account_id, record).await
@@ -531,6 +687,13 @@ impl CodexAccountStore {
         record: CodexTokenRecord,
         token_url: Option<&str>,
     ) -> Result<CodexTokenRecord, String> {
+        let oauth = record
+            .oauth()
+            .ok_or_else(|| "Agent Identity accounts do not use OAuth token refresh.".to_string())?;
+        let refresh_token = oauth.refresh_token.to_string();
+        let id_token = oauth.id_token.to_string();
+        let auto_refresh_enabled = oauth.auto_refresh_enabled;
+        let openai_device_id = oauth.openai_device_id.map(str::to_string);
         let proxy_url = self.effective_proxy_url(record.proxy_url.as_deref()).await;
         let client = self.oauth_client(proxy_url.as_deref(), token_url).await?;
         let refresh_client = refresh_token_client_for_record(&record)?;
@@ -540,7 +703,7 @@ impl CodexAccountStore {
             "codex account refresh start"
         );
         let response = match client
-            .refresh_token_with_client(&record.refresh_token, refresh_client)
+            .refresh_token_with_client(&refresh_token, refresh_client)
             .await
         {
             Ok(response) => response,
@@ -558,26 +721,28 @@ impl CodexAccountStore {
             }
         };
         let mut refreshed = CodexTokenRecord {
-            access_token: response.access_token,
-            refresh_token: if response.refresh_token.trim().is_empty() {
-                record.refresh_token.clone()
-            } else {
-                response.refresh_token
+            credential: CodexCredential::Oauth {
+                access_token: response.access_token,
+                refresh_token: if response.refresh_token.trim().is_empty() {
+                    refresh_token
+                } else {
+                    response.refresh_token
+                },
+                client_id: Some(refresh_client.client_id().to_string()),
+                id_token: if response.id_token.trim().is_empty() {
+                    id_token
+                } else {
+                    response.id_token
+                },
+                auto_refresh_enabled,
+                openai_device_id,
+                expires_at: expires_at_from_seconds(response.expires_in),
+                last_refresh: Some(now_rfc3339()),
             },
-            client_id: Some(refresh_client.client_id().to_string()),
-            id_token: if response.id_token.trim().is_empty() {
-                record.id_token.clone()
-            } else {
-                response.id_token
-            },
-            auto_refresh_enabled: record.auto_refresh_enabled,
             status: record.status,
             account_id: record.account_id.clone(),
             user_id: record.user_id.clone(),
-            openai_device_id: record.openai_device_id.clone(),
             email: record.email.clone(),
-            expires_at: expires_at_from_seconds(response.expires_in),
-            last_refresh: Some(now_rfc3339()),
             proxy_url: record.proxy_url.clone(),
             priority: record.priority,
             quota: record.quota.clone(),
@@ -932,6 +1097,36 @@ impl CodexAccountStore {
     }
 }
 
+fn account_summary(account_id: String, record: &CodexTokenRecord) -> CodexAccountSummary {
+    CodexAccountSummary {
+        account_id,
+        email: record.email.clone(),
+        expires_at: record.expires_at().map(|value| {
+            value
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_else(|_| record.expires_at_str().unwrap_or_default().to_string())
+        }),
+        status: record.effective_status(),
+        auth_method: record.auth_method(),
+        auto_refresh_enabled: record.auto_refresh_enabled(),
+        proxy_url: record.proxy_url.clone(),
+        priority: record.priority,
+    }
+}
+
+fn task_is_current(current_task_id: Option<&str>, expected_task_id: Option<&str>) -> bool {
+    let current = current_task_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    match expected_task_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => current.is_some(),
+        Some(expected) => current.is_some_and(|current| current != expected),
+    }
+}
+
 fn normalize_optional_id(value: Option<&str>) -> Option<String> {
     value
         .map(str::trim)
@@ -1028,19 +1223,24 @@ async fn collect_json_files(root: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 fn fill_record_from_jwt(record: &mut CodexTokenRecord) {
+    let Some(oauth) = record.oauth() else {
+        return;
+    };
+    let id_token = oauth.id_token.to_string();
+    let access_token = oauth.access_token.to_string();
     // JWT claims are the authority; wrapper fields from exported files are fallbacks.
-    if let Some(account_id) = extract_chatgpt_account_id_from_jwt(&record.id_token)
-        .or_else(|| extract_chatgpt_account_id_from_jwt(&record.access_token))
+    if let Some(account_id) = extract_chatgpt_account_id_from_jwt(&id_token)
+        .or_else(|| extract_chatgpt_account_id_from_jwt(&access_token))
     {
         record.account_id = Some(account_id);
     }
-    if let Some(user_id) = extract_chatgpt_user_id_from_jwt(&record.id_token)
-        .or_else(|| extract_chatgpt_user_id_from_jwt(&record.access_token))
+    if let Some(user_id) = extract_chatgpt_user_id_from_jwt(&id_token)
+        .or_else(|| extract_chatgpt_user_id_from_jwt(&access_token))
     {
         record.user_id = Some(user_id);
     }
-    if let Some(email) = extract_email_from_jwt(&record.id_token)
-        .or_else(|| extract_email_from_jwt(&record.access_token))
+    if let Some(email) =
+        extract_email_from_jwt(&id_token).or_else(|| extract_email_from_jwt(&access_token))
     {
         record.email = Some(email);
     }
@@ -1052,9 +1252,12 @@ fn record_needs_refresh(record: &CodexTokenRecord) -> bool {
 }
 
 fn record_can_auto_refresh(record: &CodexTokenRecord) -> bool {
+    let Some(oauth) = record.oauth() else {
+        return false;
+    };
     matches!(record.status, CodexAccountStatus::Active)
-        && record.auto_refresh_enabled
-        && !record.refresh_token.trim().is_empty()
+        && oauth.auto_refresh_enabled
+        && !oauth.refresh_token.trim().is_empty()
 }
 
 fn record_expires_within(record: &CodexTokenRecord, window: Duration) -> bool {
@@ -1065,16 +1268,24 @@ fn record_expires_within(record: &CodexTokenRecord, window: Duration) -> bool {
 }
 
 fn token_record_was_refreshed(previous: &CodexTokenRecord, current: &CodexTokenRecord) -> bool {
-    current.access_token != previous.access_token
-        || current.refresh_token != previous.refresh_token
-        || current.last_refresh != previous.last_refresh
-        || current.expires_at != previous.expires_at
+    match (previous.oauth(), current.oauth()) {
+        (Some(previous), Some(current)) => {
+            current.access_token != previous.access_token
+                || current.refresh_token != previous.refresh_token
+                || current.last_refresh != previous.last_refresh
+                || current.expires_at != previous.expires_at
+        }
+        _ => false,
+    }
 }
 
 fn refresh_token_client_for_record(
     record: &CodexTokenRecord,
 ) -> Result<CodexRefreshTokenClient, String> {
-    let Some(client_id) = record.client_id.as_deref() else {
+    let oauth = record
+        .oauth()
+        .ok_or_else(|| "Agent Identity accounts do not use an OAuth refresh client.".to_string())?;
+    let Some(client_id) = oauth.client_id else {
         return Ok(CodexRefreshTokenClient::Codex);
     };
     CodexRefreshTokenClient::from_client_id(client_id).ok_or_else(|| {
@@ -1089,10 +1300,12 @@ fn paid_quota_disagrees_with_free_access_token_claim(record: &CodexTokenRecord) 
     if !is_paid_plan(record.quota.plan_type.as_deref()) {
         return false;
     }
-    matches!(
-        extract_chatgpt_plan_type_from_jwt(&record.access_token).as_deref(),
-        Some("free")
-    )
+    record.oauth().is_some_and(|oauth| {
+        matches!(
+            extract_chatgpt_plan_type_from_jwt(oauth.access_token).as_deref(),
+            Some("free")
+        )
+    })
 }
 
 fn is_paid_plan(plan_type: Option<&str>) -> bool {
@@ -1111,7 +1324,151 @@ fn extract_chatgpt_plan_type_from_jwt(token: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn parse_import_records(contents: &str) -> Result<Vec<CodexTokenRecord>, String> {
+enum AgentIdentityImport {
+    Jwt(String),
+    Record(RawAgentIdentity),
+}
+
+#[derive(Deserialize)]
+struct RawAgentIdentity {
+    agent_runtime_id: String,
+    agent_private_key: String,
+    #[serde(default)]
+    task_id: Option<String>,
+    #[serde(alias = "chatgpt_account_id")]
+    account_id: String,
+    chatgpt_user_id: String,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_plan_type")]
+    plan_type: Option<String>,
+    #[serde(default)]
+    chatgpt_account_is_fedramp: bool,
+}
+
+impl RawAgentIdentity {
+    fn into_record(self) -> Result<CodexTokenRecord, String> {
+        let account_id =
+            required_nonempty(self.account_id, "Agent Identity account ID is required.")?;
+        let user_id = required_nonempty(
+            self.chatgpt_user_id,
+            "Agent Identity ChatGPT user ID is required.",
+        )?;
+        let plan_type = self.plan_type.and_then(optional_nonempty);
+        let record = CodexTokenRecord {
+            credential: CodexCredential::AgentIdentity {
+                agent_runtime_id: required_nonempty(
+                    self.agent_runtime_id,
+                    "Agent Identity runtime ID is required.",
+                )?,
+                agent_private_key: self.agent_private_key,
+                task_id: self.task_id.and_then(optional_nonempty),
+                plan_type: plan_type.clone(),
+                chatgpt_account_is_fedramp: self.chatgpt_account_is_fedramp,
+            },
+            status: CodexAccountStatus::Active,
+            account_id: Some(account_id),
+            user_id: Some(user_id),
+            email: self.email.and_then(optional_nonempty),
+            proxy_url: None,
+            priority: 0,
+            quota: super::types::CodexQuotaCache {
+                plan_type,
+                ..Default::default()
+            },
+        };
+        super::agent_identity::validate_identity(
+            record
+                .agent_identity()
+                .expect("new Agent Identity record has Agent Identity credential"),
+        )?;
+        Ok(record)
+    }
+}
+
+fn parse_agent_identity_candidates(
+    contents: &str,
+) -> Result<Option<Vec<AgentIdentityImport>>, String> {
+    let trimmed = contents.trim();
+    if trimmed.is_empty() || !looks_like_json(trimmed) {
+        return Ok(None);
+    }
+    let value = serde_json::from_str::<Value>(trimmed)
+        .map_err(|error| format!("Invalid Codex account JSON file: {error}"))?;
+    let mut candidates = Vec::new();
+    collect_agent_identity_candidates(&value, &mut candidates)?;
+    Ok((!candidates.is_empty()).then_some(candidates))
+}
+
+fn collect_agent_identity_candidates(
+    value: &Value,
+    candidates: &mut Vec<AgentIdentityImport>,
+) -> Result<(), String> {
+    if let Some(items) = value.as_array() {
+        for item in items {
+            collect_agent_identity_candidates(item, candidates)?;
+        }
+        return Ok(());
+    }
+    let Some(object) = value.as_object() else {
+        return Ok(());
+    };
+    if let Some(identity) = object
+        .get("agent_identity")
+        .or_else(|| object.get("agentIdentity"))
+    {
+        match identity {
+            Value::String(jwt) if !jwt.trim().is_empty() => {
+                candidates.push(AgentIdentityImport::Jwt(jwt.trim().to_string()));
+                return Ok(());
+            }
+            Value::Object(_) => {
+                let raw = serde_json::from_value::<RawAgentIdentity>(identity.clone())
+                    .map_err(|_| "Agent Identity record is missing required fields.".to_string())?;
+                candidates.push(AgentIdentityImport::Record(raw));
+                return Ok(());
+            }
+            Value::Null => {}
+            _ => return Err("Agent Identity must be a JWT or record object.".to_string()),
+        }
+    }
+    let is_agent_identity = object
+        .get("auth_mode")
+        .or_else(|| object.get("authMode"))
+        .and_then(Value::as_str)
+        .is_some_and(|value| value.eq_ignore_ascii_case("agentIdentity"));
+    if is_agent_identity {
+        let raw = serde_json::from_value::<RawAgentIdentity>(value.clone())
+            .map_err(|_| "Agent Identity record is missing required fields.".to_string())?;
+        candidates.push(AgentIdentityImport::Record(raw));
+        return Ok(());
+    }
+    for key in ["accounts", "auths", "items", "data"] {
+        if let Some(child) = object.get(key) {
+            collect_agent_identity_candidates(child, candidates)?;
+        }
+    }
+    Ok(())
+}
+
+fn deserialize_optional_plan_type<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    Ok(super::agent_identity::normalize_plan_type(&value))
+}
+
+fn required_nonempty(value: String, error: &str) -> Result<String, String> {
+    optional_nonempty(value).ok_or_else(|| error.to_string())
+}
+
+fn optional_nonempty(value: String) -> Option<String> {
+    let value = value.trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+fn parse_oauth_import_records(contents: &str) -> Result<Vec<CodexTokenRecord>, String> {
     let trimmed = contents.trim();
     if trimmed.is_empty() {
         return Err("Codex account input is required.".to_string());
@@ -1233,18 +1590,20 @@ fn raw_access_token_record(
         "Raw access token input must include a JWT exp claim.".to_string()
     })?;
     let mut record = CodexTokenRecord {
-        access_token: access_token.to_string(),
-        refresh_token: String::new(),
-        client_id: None,
-        id_token: String::new(),
-        auto_refresh_enabled: false,
+        credential: CodexCredential::Oauth {
+            access_token: access_token.to_string(),
+            refresh_token: String::new(),
+            client_id: None,
+            id_token: String::new(),
+            auto_refresh_enabled: false,
+            openai_device_id: None,
+            expires_at,
+            last_refresh: Some(now_rfc3339()),
+        },
         status: CodexAccountStatus::Active,
         account_id: None,
         user_id: None,
-        openai_device_id: None,
         email: None,
-        expires_at,
-        last_refresh: Some(now_rfc3339()),
         proxy_url: None,
         priority: 0,
         quota: super::types::CodexQuotaCache::default(),
@@ -1438,18 +1797,20 @@ fn parse_import_record(value: &Value) -> Option<CodexTokenRecord> {
     );
 
     Some(CodexTokenRecord {
-        access_token,
-        refresh_token,
-        client_id,
-        id_token,
-        auto_refresh_enabled,
+        credential: CodexCredential::Oauth {
+            access_token,
+            refresh_token,
+            client_id,
+            id_token,
+            auto_refresh_enabled,
+            openai_device_id,
+            expires_at,
+            last_refresh,
+        },
         status: CodexAccountStatus::Active,
         account_id,
         user_id,
-        openai_device_id,
         email,
-        expires_at,
-        last_refresh,
         proxy_url: None,
         priority: find_i64(
             value,
@@ -1562,13 +1923,16 @@ mod tests {
     use super::*;
     use crate::CodexQuotaCache;
     use axum::response::IntoResponse;
-    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use base64::engine::general_purpose::{STANDARD as BASE64_STANDARD, URL_SAFE_NO_PAD};
     use base64::Engine;
+    use ed25519_dalek::pkcs8::EncodePrivateKey as _;
+    use ed25519_dalek::SigningKey;
     use rand::random;
     use serde_json::json;
     use sqlx::Row;
     use std::future::Future;
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use time::format_description::well_known::Rfc3339;
     use token_proxy_account_store::app_proxy;
@@ -1839,23 +2203,129 @@ mod tests {
         )
     }
 
+    async fn spawn_agent_identity_quota_endpoint() -> (
+        String,
+        String,
+        Arc<Mutex<Vec<String>>>,
+        Arc<AtomicUsize>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        #[derive(Clone)]
+        struct State {
+            task_ids: Arc<Mutex<Vec<String>>>,
+            registrations: Arc<AtomicUsize>,
+        }
+
+        async fn usage_handler(
+            axum::extract::State(state): axum::extract::State<State>,
+            headers: axum::http::HeaderMap,
+        ) -> axum::response::Response {
+            let task_id = headers
+                .get(axum::http::header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.strip_prefix("AgentAssertion "))
+                .and_then(|value| URL_SAFE_NO_PAD.decode(value).ok())
+                .and_then(|value| serde_json::from_slice::<Value>(&value).ok())
+                .and_then(|value| value["task_id"].as_str().map(str::to_string))
+                .unwrap_or_default();
+            state
+                .task_ids
+                .lock()
+                .expect("quota Agent Identity task IDs lock")
+                .push(task_id.clone());
+            let (status, body) = if task_id == "task-quota-old" {
+                (
+                    axum::http::StatusCode::UNAUTHORIZED,
+                    json!({ "error": { "code": "invalid_task_id" } }),
+                )
+            } else {
+                (
+                    axum::http::StatusCode::OK,
+                    json!({
+                        "plan_type": "team",
+                        "rate_limit": {
+                            "primary_window": {
+                                "used_percent": 20.0,
+                                "reset_at": 1780477059
+                            }
+                        }
+                    }),
+                )
+            };
+            (
+                status,
+                [(axum::http::header::CONTENT_TYPE, "application/json")],
+                body.to_string(),
+            )
+                .into_response()
+        }
+
+        async fn register_handler(
+            axum::extract::State(state): axum::extract::State<State>,
+            axum::Json(body): axum::Json<Value>,
+        ) -> impl IntoResponse {
+            assert!(body["timestamp"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()));
+            assert!(body["signature"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()));
+            state.registrations.fetch_add(1, Ordering::SeqCst);
+            axum::Json(json!({ "task_id": "task-quota-new" }))
+        }
+
+        let task_ids = Arc::new(Mutex::new(Vec::new()));
+        let registrations = Arc::new(AtomicUsize::new(0));
+        let state = State {
+            task_ids: task_ids.clone(),
+            registrations: registrations.clone(),
+        };
+        let app = axum::Router::new()
+            .route("/backend-api/wham/usage", axum::routing::get(usage_handler))
+            .route(
+                "/v1/agent/runtime-quota/task/register",
+                axum::routing::post(register_handler),
+            )
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind Agent Identity quota endpoint");
+        let addr = listener
+            .local_addr()
+            .expect("Agent Identity quota endpoint address");
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("Agent Identity quota endpoint should run");
+        });
+        (
+            format!("http://{addr}/backend-api/wham/usage"),
+            format!("http://{addr}"),
+            task_ids,
+            registrations,
+            task,
+        )
+    }
+
     fn build_record_with_quota_and_access_claim(
         quota_plan_type: &str,
         access_claim_plan_type: &str,
     ) -> CodexTokenRecord {
         CodexTokenRecord {
-            access_token: build_access_token_with_plan(access_claim_plan_type),
-            refresh_token: "refresh-token".to_string(),
-            client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-            id_token: build_id_token("paid@example.com", "acct-paid"),
-            auto_refresh_enabled: true,
+            credential: CodexCredential::Oauth {
+                access_token: build_access_token_with_plan(access_claim_plan_type),
+                refresh_token: "refresh-token".to_string(),
+                client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
+                id_token: build_id_token("paid@example.com", "acct-paid"),
+                auto_refresh_enabled: true,
+                openai_device_id: None,
+                expires_at: future_rfc3339(24),
+                last_refresh: None,
+            },
             status: CodexAccountStatus::Active,
             account_id: Some("acct-paid".to_string()),
             user_id: None,
-            openai_device_id: None,
             email: Some("paid@example.com".to_string()),
-            expires_at: future_rfc3339(24),
-            last_refresh: None,
             proxy_url: None,
             priority: 0,
             quota: CodexQuotaCache {
@@ -1871,6 +2341,216 @@ mod tests {
         (OffsetDateTime::now_utc() + time::Duration::hours(hours))
             .format(&Rfc3339)
             .expect("format expires_at")
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn oauth_test_record(
+        access_token: &str,
+        refresh_token: &str,
+        id_token: String,
+        auto_refresh_enabled: bool,
+        status: CodexAccountStatus,
+        account_id: &str,
+        email: &str,
+        expires_at: String,
+    ) -> CodexTokenRecord {
+        CodexTokenRecord {
+            credential: CodexCredential::Oauth {
+                access_token: access_token.to_string(),
+                refresh_token: refresh_token.to_string(),
+                client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
+                id_token,
+                auto_refresh_enabled,
+                openai_device_id: None,
+                expires_at,
+                last_refresh: None,
+            },
+            status,
+            account_id: Some(account_id.to_string()),
+            user_id: None,
+            email: Some(email.to_string()),
+            proxy_url: None,
+            priority: 0,
+            quota: CodexQuotaCache::default(),
+        }
+    }
+
+    fn test_agent_private_key() -> String {
+        BASE64_STANDARD.encode(
+            SigningKey::from_bytes(&[9_u8; 32])
+                .to_pkcs8_der()
+                .expect("encode Agent Identity test key")
+                .as_bytes(),
+        )
+    }
+
+    #[test]
+    fn import_text_accepts_agent_identity_record_without_oauth_fields() {
+        run_async(async {
+            let (store, data_dir) = create_test_store();
+            let imported = store
+                .import_text(
+                    &json!({
+                        "auth_mode": "agentIdentity",
+                        "agent_identity": {
+                            "agent_runtime_id": "runtime-import",
+                            "agent_private_key": test_agent_private_key(),
+                            "task_id": "task-import",
+                            "account_id": "account-import",
+                            "chatgpt_user_id": "user-import",
+                            "email": "agent@example.com",
+                            "plan_type": "team",
+                            "chatgpt_account_is_fedramp": false
+                        }
+                    })
+                    .to_string(),
+                )
+                .await
+                .expect("Agent Identity import should succeed");
+            assert_eq!(imported.len(), 1);
+            assert_eq!(
+                imported[0].auth_method,
+                super::super::types::CodexAuthMethod::AgentIdentity
+            );
+            assert!(imported[0].expires_at.is_none());
+            assert!(imported[0].auto_refresh_enabled.is_none());
+
+            let account_id = &imported[0].account_id;
+            let authorization = store
+                .authorization_header(account_id)
+                .await
+                .expect("build Agent Identity authorization");
+            assert!(authorization.starts_with("AgentAssertion "));
+            let persisted = store
+                .load_account(account_id)
+                .await
+                .expect("load imported record");
+            let serialized = serde_json::to_value(persisted).expect("serialize imported record");
+            assert!(serialized.get("access_token").is_none());
+            assert!(serialized.get("refresh_token").is_none());
+            assert_eq!(serialized["credential"]["type"], "agent_identity");
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn import_text_treats_null_agent_identity_as_oauth_auth_json() {
+        run_async(async {
+            let (store, data_dir) = create_test_store();
+            let imported = store
+                .import_text(
+                    &json!({
+                        "auth_mode": "chatgpt",
+                        "agent_identity": null,
+                        "tokens": {
+                            "access_token": "oauth-access",
+                            "refresh_token": "oauth-refresh",
+                            "id_token": build_id_token("oauth@example.com", "acct-oauth"),
+                            "expires_at": future_rfc3339(24)
+                        }
+                    })
+                    .to_string(),
+                )
+                .await
+                .expect("OAuth auth.json with null Agent Identity should import");
+
+            let _ = std::fs::remove_dir_all(data_dir);
+
+            assert_eq!(imported.len(), 1);
+            assert_eq!(
+                imported[0].auth_method,
+                super::super::types::CodexAuthMethod::Oauth
+            );
+        });
+    }
+
+    #[test]
+    fn concurrent_agent_authorization_registers_and_persists_one_task() {
+        run_async(async {
+            async fn register_handler(
+                axum::extract::State(count): axum::extract::State<Arc<AtomicUsize>>,
+                axum::Json(body): axum::Json<Value>,
+            ) -> impl IntoResponse {
+                assert!(body["timestamp"]
+                    .as_str()
+                    .is_some_and(|value| !value.is_empty()));
+                assert!(body["signature"]
+                    .as_str()
+                    .is_some_and(|value| !value.is_empty()));
+                count.fetch_add(1, Ordering::SeqCst);
+                axum::Json(json!({ "task_id": "task-registered" }))
+            }
+
+            let count = Arc::new(AtomicUsize::new(0));
+            let app = axum::Router::new()
+                .route(
+                    "/v1/agent/runtime-concurrent/task/register",
+                    axum::routing::post(register_handler),
+                )
+                .with_state(count.clone());
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind Agent Identity registration endpoint");
+            let address = listener
+                .local_addr()
+                .expect("registration endpoint address");
+            let server = tokio::spawn(async move {
+                axum::serve(listener, app)
+                    .await
+                    .expect("registration endpoint");
+            });
+
+            let (store, data_dir) = create_test_store();
+            let store = Arc::new(store);
+            store
+                .set_test_agent_identity_urls(&format!("http://{address}"), "http://unused")
+                .await;
+            let imported = store
+                .import_text(
+                    &json!({
+                        "auth_mode": "agentIdentity",
+                        "agent_identity": {
+                            "agent_runtime_id": "runtime-concurrent",
+                            "agent_private_key": test_agent_private_key(),
+                            "account_id": "account-concurrent",
+                            "chatgpt_user_id": "user-concurrent"
+                        }
+                    })
+                    .to_string(),
+                )
+                .await
+                .expect("import Agent Identity without task");
+            let account_id = imported[0].account_id.clone();
+            let mut tasks = Vec::new();
+            for _ in 0..8 {
+                let store = store.clone();
+                let account_id = account_id.clone();
+                tasks.push(tokio::spawn(async move {
+                    store.authorization_header(&account_id).await
+                }));
+            }
+            for task in tasks {
+                let authorization = task
+                    .await
+                    .expect("authorization task")
+                    .expect("build authorization");
+                assert!(authorization.starts_with("AgentAssertion "));
+            }
+            assert_eq!(count.load(Ordering::SeqCst), 1);
+            assert_eq!(
+                store
+                    .load_account(&account_id)
+                    .await
+                    .expect("load registered account")
+                    .agent_identity()
+                    .and_then(|identity| identity.task_id),
+                Some("task-registered")
+            );
+
+            server.abort();
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
     }
 
     fn past_rfc3339(hours: i64) -> String {
@@ -1904,19 +2584,20 @@ mod tests {
     fn refresh_token_client_for_record_uses_persisted_client_id() {
         let mut record = build_record_with_quota_and_access_claim("free", "free");
 
-        record.client_id = None;
+        *record.oauth_mut().expect("OAuth fixture").client_id = None;
         assert_eq!(
             refresh_token_client_for_record(&record).expect("missing client_id defaults to codex"),
             CodexRefreshTokenClient::Codex
         );
 
-        record.client_id = Some(CodexRefreshTokenClient::Mobile.client_id().to_string());
+        *record.oauth_mut().expect("OAuth fixture").client_id =
+            Some(CodexRefreshTokenClient::Mobile.client_id().to_string());
         assert_eq!(
             refresh_token_client_for_record(&record).expect("mobile client_id should resolve"),
             CodexRefreshTokenClient::Mobile
         );
 
-        record.client_id = Some("unknown-client".to_string());
+        *record.oauth_mut().expect("OAuth fixture").client_id = Some("unknown-client".to_string());
         let err = refresh_token_client_for_record(&record)
             .expect_err("unknown client_id should fail fast");
         assert!(err.contains("Unsupported Codex refresh token client_id"));
@@ -2012,7 +2693,7 @@ mod tests {
                 .get_account_record(&imported[0].account_id)
                 .await
                 .expect("record should exist");
-            assert_eq!(record.expires_at, expires_at);
+            assert_eq!(record.expires_at_str(), Some(expires_at.as_str()));
             assert_eq!(record.account_id.as_deref(), Some("acct-cliproxy"));
 
             let _ = std::fs::remove_dir_all(data_dir);
@@ -2118,7 +2799,7 @@ mod tests {
                 .await
                 .expect("record should exist");
             assert_eq!(
-                record.client_id.as_deref(),
+                record.oauth().expect("OAuth record").client_id,
                 Some(CodexRefreshTokenClient::Mobile.client_id())
             );
 
@@ -2152,7 +2833,7 @@ mod tests {
                 .await
                 .expect("record should exist");
             assert_eq!(
-                record.openai_device_id.as_deref(),
+                record.oauth().expect("OAuth record").openai_device_id,
                 Some("device-import-123")
             );
 
@@ -2192,8 +2873,8 @@ mod tests {
                 .await
                 .expect("record should exist");
             assert_eq!(record.account_id.as_deref(), Some("acct-raw"));
-            assert_eq!(record.refresh_token, "");
-            assert!(!record.auto_refresh_enabled);
+            assert_eq!(record.oauth().expect("OAuth record").refresh_token, "");
+            assert_eq!(record.auto_refresh_enabled(), Some(false));
 
             let _ = std::fs::remove_dir_all(data_dir);
         });
@@ -2247,7 +2928,7 @@ mod tests {
                 .expect("record should exist");
             assert_eq!(record.account_id.as_deref(), Some("acct-new-api"));
             assert_eq!(record.email.as_deref(), Some("dave@example.com"));
-            assert_eq!(record.id_token, "");
+            assert_eq!(record.oauth().expect("OAuth record").id_token, "");
 
             let _ = std::fs::remove_dir_all(data_dir);
         });
@@ -2285,7 +2966,7 @@ mod tests {
                 .get_account_record(&imported[0].account_id)
                 .await
                 .expect("record should exist");
-            assert_eq!(record.refresh_token, "");
+            assert_eq!(record.oauth().expect("OAuth record").refresh_token, "");
 
             let _ = std::fs::remove_dir_all(data_dir);
         });
@@ -3008,13 +3689,22 @@ mod tests {
                 .get_account_record(&first_local_account_id)
                 .await
                 .expect("record should exist");
-            assert_eq!(record.access_token, "second-access-token");
-            assert_eq!(record.refresh_token, "second-refresh-token");
             assert_eq!(
-                record.client_id.as_deref(),
+                record.oauth().expect("OAuth record").access_token,
+                "second-access-token"
+            );
+            assert_eq!(
+                record.oauth().expect("OAuth record").refresh_token,
+                "second-refresh-token"
+            );
+            assert_eq!(
+                record.oauth().expect("OAuth record").client_id,
                 Some(CodexRefreshTokenClient::Mobile.client_id())
             );
-            assert_eq!(record.openai_device_id.as_deref(), Some("device-existing"));
+            assert_eq!(
+                record.oauth().expect("OAuth record").openai_device_id,
+                Some("device-existing")
+            );
             assert_eq!(record.proxy_url.as_deref(), Some("http://127.0.0.1:7890"));
 
             let _ = std::fs::remove_dir_all(data_dir);
@@ -3311,7 +4001,7 @@ INSERT INTO provider_accounts (
                 .await
                 .expect("record should still be readable");
             assert!(record.is_expired());
-            assert_eq!(record.refresh_token, "");
+            assert_eq!(record.oauth().expect("OAuth record").refresh_token, "");
 
             let _ = std::fs::remove_dir_all(data_dir);
         });
@@ -3341,19 +4031,19 @@ INSERT INTO provider_accounts (
                 .import_file(input_path)
                 .await
                 .expect("import should succeed");
-            assert!(!imported[0].auto_refresh_enabled);
+            assert_eq!(imported[0].auto_refresh_enabled, Some(false));
 
             let updated = store
                 .set_auto_refresh(&imported[0].account_id, true)
                 .await
                 .expect("set auto refresh should succeed");
-            assert!(updated.auto_refresh_enabled);
+            assert_eq!(updated.auto_refresh_enabled, Some(true));
 
             let record = store
                 .get_account_record(&imported[0].account_id)
                 .await
                 .expect("record should exist");
-            assert!(record.auto_refresh_enabled);
+            assert_eq!(record.auto_refresh_enabled(), Some(true));
 
             let _ = std::fs::remove_dir_all(data_dir);
         });
@@ -3370,23 +4060,16 @@ INSERT INTO provider_accounts (
             store
                 .save_record(
                     account_id.clone(),
-                    CodexTokenRecord {
-                        access_token: "expired-access".to_string(),
-                        refresh_token: "refresh-token".to_string(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: build_id_token("old@example.com", "acct-old"),
-                        auto_refresh_enabled: true,
-                        status: CodexAccountStatus::Active,
-                        account_id: Some("acct-old".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("old@example.com".to_string()),
-                        expires_at: expired_at,
-                        last_refresh: None,
-                        proxy_url: None,
-                        priority: 0,
-                        quota: CodexQuotaCache::default(),
-                    },
+                    oauth_test_record(
+                        "expired-access",
+                        "refresh-token",
+                        build_id_token("old@example.com", "acct-old"),
+                        true,
+                        CodexAccountStatus::Active,
+                        "acct-old",
+                        "old@example.com",
+                        expired_at,
+                    ),
                 )
                 .await
                 .expect("seed expired codex account");
@@ -3406,8 +4089,75 @@ INSERT INTO provider_accounts (
             let _ = std::fs::remove_dir_all(data_dir);
 
             assert_eq!(refreshed, vec![account_id]);
-            assert_eq!(record.access_token, "refreshed-access");
+            assert_eq!(
+                record.oauth().expect("OAuth record").access_token,
+                "refreshed-access"
+            );
             assert!(!record.is_expired());
+        });
+    }
+
+    #[test]
+    fn quota_refresh_recovers_stale_agent_identity_task_once() {
+        run_async(async {
+            let (store, data_dir) = create_test_store();
+            let account_id = "codex-agent-quota.json".to_string();
+            store
+                .save_record(
+                    account_id.clone(),
+                    CodexTokenRecord {
+                        credential: CodexCredential::AgentIdentity {
+                            agent_runtime_id: "runtime-quota".to_string(),
+                            agent_private_key: test_agent_private_key(),
+                            task_id: Some("task-quota-old".to_string()),
+                            plan_type: Some("team".to_string()),
+                            chatgpt_account_is_fedramp: false,
+                        },
+                        status: CodexAccountStatus::Active,
+                        account_id: Some("acct-agent-quota".to_string()),
+                        user_id: Some("user-agent-quota".to_string()),
+                        email: Some("agent-quota@example.com".to_string()),
+                        proxy_url: None,
+                        priority: 0,
+                        quota: CodexQuotaCache::default(),
+                    },
+                )
+                .await
+                .expect("seed Agent Identity quota account");
+            let (usage_url, auth_url, task_ids, registrations, endpoint_task) =
+                spawn_agent_identity_quota_endpoint().await;
+            store
+                .set_test_agent_identity_urls(&auth_url, "http://unused")
+                .await;
+
+            let quota = crate::quota::refresh_quota_cache_with_usage_endpoint(
+                &store,
+                &account_id,
+                &usage_url,
+            )
+            .await
+            .expect("quota refresh should recover stale Agent Identity task");
+            let record = store
+                .load_account(&account_id)
+                .await
+                .expect("load recovered Agent Identity account");
+
+            endpoint_task.abort();
+            let _ = std::fs::remove_dir_all(data_dir);
+
+            assert_eq!(quota.plan_type.as_deref(), Some("team"));
+            assert!(quota.error.is_none());
+            assert_eq!(
+                *task_ids.lock().expect("quota Agent Identity task IDs lock"),
+                vec!["task-quota-old".to_string(), "task-quota-new".to_string()]
+            );
+            assert_eq!(registrations.load(Ordering::SeqCst), 1);
+            assert_eq!(
+                record
+                    .agent_identity()
+                    .and_then(|identity| identity.task_id),
+                Some("task-quota-new")
+            );
         });
     }
 
@@ -3419,23 +4169,16 @@ INSERT INTO provider_accounts (
             store
                 .save_record(
                     account_id.clone(),
-                    CodexTokenRecord {
-                        access_token: "access-old".to_string(),
-                        refresh_token: "refresh-token".to_string(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: build_id_token("quota@example.com", "acct-quota"),
-                        auto_refresh_enabled: true,
-                        status: CodexAccountStatus::Active,
-                        account_id: Some("acct-quota".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("quota@example.com".to_string()),
-                        expires_at: future_rfc3339(24),
-                        last_refresh: None,
-                        proxy_url: None,
-                        priority: 0,
-                        quota: CodexQuotaCache::default(),
-                    },
+                    oauth_test_record(
+                        "access-old",
+                        "refresh-token",
+                        build_id_token("quota@example.com", "acct-quota"),
+                        true,
+                        CodexAccountStatus::Active,
+                        "acct-quota",
+                        "quota@example.com",
+                        future_rfc3339(24),
+                    ),
                 )
                 .await
                 .expect("seed codex account");
@@ -3462,7 +4205,10 @@ INSERT INTO provider_accounts (
 
             assert_eq!(quota.plan_type.as_deref(), Some("pro"));
             assert!(quota.error.is_none());
-            assert_eq!(record.access_token, "access-new");
+            assert_eq!(
+                record.oauth().expect("OAuth record").access_token,
+                "access-new"
+            );
             assert_eq!(
                 *request_headers.lock().expect("usage request headers lock"),
                 vec![
@@ -3487,23 +4233,16 @@ INSERT INTO provider_accounts (
             store
                 .save_record(
                     account_id.clone(),
-                    CodexTokenRecord {
-                        access_token: "access-old".to_string(),
-                        refresh_token: "refresh-token".to_string(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: build_id_token("refresh-invalid@example.com", "acct-invalid"),
-                        auto_refresh_enabled: true,
-                        status: CodexAccountStatus::Active,
-                        account_id: Some("acct-invalid".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("refresh-invalid@example.com".to_string()),
-                        expires_at: future_rfc3339(24),
-                        last_refresh: None,
-                        proxy_url: None,
-                        priority: 0,
-                        quota: CodexQuotaCache::default(),
-                    },
+                    oauth_test_record(
+                        "access-old",
+                        "refresh-token",
+                        build_id_token("refresh-invalid@example.com", "acct-invalid"),
+                        true,
+                        CodexAccountStatus::Active,
+                        "acct-invalid",
+                        "refresh-invalid@example.com",
+                        future_rfc3339(24),
+                    ),
                 )
                 .await
                 .expect("seed codex account");
@@ -3539,23 +4278,16 @@ INSERT INTO provider_accounts (
             store
                 .save_record(
                     account_id.clone(),
-                    CodexTokenRecord {
-                        access_token: "access-old".to_string(),
-                        refresh_token: "refresh-token".to_string(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: build_id_token("quota-fails@example.com", "acct-quota-fails"),
-                        auto_refresh_enabled: true,
-                        status: CodexAccountStatus::Active,
-                        account_id: Some("acct-quota-fails".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("quota-fails@example.com".to_string()),
-                        expires_at: future_rfc3339(24),
-                        last_refresh: None,
-                        proxy_url: None,
-                        priority: 0,
-                        quota: CodexQuotaCache::default(),
-                    },
+                    oauth_test_record(
+                        "access-old",
+                        "refresh-token",
+                        build_id_token("quota-fails@example.com", "acct-quota-fails"),
+                        true,
+                        CodexAccountStatus::Active,
+                        "acct-quota-fails",
+                        "quota-fails@example.com",
+                        future_rfc3339(24),
+                    ),
                 )
                 .await
                 .expect("seed codex account");
@@ -3609,63 +4341,42 @@ INSERT INTO provider_accounts (
             let records = [
                 (
                     "codex-disabled.json",
-                    CodexTokenRecord {
-                        access_token: "disabled-access".to_string(),
-                        refresh_token: "refresh-token".to_string(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: build_id_token("disabled@example.com", "acct-disabled"),
-                        auto_refresh_enabled: true,
-                        status: CodexAccountStatus::Disabled,
-                        account_id: Some("acct-disabled".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("disabled@example.com".to_string()),
-                        expires_at: expired_at.clone(),
-                        last_refresh: None,
-                        proxy_url: None,
-                        priority: 0,
-                        quota: CodexQuotaCache::default(),
-                    },
+                    oauth_test_record(
+                        "disabled-access",
+                        "refresh-token",
+                        build_id_token("disabled@example.com", "acct-disabled"),
+                        true,
+                        CodexAccountStatus::Disabled,
+                        "acct-disabled",
+                        "disabled@example.com",
+                        expired_at.clone(),
+                    ),
                 ),
                 (
                     "codex-manual.json",
-                    CodexTokenRecord {
-                        access_token: "manual-access".to_string(),
-                        refresh_token: "refresh-token".to_string(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: build_id_token("manual@example.com", "acct-manual"),
-                        auto_refresh_enabled: false,
-                        status: CodexAccountStatus::Active,
-                        account_id: Some("acct-manual".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("manual@example.com".to_string()),
-                        expires_at: expired_at.clone(),
-                        last_refresh: None,
-                        proxy_url: None,
-                        priority: 0,
-                        quota: CodexQuotaCache::default(),
-                    },
+                    oauth_test_record(
+                        "manual-access",
+                        "refresh-token",
+                        build_id_token("manual@example.com", "acct-manual"),
+                        false,
+                        CodexAccountStatus::Active,
+                        "acct-manual",
+                        "manual@example.com",
+                        expired_at.clone(),
+                    ),
                 ),
                 (
                     "codex-access-only.json",
-                    CodexTokenRecord {
-                        access_token: "access-only".to_string(),
-                        refresh_token: String::new(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: build_id_token("access-only@example.com", "acct-access-only"),
-                        auto_refresh_enabled: true,
-                        status: CodexAccountStatus::Active,
-                        account_id: Some("acct-access-only".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("access-only@example.com".to_string()),
-                        expires_at: expired_at.clone(),
-                        last_refresh: None,
-                        proxy_url: None,
-                        priority: 0,
-                        quota: CodexQuotaCache::default(),
-                    },
+                    oauth_test_record(
+                        "access-only",
+                        "",
+                        build_id_token("access-only@example.com", "acct-access-only"),
+                        true,
+                        CodexAccountStatus::Active,
+                        "acct-access-only",
+                        "access-only@example.com",
+                        expired_at.clone(),
+                    ),
                 ),
             ];
             for (account_id, record) in records {
@@ -3736,40 +4447,26 @@ INSERT INTO provider_accounts (
     fn resolve_account_record_skips_disabled_accounts() {
         run_async(async {
             let (store, data_dir) = create_test_store();
-            let first = CodexTokenRecord {
-                access_token: "access-1".to_string(),
-                refresh_token: "refresh-1".to_string(),
-                client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                id_token: "".to_string(),
-                auto_refresh_enabled: true,
-                status: CodexAccountStatus::Disabled,
-                account_id: Some("acct-disabled".to_string()),
-                user_id: None,
-                openai_device_id: None,
-                email: Some("aaa@example.com".to_string()),
-                expires_at: future_rfc3339(6),
-                last_refresh: None,
-                proxy_url: None,
-                priority: 0,
-                quota: crate::CodexQuotaCache::default(),
-            };
-            let second = CodexTokenRecord {
-                access_token: "access-2".to_string(),
-                refresh_token: "refresh-2".to_string(),
-                client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                id_token: "".to_string(),
-                auto_refresh_enabled: true,
-                status: CodexAccountStatus::Active,
-                account_id: Some("acct-enabled".to_string()),
-                user_id: None,
-                openai_device_id: None,
-                email: Some("zzz@example.com".to_string()),
-                expires_at: future_rfc3339(6),
-                last_refresh: None,
-                proxy_url: None,
-                priority: 0,
-                quota: crate::CodexQuotaCache::default(),
-            };
+            let first = oauth_test_record(
+                "access-1",
+                "refresh-1",
+                String::new(),
+                true,
+                CodexAccountStatus::Disabled,
+                "acct-disabled",
+                "aaa@example.com",
+                future_rfc3339(6),
+            );
+            let second = oauth_test_record(
+                "access-2",
+                "refresh-2",
+                String::new(),
+                true,
+                CodexAccountStatus::Active,
+                "acct-enabled",
+                "zzz@example.com",
+                future_rfc3339(6),
+            );
 
             store
                 .save_record("codex-a.json".to_string(), first)
@@ -3797,26 +4494,21 @@ INSERT INTO provider_accounts (
         run_async(async {
             let (store, data_dir) = create_test_store();
             store
-                .save_record(
-                    "codex-disabled.json".to_string(),
-                    CodexTokenRecord {
-                        access_token: "expired-access".to_string(),
-                        refresh_token: "refresh-token".to_string(),
-                        client_id: Some(CodexRefreshTokenClient::Codex.client_id().to_string()),
-                        id_token: "".to_string(),
-                        auto_refresh_enabled: true,
-                        status: CodexAccountStatus::Disabled,
-                        account_id: Some("acct-disabled".to_string()),
-                        user_id: None,
-                        openai_device_id: None,
-                        email: Some("disabled@example.com".to_string()),
-                        expires_at: past_rfc3339(2),
-                        last_refresh: None,
-                        proxy_url: Some("socks5://127.0.0.1:1080".to_string()),
-                        priority: 7,
-                        quota: crate::CodexQuotaCache::default(),
-                    },
-                )
+                .save_record("codex-disabled.json".to_string(), {
+                    let mut record = oauth_test_record(
+                        "expired-access",
+                        "refresh-token",
+                        String::new(),
+                        true,
+                        CodexAccountStatus::Disabled,
+                        "acct-disabled",
+                        "disabled@example.com",
+                        past_rfc3339(2),
+                    );
+                    record.proxy_url = Some("socks5://127.0.0.1:1080".to_string());
+                    record.priority = 7;
+                    record
+                })
                 .await
                 .expect("save disabled expired account");
 
@@ -3827,7 +4519,10 @@ INSERT INTO provider_accounts (
 
             assert!(matches!(record.status, CodexAccountStatus::Disabled));
             assert!(!record.is_schedulable());
-            assert_eq!(record.access_token, "expired-access");
+            assert_eq!(
+                record.oauth().expect("OAuth record").access_token,
+                "expired-access"
+            );
             assert_eq!(record.proxy_url.as_deref(), Some("socks5://127.0.0.1:1080"));
             assert_eq!(record.priority, 7);
 

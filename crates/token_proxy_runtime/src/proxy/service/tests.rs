@@ -523,22 +523,24 @@ fn start_spawns_codex_keepalive_without_codex_upstream() {
             .save_record_for_test(
                 "codex-service.json".to_string(),
                 token_proxy_account_codex::CodexTokenRecord {
-                    access_token: "service-expired-access".to_string(),
-                    refresh_token: "service-refresh-token".to_string(),
-                    client_id: Some(
-                        token_proxy_account_codex::CodexRefreshTokenClient::Codex
-                            .client_id()
-                            .to_string(),
-                    ),
-                    id_token: "header.eyJlbWFpbCI6InNlcnZpY2VAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdC1zZXJ2aWNlIn19.signature".to_string(),
-                    auto_refresh_enabled: true,
+                    credential: token_proxy_account_codex::CodexCredential::Oauth {
+                        access_token: "service-expired-access".to_string(),
+                        refresh_token: "service-refresh-token".to_string(),
+                        client_id: Some(
+                            token_proxy_account_codex::CodexRefreshTokenClient::Codex
+                                .client_id()
+                                .to_string(),
+                        ),
+                        id_token: "header.eyJlbWFpbCI6InNlcnZpY2VAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdC1zZXJ2aWNlIn19.signature".to_string(),
+                        auto_refresh_enabled: true,
+                        openai_device_id: None,
+                        expires_at,
+                        last_refresh: None,
+                    },
                     status: token_proxy_account_codex::CodexAccountStatus::Active,
                     account_id: Some("acct-service".to_string()),
                     user_id: None,
-                    openai_device_id: None,
                     email: Some("service@example.com".to_string()),
-                    expires_at,
-                    last_refresh: None,
                     proxy_url: None,
                     priority: 0,
                     quota: token_proxy_account_codex::CodexQuotaCache::default(),
@@ -559,7 +561,10 @@ fn start_spawns_codex_keepalive_without_codex_upstream() {
                     .load_account_for_test("codex-service.json")
                     .await
                     .expect("load codex account");
-                if record.access_token == "service-refreshed-access" {
+                if record
+                    .oauth()
+                    .is_some_and(|oauth| oauth.access_token == "service-refreshed-access")
+                {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(20)).await;
