@@ -4,12 +4,12 @@ import * as React from "react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
 import {
+  type ChartConfig,
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@/components/ui/chart";
 import {
   createDashboardMinuteFormatter,

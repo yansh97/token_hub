@@ -1,3 +1,7 @@
+import {
+  createNativeInboundFormatSet,
+  removeInboundFormatsInSet,
+} from "@/features/config/inbound-formats";
 import type {
   ConfigForm,
   InboundApiFormat,
@@ -9,10 +13,6 @@ import type {
   UpstreamForm,
   UpstreamStrategy,
 } from "@/features/config/types";
-import {
-  createNativeInboundFormatSet,
-  removeInboundFormatsInSet,
-} from "@/features/config/inbound-formats";
 
 const DEFAULT_TRAY_TOKEN_RATE: TrayTokenRateConfig = {
   enabled: true,

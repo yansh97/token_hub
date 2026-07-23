@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
-import { afterEach, describe, expect, it } from "vitest";
 import { Toaster, toast } from "sonner";
+import { afterEach, describe, expect, it } from "vitest";
 
 function EffectToastBeforeLaterToaster() {
   return (

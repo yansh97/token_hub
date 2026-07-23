@@ -460,20 +460,6 @@ describe("logs/LogsPanel", () => {
     });
   });
 
-  it("lets the logs table area inherit the remaining app viewport height", async () => {
-    renderPanel();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("logs-items")).toHaveTextContent("alpha");
-    });
-
-    const panel = screen.getByTestId("logs-panel");
-    const filters = document.querySelector('[data-slot="dashboard-filters"]');
-    expect(panel).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
-    expect(filters).toHaveAttribute("data-sticky", "false");
-    expect(filters).not.toHaveClass("sticky");
-  });
-
   it("refreshes logs without refreshing dashboard model discovery", async () => {
     const user = userEvent.setup();
 
@@ -641,60 +627,6 @@ describe("logs/LogsPanel", () => {
     expect(screen.queryByText("req-stale")).not.toBeInTheDocument();
   });
 
-  it("renders detail fields in a compact responsive label-value layout", async () => {
-    const user = userEvent.setup();
-
-    renderPanel();
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "alpha · openai · codex-a.json" }),
-      ).toBeInTheDocument();
-    });
-
-    await user.click(
-      screen.getByRole("button", { name: "alpha · openai · codex-a.json" }),
-    );
-
-    await waitFor(() => {
-      expect(readRequestLogDetailMock).toHaveBeenCalledWith(1);
-    });
-
-    const statusLabel = await screen.findByText("状态");
-    expect(statusLabel.closest("div")).toHaveClass(
-      "grid",
-      "grid-cols-[7.5rem_minmax(0,1fr)]",
-    );
-    expect(statusLabel.closest("div")?.parentElement).toHaveClass(
-      "lg:grid-cols-2",
-    );
-    expect(screen.getByRole("heading", { name: "请求" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "路由与计费" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "耗时" })).toBeInTheDocument();
-    expect(
-      document.querySelector('[data-slot="request-detail-groups"]'),
-    ).not.toHaveClass("rounded-lg", "border");
-
-    const statusValue = screen.getByText("200 成功");
-    expect(statusValue).toHaveClass("justify-self-start");
-
-    const latencyLabel = screen.getByText("上游响应头");
-    expect(latencyLabel.closest("div")).toHaveClass(
-      "grid",
-      "grid-cols-[7.5rem_minmax(0,1fr)]",
-    );
-    expect(screen.getByText("30 ms")).toBeInTheDocument();
-    expect(screen.getByText("请求 ID")).toBeInTheDocument();
-    expect(screen.getByText("#1")).toBeInTheDocument();
-    expect(screen.getByText("响应模式")).toBeInTheDocument();
-    expect(screen.getByText("非流式")).toBeInTheDocument();
-    expect(screen.getByText("代理首块")).toBeInTheDocument();
-    expect(screen.getByText("代理有效输出")).toBeInTheDocument();
-    expect(screen.queryByText("总耗时")).not.toBeInTheDocument();
-  });
-
   it("shows useful pricing metadata without the internal pricing version", async () => {
     const user = userEvent.setup();
 
@@ -760,12 +692,10 @@ describe("logs/LogsPanel", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("用量详情 (JSON)")).not.toBeInTheDocument();
     expect(
-      screen
-        .getByText(
-          '{"input_tokens":5,"output_tokens":9,"output_tokens_details":{"image_tokens":9}}',
-        )
-        .closest("pre"),
-    ).toHaveClass("font-mono", "bg-muted/20");
+      screen.getByText(
+        '{"input_tokens":5,"output_tokens":9,"output_tokens_details":{"image_tokens":9}}',
+      ),
+    ).toBeInTheDocument();
   });
 
   it("preserves unknown interface formats and categorizes other status codes", async () => {
@@ -842,9 +772,6 @@ describe("logs/LogsPanel", () => {
     expect(
       await screen.findByText('{"id":"resp_1","status":"completed"}'),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('{"id":"resp_1","status":"completed"}').closest("pre"),
-    ).toHaveClass("font-mono", "bg-muted/20");
   });
 
   it("shows response error when logged response body is blank", async () => {

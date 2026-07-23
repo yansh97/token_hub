@@ -8,8 +8,8 @@ import {
   ProxyServicePanel,
   type ProxyServiceViewProps,
 } from "@/features/config/cards/proxy-service-card";
-import type { ConfigForm } from "@/features/config/types";
 import { validateSettingsFields } from "@/features/config/form";
+import type { ConfigForm } from "@/features/config/types";
 import { cn } from "@/lib/utils";
 
 type ProxyCoreCardProps = {

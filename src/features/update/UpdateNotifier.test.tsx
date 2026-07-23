@@ -1,12 +1,12 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  MAIN_WINDOW_VISIBLE_EVENT,
   __resetUpdateNotifierAutoCheckForTests,
+  MAIN_WINDOW_VISIBLE_EVENT,
   UpdateNotifier,
 } from "@/features/update/UpdateNotifier";
 import { UpdaterProvider, useUpdater } from "@/features/update/updater";

@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import {
   useCallback,
   useEffect,
@@ -6,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 
 import {
@@ -19,13 +19,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { navigateTo } from "@/lib/router";
 import {
   canStartUpdateCheck,
   formatBytes,
-  useUpdater,
   type UpdateStatus,
+  useUpdater,
 } from "@/features/update/updater";
+import { navigateTo } from "@/lib/router";
 
 type ToastId = string | number;
 type VisibleWindowCheckState = {

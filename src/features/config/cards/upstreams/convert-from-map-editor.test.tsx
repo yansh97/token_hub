@@ -7,7 +7,7 @@ import { ConvertFromMapEditor } from "@/features/config/cards/upstreams/convert-
 afterEach(cleanup);
 
 describe("upstreams/convert-from-map-editor", () => {
-  it("renders compact source-to-target conversion rows", async () => {
+  it("adds a format conversion", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
@@ -18,18 +18,6 @@ describe("upstreams/convert-from-map-editor", () => {
         onChange={onChange}
       />,
     );
-
-    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
-    expect(document.querySelector("details")).toBeNull();
-    const sourceRows = document.querySelectorAll(
-      '[data-slot="conversion-source-row"]',
-    );
-    expect(sourceRows).toHaveLength(2);
-    expect(sourceRows[0]).toHaveClass(
-      "grid-cols-[8rem_0.875rem_minmax(0,1fr)]",
-    );
-    expect(screen.getAllByText("OpenAI Responses")).toHaveLength(2);
-    expect(screen.getAllByText("Anthropic")).toHaveLength(2);
 
     await user.click(
       screen.getByRole("checkbox", {

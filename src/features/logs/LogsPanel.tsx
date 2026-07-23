@@ -1,14 +1,12 @@
+import { listen } from "@tauri-apps/api/event";
+import { AlertCircle } from "lucide-react";
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
-import { listen } from "@tauri-apps/api/event";
-import { AlertCircle } from "lucide-react";
-
-import { DataTable } from "@/features/dashboard/components/data-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,10 +16,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  DashboardFilters,
-  useDashboardSnapshot,
-} from "@/features/dashboard/snapshot";
+import { DataTable } from "@/features/dashboard/components/data-table";
 import {
   createDashboardTimeFormatter,
   formatDashboardClientIp,
@@ -30,6 +25,10 @@ import {
   formatInteger,
   formatNanoUsdCost,
 } from "@/features/dashboard/format";
+import {
+  DashboardFilters,
+  useDashboardSnapshot,
+} from "@/features/dashboard/snapshot";
 import {
   readRequestDetailCapture,
   readRequestLogDetail,

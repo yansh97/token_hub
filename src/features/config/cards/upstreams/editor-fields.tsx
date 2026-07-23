@@ -1,17 +1,17 @@
-import type { ReactNode } from "react";
 import { CircleX } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldRequirement } from "@/components/ui/field-meta";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import type {
   HeaderOverrideForm,
   ModelMappingForm,
   UpstreamForm,
 } from "@/features/config/types";
+import { cn } from "@/lib/utils";
 
 type EditorFieldProps = {
   label: string;

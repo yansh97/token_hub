@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - main
-      - release/**
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
   workflow_call:
 
@@ -14,11 +16,32 @@ env:
   PNPM_VERSION: 11.15.1
 
 jobs:
+  release_guard:
+    name: Detect pending release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.release_guard.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Detect untagged stable version
+        id: release_guard
+        run: node scripts/release-guard.mjs
+
   test:
-    name: Test (Rust)
-    # 单人维护时，普通 push 依赖本地验证；正式 release 提交仍由 CI 完整验证。
+    name: Test
+    needs: release_guard
+    # PR/手动运行总是完整测试；main 普通 push 只做轻量版本检测。
     if: >-
-      ${{ github.event_name != 'push' || startsWith(github.event.head_commit.message, 'chore: token-hub release v') }}
+      ${{ always() && (github.event_name != 'push' || needs.release_guard.outputs.is_release == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -41,6 +64,12 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run release guard tests
+        run: node --test scripts/release-guard.test.mjs
+
+      - name: Run frontend tests
+        run: pnpm test:run
+
       - name: Build frontend
         run: pnpm build
 
@@ -59,12 +88,13 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "src-tauri"
-          cache-on-failure: true
+          # Cargo resolves this manifest to the repository root workspace;
+          # cache the root target directory where test artifacts are written.
+          workspaces: ". -> target"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           # Keep rustup/cargo binaries from the runner; cached ~/.cargo/bin can shadow cargo.
           cache-bin: "false"
           prefix-key: "v1-rust"
 
       - name: Run cargo test
-        working-directory: src-tauri
-        run: cargo test
+        run: cargo test --workspace --locked

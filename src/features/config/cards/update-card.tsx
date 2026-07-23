@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   canStartUpdateCheck,
-  formatBytes,
-  useUpdater,
   type DownloadState,
+  formatBytes,
   type UpdateInfo,
   type UpdateStatus,
+  useUpdater,
 } from "@/features/update/updater";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";

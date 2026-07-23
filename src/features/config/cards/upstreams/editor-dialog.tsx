@@ -1,8 +1,8 @@
 import {
   AlertDialog,
+  AlertDialogBody,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogBody,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,

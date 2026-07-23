@@ -1,19 +1,18 @@
-import { useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   disable as disableAutostart,
   enable as enableAutostart,
   isEnabled as isAutostartEnabled,
 } from "@tauri-apps/plugin-autostart";
-
+import { useCallback } from "react";
+import { extractConfigExtras, toForm } from "@/features/config/form";
 import type {
   ConfigForm,
   ConfigResponse,
   ProxyConfigFile,
-  SaveProxyConfigResult,
   ProxyServiceStatus,
+  SaveProxyConfigResult,
 } from "@/features/config/types";
-import { extractConfigExtras, toForm } from "@/features/config/form";
 import { parseError } from "@/lib/error";
 
 import type { AutoStartStatus, StatusState } from "./config-screen-state";

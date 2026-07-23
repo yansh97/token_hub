@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 
 import {
-  DEFAULT_CONFIG_SECTION,
   type ConfigSectionId,
+  DEFAULT_CONFIG_SECTION,
   toConfigSectionId,
 } from "@/features/config/sections";
 

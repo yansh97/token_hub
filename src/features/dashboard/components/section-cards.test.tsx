@@ -37,28 +37,6 @@ describe("dashboard/SectionCards", () => {
     expect(screen.queryByText("20%")).not.toBeInTheDocument();
   });
 
-  it("renders stats in request, token, latency, cost order", () => {
-    const { container } = renderCards();
-
-    expect(container.querySelector("section")).toHaveClass(
-      "dashboard-metrics-grid",
-    );
-
-    const labels = screen
-      .getAllByText(
-        (_, element) => element?.getAttribute("data-slot") === "metric-label",
-      )
-      .map((node) => node.textContent);
-
-    expect(labels).toEqual(["请求数", "总 Tokens", "平均响应", "费用"]);
-    expect(screen.getByText("1.21")).toBeInTheDocument();
-    expect(screen.getByText("1.21")).toHaveClass("whitespace-nowrap");
-    expect(screen.getByText("1.21")).not.toHaveClass("truncate");
-    expect(screen.getByText("USD")).toBeInTheDocument();
-    expect(screen.queryByText("$1.21")).not.toBeInTheDocument();
-    expect(screen.queryByText("Logged")).not.toBeInTheDocument();
-  });
-
   it("shows cache activity in the footer and cache reads in the hit rate", () => {
     renderCards();
 

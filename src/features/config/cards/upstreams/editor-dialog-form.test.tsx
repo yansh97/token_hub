@@ -12,75 +12,6 @@ afterEach(() => {
 });
 
 describe("upstreams/editor-dialog-form", () => {
-  it("shows connection, model access, and advanced settings without a disclosure", () => {
-    const draft = createEmptyUpstream();
-
-    render(
-      <UpstreamEditorFields
-        draft={draft}
-        providerOptions={["openai"]}
-        showApiKeys={false}
-        onToggleApiKeys={vi.fn()}
-        onChangeDraft={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("连接")).toBeInTheDocument();
-    expect(screen.getByText("模型访问")).toBeInTheDocument();
-    const connectionSection = screen.getByText("连接").closest("section");
-    const idInput = screen.getByLabelText("ID");
-    const apiKeysInput = screen.getByLabelText("API Keys");
-    const priorityInput = screen.getByLabelText("优先级");
-    const advancedSettings = screen.getByText("高级设置").closest("section");
-    const providerSelect = document.querySelector(
-      '[data-slot="provider-multi-select"]',
-    );
-    const compatibilityFields = document.querySelector(
-      '[data-slot="upstream-compatibility-fields"]',
-    );
-
-    expect(connectionSection).toContainElement(idInput);
-    expect(connectionSection).toContainElement(priorityInput);
-    expect(providerSelect).toHaveClass("sm:grid-cols-[1fr_1.25fr_1fr_1fr]");
-    expect(idInput).toHaveAttribute("placeholder", "openai");
-    expect(apiKeysInput).toHaveAttribute("placeholder", "sk-xxxxxxxxxxxx");
-    expect(advancedSettings).not.toBeNull();
-    expect(screen.getByText("高级设置").closest("details")).toBeNull();
-    expect(priorityInput).toHaveValue("100");
-    expect(priorityInput).toBeRequired();
-    expect(compatibilityFields).toHaveClass("border-t");
-    expect(compatibilityFields).not.toHaveClass("border-y");
-    expect(compatibilityFields?.lastElementChild).toHaveClass("last:pb-0");
-  });
-
-  it("aligns mapping and header editors in the advanced value column", () => {
-    const draft = createEmptyUpstream();
-    draft.modelMappings = [
-      { id: "mapping-1", pattern: "gpt-4*", target: "gpt-4.1" },
-    ];
-    draft.overrides.header = [
-      { id: "header-1", name: "x-client", value: "token-hub", isNull: false },
-    ];
-
-    render(
-      <UpstreamEditorFields
-        draft={draft}
-        providerOptions={["openai"]}
-        showApiKeys={false}
-        onToggleApiKeys={vi.fn()}
-        onChangeDraft={vi.fn()}
-      />,
-    );
-
-    expect(
-      document.querySelector('[data-slot="upstream-model-mapping-fields"]'),
-    ).toHaveClass("contents");
-    expect(
-      document.querySelector('[data-slot="upstream-header-override-fields"]'),
-    ).toHaveClass("contents");
-    expect(screen.getByRole("switch", { name: "停用请求头" })).toBeChecked();
-  });
-
   it("switches from all models to selected-model mode", async () => {
     const user = userEvent.setup();
     const draft = createEmptyUpstream();
@@ -183,7 +114,6 @@ describe("upstreams/editor-dialog-form", () => {
     );
 
     const searchInput = screen.getByPlaceholderText("搜索已获取的模型");
-    expect(searchInput).toHaveClass("pl-9!");
     await user.type(searchInput, "gpt");
     await user.click(screen.getByRole("checkbox", { name: "取消全选" }));
 

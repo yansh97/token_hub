@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Server, ScrollText, Settings } from "lucide-react";
+import { LayoutDashboard, ScrollText, Server, Settings } from "lucide-react";
 
 export type ConfigSectionId = "dashboard" | "logs" | "upstreams" | "settings";
 

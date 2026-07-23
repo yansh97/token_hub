@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Ban, CheckCircle2, Clock3 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   DashboardUpstreamModelProbe,

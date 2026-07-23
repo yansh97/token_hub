@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   readDashboardSnapshot,

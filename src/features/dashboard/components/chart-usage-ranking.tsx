@@ -4,9 +4,9 @@ import * as React from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import {
+  type ChartConfig,
   ChartContainer,
   ChartTooltip,
-  type ChartConfig,
 } from "@/components/ui/chart";
 import {
   formatCompact,

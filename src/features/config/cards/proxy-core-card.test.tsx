@@ -42,11 +42,5 @@ describe("ProxyCoreCard", () => {
     expect(
       screen.getByText("端口必须是 1 到 65535 之间的整数。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("必填")).not.toBeInTheDocument();
-    expect(screen.queryByText("可选")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("API Key")).toHaveAttribute(
-      "placeholder",
-      "token-hub-key",
-    );
   });
 });

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  EMPTY_FORM,
   createEmptyUpstream,
   createModelMapping,
+  EMPTY_FORM,
   extractConfigExtras,
   mergeConfigExtras,
   toForm,

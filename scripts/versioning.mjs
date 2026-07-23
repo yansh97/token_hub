@@ -1,6 +1,6 @@
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
 
 const command = process.argv[2];
 const inputVersion = process.argv[3];
@@ -64,6 +64,14 @@ function getTags(pattern) {
   }).trim();
   if (!output) return [];
   return output.split(/\r?\n/).filter(Boolean);
+}
+
+function getLatestStableVersion() {
+  const versions = getTags("v*")
+    .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag))
+    .map((tag) => parseCoreVersion(tag.slice(1)))
+    .sort(compareCore);
+  return versions.at(-1) ?? null;
 }
 
 function computeNextPatch(baseVersion) {
@@ -187,6 +195,12 @@ function assertValidReleaseVersion(version) {
   if (compareCore(nextCore, currentCore) <= 0) {
     throw new Error(
       `Release version must be greater than ${currentCore.major}.${currentCore.minor}.${currentCore.patch}`,
+    );
+  }
+  const latestStable = getLatestStableVersion();
+  if (latestStable && compareCore(nextCore, latestStable) <= 0) {
+    throw new Error(
+      `Release version must be greater than latest tag v${latestStable.major}.${latestStable.minor}.${latestStable.patch}`,
     );
   }
   const existingTags = getTags(`v${version}`);

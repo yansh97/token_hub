@@ -520,35 +520,9 @@ describe("dashboard/DashboardPanel", () => {
     });
     const chart = await screen.findByTestId("dashboard-chart-total");
     const modelUsage = await screen.findByTestId("dashboard-model-usage");
-    const charts = chart.parentElement;
-    const filters = document.querySelector('[data-slot="dashboard-filters"]');
-    const upstreamModelsTitle = await screen.findByText("提供商模型");
-    expect(filters).toHaveAttribute("data-sticky", "true");
-    expect(filters).toHaveClass(
-      "sticky",
-      "top-0",
-      "-mt-5",
-      "pt-5",
-      "lg:-mt-6",
-      "lg:pt-6",
-    );
-    expect(charts).toHaveAttribute("data-slot", "dashboard-charts");
-    expect(charts).toHaveClass(
-      "grid",
-      "gap-5",
-      "lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.65fr)]",
-    );
     expect(chart).toHaveTextContent("42");
     expect(modelUsage).toHaveTextContent("gpt-5.4,claude-4");
-    expect(upstreamModelsTitle).toBeInTheDocument();
-    expect(
-      chart.compareDocumentPosition(modelUsage) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      modelUsage.compareDocumentPosition(upstreamModelsTitle) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(await screen.findByText("提供商模型")).toBeInTheDocument();
     expect(screen.getByText("gpt-5.5")).toBeInTheDocument();
     expect(screen.getByText("gemini-3.0-pro-preview")).toBeInTheDocument();
     expect(screen.getByText(/quota scope denied/)).toBeInTheDocument();

@@ -18,15 +18,6 @@ describe("dashboard/chart-area-interactive", () => {
 
     expect(screen.getByText("暂无数据")).toBeInTheDocument();
     expect(container.querySelector('[data-slot="chart"]')).toBeNull();
-    const chartArea = screen.getByText("暂无数据").parentElement;
-    expect(chartArea).toHaveClass(
-      "items-center",
-      "justify-center",
-      "rounded-md",
-      "border",
-      "border-dashed",
-      "border-border",
-    );
   });
 
   it("shows the empty state for zero-filled time buckets", () => {

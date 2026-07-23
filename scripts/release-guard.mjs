@@ -1,5 +1,5 @@
-import fs from "node:fs";
 import { execSync } from "node:child_process";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 function setOutput(key, value) {
@@ -17,61 +17,61 @@ function readPackageVersion() {
   return pkg.version;
 }
 
-function readHeadCommitSubject() {
-  return execSync("git log -1 --pretty=%s", {
-    encoding: "utf8",
-  }).trim();
+function readStableTags() {
+  const output = execSync("git tag --list 'v*'", { encoding: "utf8" }).trim();
+  if (!output) return [];
+  return output.split(/\r?\n/).filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag));
 }
 
-function latestTag() {
-  const output = execSync(
-    "git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$' | head -n 1",
-    {
-      encoding: "utf8",
-    },
-  ).trim();
-  return output || "";
+function parseStableVersion(version) {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  return match ? match.slice(1).map(Number) : null;
 }
 
-export function parseReleaseCommitVersion(commitSubject) {
-  const match = commitSubject.match(
-    /^chore: token-hub release v(\d+\.\d+\.\d+)(?: \(#\d+\))?$/,
-  );
-  return match?.[1] ?? "";
+function compareVersions(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return 0;
 }
 
-export function evaluateReleaseGuard({ version, newestTag, commitSubject }) {
-  const isPrerelease = version.includes("-");
+export function evaluateReleaseGuard({ version, stableTags }) {
+  const parsedVersion = parseStableVersion(version);
   const currentTag = `v${version}`;
-  const releaseCommitVersion = parseReleaseCommitVersion(commitSubject);
-  const isReleaseCommit = releaseCommitVersion === version;
-  const isNewRelease =
-    !isPrerelease && isReleaseCommit && newestTag !== currentTag;
+  const sortedTags = stableTags
+    .map((tag) => ({ tag, version: parseStableVersion(tag.slice(1)) }))
+    .filter((item) => item.version !== null)
+    .sort((left, right) => compareVersions(left.version, right.version));
+  const latestTag = sortedTags.at(-1)?.tag ?? "";
+  const latestVersion = sortedTags.at(-1)?.version ?? null;
+  const isCurrentTagPresent = stableTags.includes(currentTag);
+  const isAheadOfLatest =
+    parsedVersion !== null &&
+    (latestVersion === null ||
+      compareVersions(parsedVersion, latestVersion) > 0);
+
   return {
     currentTag,
-    isPrerelease,
-    isRelease: isNewRelease,
-    releaseCommitVersion,
+    latestTag,
+    isStable: parsedVersion !== null,
+    isCurrentTagPresent,
+    isAheadOfLatest,
+    isRelease:
+      parsedVersion !== null && !isCurrentTagPresent && isAheadOfLatest,
   };
 }
 
 function main() {
   const version = readPackageVersion();
-  const newestTag = latestTag();
-  const commitSubject = readHeadCommitSubject();
+  const stableTags = readStableTags();
   const result = evaluateReleaseGuard({
     version,
-    newestTag,
-    commitSubject,
+    stableTags,
   });
 
   setOutput("version", version);
-  setOutput("latest_tag", newestTag);
-  setOutput("commit_subject", commitSubject);
-  setOutput("release_commit_version", result.releaseCommitVersion);
+  setOutput("latest_tag", result.latestTag);
   setOutput("is_release", result.isRelease ? "true" : "false");
-  // For backward compatibility with prerelease job gating: skip prerelease when this is a new release commit.
-  setOutput("skip", result.isRelease ? "true" : "false");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

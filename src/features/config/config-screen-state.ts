@@ -1,14 +1,13 @@
-import { useCallback, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-
+import { useCallback, useMemo, useState } from "react";
+import { PROTOCOL_OPTIONS } from "@/features/config/cards/upstreams/constants";
 import {
   EMPTY_FORM,
-  toForm,
   mergeConfigExtras,
+  toForm,
   toPayload,
   validate,
 } from "@/features/config/form";
-import { PROTOCOL_OPTIONS } from "@/features/config/cards/upstreams/constants";
 import type {
   ConfigForm,
   ProxyConfigFile,

@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   cleanup,
   render,
@@ -7,7 +8,6 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
 
 import { StorageUsageCard } from "@/features/config/cards/storage-usage-card";
 

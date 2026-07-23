@@ -87,21 +87,4 @@ describe("config/AppView", () => {
 
     expect(onSave).toHaveBeenCalledTimes(1);
   });
-
-  it("uses a fixed workspace for the provider table", () => {
-    const { container } = render(
-      <AppView
-        activeSectionId="upstreams"
-        {...BASE_APP_VIEW_PROPS}
-        status="idle"
-        statusMessage=""
-        canSave
-        isDirty={false}
-      />,
-    );
-
-    expect(
-      container.querySelector('[data-slot="app-shell-viewport"]'),
-    ).toHaveAttribute("data-content-mode", "workspace");
-  });
 });

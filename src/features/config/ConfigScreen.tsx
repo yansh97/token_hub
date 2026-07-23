@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
 
 import { AppView } from "@/features/config/AppView";
+import { useConfigActions } from "@/features/config/config-screen-actions";
 import {
   useConfigDerived,
   useConfigState,
   useProxyServiceActions,
   useProxyServiceState,
 } from "@/features/config/config-screen-state";
-import { useConfigActions } from "@/features/config/config-screen-actions";
 import { useConfigListActions } from "@/features/config/list-actions";
 import type { ConfigEditorSectionId } from "@/features/config/sections";
 import { useUpdater } from "@/features/update/updater";

@@ -11,15 +11,14 @@ on:
         description: "Release version (e.g., 0.1.0)"
         required: true
       republish:
-        description: "Republish an existing stable tag instead of preparing a release PR"
+        description: "Repair/rebuild an existing stable tag instead of preparing a release PR"
         required: false
         default: "false"
 
 concurrency:
-  # 不能只按 branch 做并发键；同一分支上其他 Test 完成也会触发 workflow_run，
-  # 进而把当前仍在上传产物的 release run 误取消，导致 release 资产残缺。
-  group: release-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || inputs.version || github.ref_name || github.run_id }}
-  cancel-in-progress: true
+  # 正式发布全局串行，手动准备/重发按版本串行；不取消正在上传的产物。
+  group: release-${{ github.event_name == 'workflow_run' && 'stable' || inputs.version || github.run_id }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -81,10 +80,10 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Abort if not a release commit
-        if: steps.release_guard.outputs.is_release != 'true'
+      - name: Skip when there is no pending release
+        if: github.event_name == 'workflow_run' && steps.release_guard.outputs.is_release != 'true'
         run: |
-          echo "Not a release commit; skip tag." && exit 0
+          echo "No untagged stable version; downstream release jobs will skip." && exit 0
         shell: bash
 
       - name: Resolve previous stable tag
@@ -178,7 +177,7 @@ jobs:
       # macos-latest 是 GitHub-hosted 的 Apple Silicon (arm64) runner；
       # 显式指定 Node 为 arm64，避免在 Rosetta/x64 Node 下导致 tauri/产物架构误判。
       - name: Verify macOS (arm64) runner & Node arch
-        if: matrix.platform == 'macos-latest'
+        if: matrix.target == 'aarch64-apple-darwin'
         shell: bash
         run: |
           echo "uname -m: $(uname -m)"
@@ -199,7 +198,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm'
+        if: endsWith(matrix.target, '-unknown-linux-gnu')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -218,12 +217,12 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "src-tauri"
-          cache-on-failure: true
+          # Cargo resolves this manifest to the repository root workspace;
+          # cache the root target directory where build artifacts are written.
+          workspaces: ". -> target"
           # Stable cache key for release reuse; bump suffix to invalidate.
           shared-key: "rust-${{ runner.os }}-${{ matrix.target }}-v2"
           add-job-id-key: "false"
-          add-rust-environment-hash-key: "false"
           # Do not restore ~/.cargo/bin; a poisoned macOS cache can shadow cargo with rustup-init.
           cache-bin: "false"
 
@@ -308,7 +307,7 @@ jobs:
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
-            const createAsDraft = context.eventName === "workflow_run";
+            const createAsDraft = true;
 
             try {
               const { data } = await github.rest.repos.getReleaseByTag({
@@ -394,8 +393,7 @@ jobs:
         stable_updater_json,
       ]
     if: |
-      needs.stable_tag.outputs.tag != '' &&
-      needs.stable_release_bootstrap.outputs.release_draft == 'true'
+      needs.stable_tag.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -434,6 +432,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.republish != 'true'
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     steps:
@@ -464,7 +463,8 @@ jobs:
           git push --force-with-lease=refs/heads/$branch origin "HEAD:$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
-      - name: Create pull request
+      - name: Create or update release PR
+        id: pull_request
         uses: actions/github-script@v8
         env:
           BRANCH: ${{ steps.commit.outputs.branch }}
@@ -476,16 +476,62 @@ jobs:
             const title = `chore: token-hub release v${version}`;
             const body = [
               `## Release v${version}`,
-              "- Auto-generated release PR; merging will tag and publish the final release.",
-              "- Merge only after CI passes.",
+              "- Auto-generated release PR.",
+              "- The Test workflow is dispatched explicitly because GITHUB_TOKEN-created PRs do not emit recursive workflow events.",
+              "- Merge only after Test passes; tagging and publishing then run automatically.",
             ].join("\n");
-            const { data } = await github.rest.pulls.create({
+            const { data: openPulls } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              head: branch,
+              state: "open",
+              head: `${context.repo.owner}:${branch}`,
               base: "main",
-              title,
-              body,
-              maintainer_can_modify: true,
             });
-            core.setOutput("pr_url", data.html_url);
+            const pull = openPulls[0]
+              ? (await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: openPulls[0].number,
+                  title,
+                  body,
+                })).data
+              : (await github.rest.pulls.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  head: branch,
+                  base: "main",
+                  title,
+                  body,
+                  maintainer_can_modify: true,
+                })).data;
+            core.setOutput("pr_url", pull.html_url);
+            core.setOutput("pr_number", String(pull.number));
+
+      - name: Dispatch release branch tests
+        uses: actions/github-script@v8
+        env:
+          BRANCH: ${{ steps.commit.outputs.branch }}
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "test.yml",
+              ref: process.env.BRANCH,
+            });
+
+      - name: Show next step
+        env:
+          PR_URL: ${{ steps.pull_request.outputs.pr_url }}
+          VERSION: ${{ steps.versioning.outputs.version }}
+        shell: bash
+        run: |
+          {
+            echo "### Release PR ready"
+            echo
+            echo "Version: \`${VERSION}\`"
+            echo
+            echo "[Open the release PR](${PR_URL})"
+            echo
+            echo "Wait for the PR Test workflow to pass before merging."
+          } >> "$GITHUB_STEP_SUMMARY"

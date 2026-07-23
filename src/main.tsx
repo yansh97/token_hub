@@ -1,8 +1,7 @@
-import { Toaster } from "@/components/ui/sonner";
 import React from "react";
 import ReactDOM from "react-dom/client";
-
 import App from "@/App";
+import { Toaster } from "@/components/ui/sonner";
 
 if (typeof window !== "undefined") {
   const media = window.matchMedia("(prefers-color-scheme: dark)");

@@ -1,6 +1,4 @@
 import { AlertCircle } from "lucide-react";
-
-import { AppShell } from "@/layouts/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +15,7 @@ import type {
   ProxyServiceRequestState,
   ProxyServiceStatus,
 } from "@/features/config/types";
+import { AppShell } from "@/layouts/app-shell";
 
 type AppViewProps = {
   activeSectionId: ConfigEditorSectionId;

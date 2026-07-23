@@ -1,13 +1,6 @@
 import { useCallback, useState } from "react";
 
 import { UPSTREAM_COLUMNS } from "@/features/config/cards/upstreams/constants";
-import {
-  cloneUpstreamDraft,
-  createCopiedUpstreamId,
-  normalizeProviders,
-  pruneConvertFromMap,
-  providersEqual,
-} from "@/features/config/cards/upstreams/upstream-editor-helpers";
 import { DeleteUpstreamDialog } from "@/features/config/cards/upstreams/delete-dialog";
 import { UpstreamEditorDialog } from "@/features/config/cards/upstreams/editor-dialog";
 import {
@@ -18,6 +11,13 @@ import type {
   DeleteDialogState,
   UpstreamEditorState,
 } from "@/features/config/cards/upstreams/types";
+import {
+  cloneUpstreamDraft,
+  createCopiedUpstreamId,
+  normalizeProviders,
+  providersEqual,
+  pruneConvertFromMap,
+} from "@/features/config/cards/upstreams/upstream-editor-helpers";
 import {
   createEmptyUpstream,
   validateUpstreamDraft,

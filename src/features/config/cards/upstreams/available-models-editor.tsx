@@ -1,6 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Plus, RefreshCw, Search, X } from "lucide-react";
 import { useState } from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { UpstreamForm } from "@/features/config/types";
-import { invoke } from "@tauri-apps/api/core";
 
 type AvailableModelsEditorProps = {
   draft: UpstreamForm;

@@ -1,6 +1,5 @@
-import type { ReactElement } from "react";
-
 import { Copy, Pencil, Plus, Power, PowerOff, Trash2 } from "lucide-react";
+import type { ReactElement } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +9,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  getUpstreamLabel,
   getProviderLabel,
+  getUpstreamLabel,
   toStatusLabel,
 } from "@/features/config/cards/upstreams/constants";
 import type {

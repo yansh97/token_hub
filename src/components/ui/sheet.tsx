@@ -1,6 +1,6 @@
-import type * as React from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
+import type * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -69,4 +69,4 @@ function SheetDescription({ className, ...props }: Dialog.Description.Props) {
   );
 }
 
-export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription };
+export { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle };

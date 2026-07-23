@@ -1,5 +1,5 @@
-import { getProviderLabel } from "@/features/config/cards/upstreams/constants";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { getProviderLabel } from "@/features/config/cards/upstreams/constants";
 
 type ProviderMultiSelectProps = {
   providerOptions: readonly string[];

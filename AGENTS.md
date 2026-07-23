@@ -1,62 +1,67 @@
-# Token Hub 代码库规则
+# Token Hub 代码库指南
 
-本文件为在 `token_hub` 项目中工作的 AI 智能体提供指导。
+本文件约束 `token_hub` 的代码修改、上游同步、验证和发布。Token Hub fork 自 [mxyhi/token_proxy](https://github.com/mxyhi/token_proxy)，维护独立的桌面端 UI/UX，并尽量跟随上游后端能力和工程结构。
 
-> 本文件已从上游项目修改。Token Hub fork 自 [mxyhi/token_proxy](https://github.com/mxyhi/token_proxy)，主要进行 UI/UX 优化，并尽可能保持上游后端能力、项目结构和同步路径稳定。
+## 项目边界
 
-## 项目关系与许可证
+- 当前仓库：[yansh97/token_hub](https://github.com/yansh97/token_hub)
+- 上游仓库：[mxyhi/token_proxy](https://github.com/mxyhi/token_proxy)
+- 技术栈：Tauri 2、React 19、TypeScript、Vite、Tailwind CSS v4、Rust 2021、Tokio、Axum。
+- `src/**` 是 Token Hub 独立维护的前端；`crates/**` 和 `src-tauri/**` 原则上跟随上游。
+- 应用对外名称是 **Token Hub**。内部 package、crate、配置键和兼容字符串中的 `token_proxy` 不做无意义重命名。
+- 保留上游版权、许可证和归属声明。
 
-- 上游项目：[mxyhi/token_proxy](https://github.com/mxyhi/token_proxy)
-- 当前项目：[yansh97/token_hub](https://github.com/yansh97/token_hub)
-- 许可证：[Apache License 2.0](LICENSE)
-- 保留上游版权、许可证和归属声明；修改文件应明确说明已修改。
-- 优先通过小范围、易同步的提交维护 UI/UX 改进，避免无必要地改动后端和项目结构。
-- 上游更新应优先合并；若 UI/UX 调整与上游变更冲突，应尽量将冲突限制在前端边界内。
+## 工作原则
 
-## 发布与上游同步
+1. 只修改完成当前任务所需的文件和行，不顺手重构或清理无关代码。
+2. 优先复用现有组件、helper、类型和工程模式；没有明确收益时不增加抽象或依赖。
+3. 配置读取、编辑和保存必须保留未知字段，确保与上游后端和已有数据兼容。
+4. 工作区可能包含其他未提交改动。不要回滚、覆盖或混入无关改动。
+5. `.github/release-matrix.json` 是桌面发布平台的唯一矩阵来源；`.upstream-version` 只记录已同步的上游稳定版本。
 
-- Token Hub 的自动发布提交标志为 `chore: token-hub release vX.Y.Z`。
-- 不要使用通用的 `chore: release vX.Y.Z`，该格式可能来自上游，不能触发 Token Hub 发布。
-- Token Hub 使用独立版本号；`.upstream-version` 记录当前同步的上游版本，并由发布工作流写入 GitHub Release 说明。每次合并上游后必须同步更新该文件。
-- 发布前需确认版本号、Tauri 更新源、签名公钥和 `Token.Hub` 发布资产匹配规则保持一致。
-- 合并上游时保留 Token Hub 的应用标识、更新源和签名配置；上游版本号和功能代码应正常同步。
+## 开发与验证
 
-### 同步边界
+按改动风险选择验证：
 
-- 上游同步必须在独立分支上通过真实 merge commit 完成；不要用 `git merge -s ours` 伪造同步状态。
-- 接受 `crates/**`、配置 schema 与持久化数据、Tauri command/event 合约，以及必要的安全与工具链更新。
-- 保留 Token Hub 的 `src/**` UI 实现、中文文案、本地 Hash 路由、Base UI 与本地基础组件；拒绝上游页面、路由、国际化和账户管理 UI 的整体替换。
-- `package.json` 与锁文件按依赖职责合并：保留仍在使用的前端依赖与独立工具链，移除不再使用的历史依赖；不要整文件接受任一侧版本。
-- 配置编辑与保存必须保留未知字段，确保新版前端能与上游后端和已有数据双向兼容。
-- 合并后至少验证 Rust 测试、Tauri command 编译、前端类型检查、测试、生产构建和配置兼容性。
+- 前端逻辑或组件：`pnpm test:run`
+- 前端类型和生产构建：`pnpm build`
+- 相关文件静态检查：`pnpm exec biome check <files...>`
+- Rust workspace：`cargo test --workspace --locked`
+- 发布 guard：`node --test scripts/release-guard.test.mjs`
 
-## 开发工具链与缓存
+影响发布、共享组件、配置兼容或前后端合约时必须扩大验证范围。未运行应有测试时，交付中明确说明。工具链缓存使用用户目录，不写入仓库。
 
-- 依赖安装、编译和测试可以读写用户目录下的工具链缓存与索引，例如 `~/Library/pnpm`、`~/.cargo` 和 `~/.rustup`。
-- 优先使用用户目录缓存，不要把 pnpm、Cargo 或其它开发工具的缓存写入仓库，也不要把缓存目录加入版本控制。
-- 如果运行环境限制访问用户级缓存，应申请必要权限；不要通过修改项目结构或提交缓存目录来绕过限制。
+前端测试只覆盖关键业务流程、数据转换与兼容性、跨层调用、异步竞态和可访问交互契约；不要测试 Tailwind class、纯视觉尺寸、文案或第三方组件自身行为。
 
-## 项目概览
+## 前端规范
 
-**Token Hub** 是基于 Tauri 的 AI API 代理工具，继承上游 Token Proxy 的后端能力，用于转发 OpenAI、Gemini、Anthropic 等 AI API 格式，支持本地运行、token 使用统计、负载均衡和优先级管理。本项目的主要工作范围是前端 UI/UX 优化。
+- 以默认窗口 `1064×658` 的桌面工具密度为基准，并检查更宽窗口的布局。
+- 字号：页面标题 `17px`，区块标题 `15px`，对话框标题 `14px`，正文/字段 `13px`，辅助文字和表头 `11–12px`。
+- 常规控件高 `32px`；图标默认 `16px`，紧凑图标可用 `14px`。
+- 使用 `foreground`、`muted-foreground`、`primary`、`success`、`destructive` 等语义 token，不硬编码前景色。
+- 保留可见键盘焦点，统一使用 `2px` 和 `ring/20`。
+- 优先复用 `src/components/ui`；修改全局基础组件前检查所有使用方，不通过页面级 CSS 批量覆盖其行为。
 
-- 前端: React 19 + TypeScript + Vite + Tailwind CSS v4 + Base UI（复杂交互）+ 本地 UI 组件
-- 后端: Rust (Edition 2021) + Tokio + Axum
-- 桌面框架: Tauri 2
+## 上游同步
 
-## 前端视觉规范
+- 在独立分支使用真实 merge commit；不得使用 `git merge -s ours` 伪造同步状态。
+- 同步上游后端、配置 schema、持久化数据、Tauri command/event 合约，以及必要的安全和工具链更新。
+- 上游开发文档不需要保留；上游前端改动也不纳入同步。涉及前端的新功能或合约变化，应在后端同步完成后，按 Token Hub 现有架构、中文文案、Hash 路由和组件体系单独适配。
+- 保留 Token Hub 的应用标识、更新源、签名公钥和发布资产命名。
+- `package.json` 和锁文件按实际依赖合并，不整文件接受任一侧。
+- 同步后更新 `.upstream-version`，并验证 Rust workspace、Tauri command 编译、前端类型、测试、生产构建和配置兼容性。
 
-- 以默认窗口 `1064×658` 的桌面工具密度为基准，并验证更宽窗口下的对齐与响应式布局。
-- 字号层级固定为：页面标题 `17px`、区块标题 `15px`、对话框标题 `14px`、正文/字段 `13px`、辅助文字和表头 `11–12px`。仅核心指标数字可使用更大字号。
-- 常规交互控件统一为 `32px` 高；优先使用基础组件的默认尺寸，不在页面内重复覆盖高度和字号。内联徽标操作等确有空间约束的控件可更小。
-- 图标默认 `16px`，次级紧凑图标可用 `14px`；同类操作保持一致。
-- 颜色必须使用 `foreground`、`muted-foreground`、`primary`、`success`、`destructive` 等语义 token，不直接使用具体色阶或硬编码前景色。
-- 键盘焦点统一使用 `2px`、`ring/20`；不要用过粗焦点环，也不要移除可见焦点。
-- 页面、弹窗和表格应优先复用 `src/components/ui` 的基础组件，避免通过父级后代选择器批量覆盖控件样式。
+## 版本与发布
+
+- Token Hub 使用独立的 `X.Y.Z` 稳定版本，不追随上游版本号。
+- 版本在 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.dev.json` 和 `Cargo.lock` 中必须一致。
+- 正式发布要求版本高于最新稳定 tag，且对应 `vX.Y.Z` tag 不存在；发布资格不依赖 merge commit 标题。
+- 发布分支为 `release/vX.Y.Z`，PR 标题为 `chore: token-hub release vX.Y.Z`。
+- 不手动修改发布版本文件、打稳定 tag、发布草稿或跳过 Test。`republish=true` 只用于修复已有稳定 tag 的 Release 或资产。
+- 发布矩阵包含 macOS Apple Silicon、macOS Intel、Windows x64、Linux x64 和 Linux ARM64。修改 runner、target、架构或产物命名时，同时检查发布矩阵、Tauri updater 配置、`scripts/generate-updater-json.mjs` 和 Release workflow。
 
 ## 参考项目
 
-- 代理转发/转换参考[litellm](.reference/litellm)
-- 代理转发/转换参考[new-api](.reference/new-api)
-- kiro、codex 等 2api 参考[CLIProxyAPIPlus](.reference/CLIProxyAPIPlus)
-- CLIProxyAPIPlus的可视化app参考[quotio](.reference/quotio)
+- 代理转发与协议转换：[litellm](.reference/litellm)、[new-api](.reference/new-api)
+- Kiro、Codex 等 2API：[CLIProxyAPIPlus](.reference/CLIProxyAPIPlus)
+- CLIProxyAPIPlus 桌面端参考：[quotio](.reference/quotio)
