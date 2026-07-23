@@ -21,7 +21,7 @@ import { parseError } from "@/lib/error";
 import { cn } from "@/lib/utils";
 
 export const RECENT_PAGE_SIZE = 50;
-export const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 10_000;
+export const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 3_000;
 const ALL_UPSTREAMS_VALUE = "__all_upstreams__";
 const ALL_MODELS_VALUE = "__all_models__";
 
