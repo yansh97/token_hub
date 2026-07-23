@@ -10,9 +10,13 @@ test-support = []
 token_proxy_account_store = { path = "../token_proxy_account_store" }
 axum = "0.8.9"
 base64 = "0.22"
+crypto_box = { version = "0.9.1", features = ["seal"] }
+ed25519-dalek = { version = "2.2.0", features = ["pkcs8"] }
+jsonwebtoken = { version = "10.4.0", default-features = false, features = ["rust_crypto"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls", "socks", "http2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.151"
+sha2 = "0.11"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 tokio = { version = "1.53", features = ["fs", "macros", "net", "rt-multi-thread", "sync", "time"] }
 tracing = { version = "0.1.44", features = ["release_max_level_off"] }
@@ -20,4 +24,5 @@ url = "2.5.8"
 
 [dev-dependencies]
 rand = "0.10"
+rsa = "0.9.10"
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }

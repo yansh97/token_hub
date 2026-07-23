@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::{proxy, xai};
+use crate::xai;
+use token_proxy_app::app::TokenProxyApp;
 
 use token_proxy_accounts::provider_accounts::{
     ProviderAccountKind, ProviderAccountListItem, ProviderAccountsQueryParams,
@@ -39,7 +40,7 @@ fn build_provider_account_delete_plan(
 }
 
 async fn apply_runtime_account_cooldowns(
-    proxy_service: proxy::service::ProxyServiceHandle,
+    token_proxy_app: TokenProxyApp,
     items: &mut [token_proxy_accounts::provider_accounts::ProviderAccountListItem],
 ) {
     let kiro_account_ids = items
@@ -72,9 +73,9 @@ async fn apply_runtime_account_cooldowns(
         .collect::<Vec<_>>();
     // 三类账户冷却查询互不依赖，并行读取运行时状态，避免账户页延迟随 provider 数增长。
     let (cooling_kiro, cooling_codex, cooling_xai) = tokio::join!(
-        proxy_service.cooling_account_ids("kiro", &kiro_account_ids),
-        proxy_service.cooling_account_ids("codex", &codex_account_ids),
-        proxy_service.cooling_account_ids("xai", &xai_account_ids),
+        token_proxy_app.cooling_account_ids("kiro", &kiro_account_ids),
+        token_proxy_app.cooling_account_ids("codex", &codex_account_ids),
+        token_proxy_app.cooling_account_ids("xai", &xai_account_ids),
     );
 
     for item in items.iter_mut() {
@@ -102,7 +103,7 @@ async fn apply_runtime_account_cooldowns(
 #[tauri::command]
 pub async fn providers_list_accounts_page(
     paths: tauri::State<'_, Arc<token_proxy_account_store::paths::TokenProxyPaths>>,
-    proxy_service: tauri::State<'_, proxy::service::ProxyServiceHandle>,
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
     page: u32,
     page_size: u32,
     provider_kind: Option<String>,
@@ -126,7 +127,7 @@ pub async fn providers_list_accounts_page(
         },
     )
     .await?;
-    apply_runtime_account_cooldowns(proxy_service.inner().clone(), &mut items).await;
+    apply_runtime_account_cooldowns(token_proxy_app.inner().clone(), &mut items).await;
     let status_counts =
         token_proxy_accounts::provider_accounts::ProviderAccountStatusCounts::from_items(&items);
     if let Some(status) = status {

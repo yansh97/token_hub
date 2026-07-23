@@ -1,33 +1,25 @@
-use std::sync::Arc;
-
-use tauri::Manager;
-
-use crate::proxy;
+use token_proxy_app::app::{
+    ModelPricingSettingsInput, ModelPricingSettingsSnapshot, TokenProxyApp,
+};
 
 #[tauri::command]
 pub async fn read_model_pricing_settings(
-    app: tauri::AppHandle,
-) -> Result<proxy::pricing::ModelPricingSettingsSnapshot, String> {
-    let paths = app.state::<Arc<token_proxy_account_store::paths::TokenProxyPaths>>();
-    let pool = proxy::sqlite::open_read_pool(paths.inner().as_ref()).await?;
-    proxy::pricing::read_model_pricing_settings_snapshot(&pool).await
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
+) -> Result<ModelPricingSettingsSnapshot, String> {
+    token_proxy_app.read_model_pricing_settings().await
 }
 
 #[tauri::command]
 pub async fn save_model_pricing_settings(
-    app: tauri::AppHandle,
-    settings: proxy::pricing::ModelPricingSettingsInput,
-) -> Result<proxy::pricing::ModelPricingSettingsSnapshot, String> {
-    let paths = app.state::<Arc<token_proxy_account_store::paths::TokenProxyPaths>>();
-    let pool = proxy::sqlite::open_write_pool(paths.inner().as_ref()).await?;
-    proxy::pricing::save_model_pricing_settings(&pool, settings).await
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
+    settings: ModelPricingSettingsInput,
+) -> Result<ModelPricingSettingsSnapshot, String> {
+    token_proxy_app.save_model_pricing_settings(settings).await
 }
 
 #[tauri::command]
 pub async fn reset_model_pricing_settings(
-    app: tauri::AppHandle,
-) -> Result<proxy::pricing::ModelPricingSettingsSnapshot, String> {
-    let paths = app.state::<Arc<token_proxy_account_store::paths::TokenProxyPaths>>();
-    let pool = proxy::sqlite::open_write_pool(paths.inner().as_ref()).await?;
-    proxy::pricing::reset_model_pricing_settings(&pool).await
+    token_proxy_app: tauri::State<'_, TokenProxyApp>,
+) -> Result<ModelPricingSettingsSnapshot, String> {
+    token_proxy_app.reset_model_pricing_settings().await
 }

@@ -8,8 +8,10 @@ members = [
   "crates/token_proxy_account_xai",
   "crates/token_proxy_accounts",
   "crates/token_proxy_config",
+  "crates/token_proxy_runtime",
   "crates/token_proxy_app",
   "crates/token_proxy_protocol",
+  "crates/token_proxy_storage",
   "crates/token_proxy_cli",
   "src-tauri",
 ]

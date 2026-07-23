@@ -1,5 +1,6 @@
 //! Codex account OAuth, refresh, quota, state, and persistence behavior.
 
+mod agent_identity;
 mod error;
 mod identity;
 mod login;
@@ -18,6 +19,7 @@ pub use oauth::CodexRefreshTokenClient;
 pub use quota::fetch_quotas;
 pub use store::CodexAccountStore;
 pub use types::{
-    CodexAccountStatus, CodexAccountSummary, CodexLoginPollResponse, CodexLoginStartResponse,
+    CodexAccountStatus, CodexAccountSummary, CodexAgentIdentityRef, CodexAuthMethod,
+    CodexCredential, CodexLoginPollResponse, CodexLoginStartResponse, CodexOAuthCredentialRef,
     CodexQuotaCache, CodexQuotaItem, CodexQuotaSummary, CodexTokenRecord,
 };

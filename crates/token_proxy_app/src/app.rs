@@ -1,6 +1,6 @@
 //! Application composition root shared by CLI and Tauri adapters.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use token_proxy_account_codex::{CodexAccountStore, CodexLoginManager};
 use token_proxy_account_kiro::{KiroAccountStore, KiroLoginManager};
@@ -8,13 +8,27 @@ use token_proxy_account_store::app_proxy::{self, AppProxyState};
 use token_proxy_account_store::paths::TokenProxyPaths;
 use token_proxy_account_xai::{XaiAccountStore, XaiLoginManager};
 
-use crate::{
+use token_proxy_runtime::{
     logging::LoggingState,
     proxy::{
-        request_detail::{RequestDetailCapture, RequestDetailCaptureState},
+        request_detail::RequestDetailCapture,
         service::{ProxyContext, ProxyServiceHandle},
         token_rate::TokenRateTracker,
     },
+};
+
+pub use token_proxy_runtime::proxy::{
+    request_detail::RequestDetailCaptureState,
+    service::{
+        ProxyConfigApplyBehavior, ProxyConfigSaveResult, ProxyServiceState, ProxyServiceStatus,
+        UpstreamModelProbe,
+    },
+    token_rate::TokenRateSnapshot,
+};
+pub use token_proxy_storage::{
+    dashboard::{DashboardRange, DashboardSnapshot},
+    logs::RequestLogDetail,
+    pricing::{ModelPricingSettingsInput, ModelPricingSettingsSnapshot, RemoteCatalogRefresh},
 };
 
 pub type RequestDetailChangeHandler = Arc<dyn Fn(RequestDetailCaptureState) + Send + Sync>;
@@ -136,11 +150,161 @@ impl TokenProxyApp {
         self.xai_login.clone()
     }
 
-    pub fn proxy(&self) -> ProxyServiceHandle {
-        self.proxy.clone()
+    /// 返回当前代理生命周期状态。
+    pub async fn proxy_status(&self) -> ProxyServiceStatus {
+        self.proxy.status().await
     }
 
-    pub fn proxy_context(&self) -> ProxyContext {
-        self.proxy_context.clone()
+    /// 启动代理；运行时依赖由应用内部持有。
+    pub async fn start_proxy(&self) -> Result<ProxyServiceStatus, String> {
+        self.proxy.start(&self.proxy_context).await
+    }
+
+    /// 停止代理并等待优雅停机完成。
+    pub async fn stop_proxy(&self) -> Result<ProxyServiceStatus, String> {
+        self.proxy.stop().await
+    }
+
+    /// 使用当前保存配置重启代理。
+    pub async fn restart_proxy(&self) -> Result<ProxyServiceStatus, String> {
+        self.proxy.restart(&self.proxy_context).await
+    }
+
+    /// 热重载当前保存配置；需要换监听地址时内部自动重启。
+    pub async fn reload_proxy(&self) -> Result<ProxyServiceStatus, String> {
+        self.proxy.reload(&self.proxy_context).await
+    }
+
+    /// 判断保存配置需要热重载还是完整重启。
+    pub async fn proxy_reload_behavior(&self) -> Result<ProxyConfigApplyBehavior, String> {
+        self.proxy.reload_behavior(&self.proxy_context).await
+    }
+
+    /// 保存配置后按当前运行状态应用，不会意外启动已停止的代理。
+    pub async fn apply_saved_proxy_config(&self) -> ProxyConfigSaveResult {
+        self.proxy.apply_saved_config(&self.proxy_context).await
+    }
+
+    /// 查询指定 Provider 账户的运行时冷却状态。
+    pub async fn cooling_account_ids(
+        &self,
+        provider: &str,
+        account_ids: &[String],
+    ) -> HashSet<String> {
+        self.proxy.cooling_account_ids(provider, account_ids).await
+    }
+
+    /// 读取 Dashboard 快照，并合并运行时模型探测结果。
+    pub async fn read_dashboard_snapshot(
+        &self,
+        range: DashboardRange,
+        offset: Option<u32>,
+        upstream_id: Option<String>,
+        account_id: Option<String>,
+        public_only: bool,
+        model: Option<String>,
+    ) -> Result<DashboardSnapshot, String> {
+        let pool =
+            token_proxy_storage::sqlite::open_read_pool(&self.paths.sqlite_db_path()).await?;
+        let mut snapshot = token_proxy_storage::dashboard::read_snapshot(
+            &pool,
+            range,
+            offset,
+            upstream_id,
+            account_id,
+            public_only,
+            model,
+        )
+        .await?;
+        snapshot.model_probes = self.proxy.model_discovery_snapshot().await;
+        Ok(snapshot)
+    }
+
+    /// 立即刷新所有上游的模型目录探测缓存。
+    pub async fn refresh_model_discovery(&self) -> Vec<UpstreamModelProbe> {
+        self.proxy.refresh_model_discovery().await
+    }
+
+    /// 读取单条请求日志详情。
+    pub async fn read_request_log_detail(&self, id: u64) -> Result<RequestLogDetail, String> {
+        let pool =
+            token_proxy_storage::sqlite::open_read_pool(&self.paths.sqlite_db_path()).await?;
+        token_proxy_storage::logs::read_request_log_detail(&pool, id).await
+    }
+
+    /// 读取当前临时请求详情捕获状态。
+    pub fn request_detail_capture(&self) -> RequestDetailCaptureState {
+        self.request_detail.snapshot()
+    }
+
+    /// 开启或关闭临时请求详情捕获。
+    pub fn set_request_detail_capture(&self, enabled: bool) -> RequestDetailCaptureState {
+        if enabled {
+            self.request_detail.arm()
+        } else {
+            self.request_detail.disarm()
+        }
+    }
+
+    /// 读取模型价格设置。
+    pub async fn read_model_pricing_settings(
+        &self,
+    ) -> Result<ModelPricingSettingsSnapshot, String> {
+        let pool =
+            token_proxy_storage::sqlite::open_read_pool(&self.paths.sqlite_db_path()).await?;
+        token_proxy_storage::pricing::read_model_pricing_settings_snapshot(&pool).await
+    }
+
+    /// 保存模型价格设置。
+    pub async fn save_model_pricing_settings(
+        &self,
+        settings: ModelPricingSettingsInput,
+    ) -> Result<ModelPricingSettingsSnapshot, String> {
+        let pool =
+            token_proxy_storage::sqlite::open_write_pool(&self.paths.sqlite_db_path()).await?;
+        token_proxy_storage::pricing::save_model_pricing_settings(&pool, settings).await
+    }
+
+    /// 重置模型价格设置。
+    pub async fn reset_model_pricing_settings(
+        &self,
+    ) -> Result<ModelPricingSettingsSnapshot, String> {
+        let pool =
+            token_proxy_storage::sqlite::open_write_pool(&self.paths.sqlite_db_path()).await?;
+        token_proxy_storage::pricing::reset_model_pricing_settings(&pool).await
+    }
+
+    /// 刷新远端模型价格目录；失败时调用方继续使用缓存或内置目录。
+    pub async fn refresh_model_pricing_catalog(
+        &self,
+        proxy_url: Option<&str>,
+    ) -> Result<RemoteCatalogRefresh, String> {
+        crate::pricing_refresh::refresh_remote_model_pricing_catalog(self.paths.as_ref(), proxy_url)
+            .await
+    }
+
+    /// 订阅 token-rate 活动变化，供托盘空闲等待使用。
+    pub fn subscribe_token_rate_activity(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.token_rate.subscribe_activity()
+    }
+
+    /// 唤醒 token-rate 展示循环。
+    pub fn notify_token_rate_activity(&self) {
+        self.token_rate.notify_activity();
+    }
+
+    /// 开关 token-rate 采集。
+    pub async fn set_token_rate_enabled(&self, enabled: bool) {
+        self.token_rate.set_enabled(enabled).await;
+    }
+
+    /// 返回最近滑动窗口内的 token-rate 快照。
+    pub async fn token_rate_snapshot(&self) -> TokenRateSnapshot {
+        self.token_rate.snapshot().await
+    }
+
+    /// 当前是否仍有活跃代理请求。
+    pub fn has_active_proxy_requests(&self) -> bool {
+        self.token_rate.has_active_requests()
     }
 }

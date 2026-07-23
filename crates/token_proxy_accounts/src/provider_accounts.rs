@@ -228,9 +228,9 @@ fn build_codex_list_item(
         expires_at,
         priority: record.priority,
         status: provider_status_from_codex(&record),
-        auth_method: None,
+        auth_method: Some(record.auth_method().as_str().to_string()),
         provider_name,
-        auto_refresh_enabled: Some(record.auto_refresh_enabled),
+        auto_refresh_enabled: record.auto_refresh_enabled(),
         proxy_url: normalize_optional_string(record.proxy_url.as_deref()),
         quota: provider_quota_snapshot_from_codex(&record.quota),
     })
@@ -362,7 +362,9 @@ fn provider_quota_item_from_xai(item: &XaiQuotaItem) -> ProviderAccountQuotaItem
 mod tests {
     use super::*;
     use rand::random;
-    use token_proxy_account_codex::{CodexAccountStatus, CodexQuotaCache, CodexTokenRecord};
+    use token_proxy_account_codex::{
+        CodexAccountStatus, CodexCredential, CodexQuotaCache, CodexTokenRecord,
+    };
     use token_proxy_account_store::records::AccountRecordMetadata;
     use token_proxy_account_xai::{XaiAccountStatus, XaiQuotaCache, XaiTokenRecord};
 
@@ -421,18 +423,20 @@ mod tests {
             ),
         ] {
             let record = CodexTokenRecord {
-                access_token: format!("access-{account_id}"),
-                refresh_token: format!("refresh-{account_id}"),
-                client_id: None,
-                id_token: String::new(),
-                auto_refresh_enabled: true,
+                credential: CodexCredential::Oauth {
+                    access_token: format!("access-{account_id}"),
+                    refresh_token: format!("refresh-{account_id}"),
+                    client_id: None,
+                    id_token: String::new(),
+                    auto_refresh_enabled: true,
+                    openai_device_id: None,
+                    expires_at: "2099-01-01T00:00:00Z".to_string(),
+                    last_refresh: None,
+                },
                 status,
                 account_id: Some(account_id.to_string()),
                 user_id: None,
-                openai_device_id: None,
                 email: Some(email.to_string()),
-                expires_at: "2099-01-01T00:00:00Z".to_string(),
-                last_refresh: None,
                 proxy_url: None,
                 priority: 0,
                 quota: CodexQuotaCache::default(),
@@ -443,7 +447,7 @@ mod tests {
                 AccountRecordMetadata {
                     account_id,
                     email: Some(email),
-                    expires_at: Some(record.expires_at.as_str()),
+                    expires_at: record.expires_at_str(),
                     expires_at_ms: record.expires_at().map(records::unix_millis),
                     auth_method: None,
                     provider_name: None,
